@@ -3,7 +3,17 @@ import { hashCanonical } from '@oremedia/domain/hash';
 import { CreativeDocumentV1 } from '@oremedia/contracts/creative';
 import { applyBatch, changedElementIds, findElement, OperationError, reduce, reflow } from './reduce';
 import { guardLogoInsertion, guardProtected } from './guard';
-import { fixtureDocument, ids } from './fixtures';
+import { eid, fixtureDocument, ids } from './fixtures';
+import { PolicyDeniedError } from '@oremedia/contracts/errors';
+
+const reasonOf = (fn: () => void): string | undefined => {
+  try {
+    fn();
+    return undefined;
+  } catch (e) {
+    return e instanceof PolicyDeniedError ? e.reason : `not_policy_error:${String(e)}`;
+  }
+};
 
 const P = 'page_1';
 
@@ -78,7 +88,7 @@ describe('reducer (spec 11.3, 11.4)', () => {
 
   it('insert/remove keep z-order as array order', () => {
     const doc = fixtureDocument();
-    const el = { ...doc.pages[0]!.elements[2]!, id: 'el_01HZZZZZZZZZZZZZZZZZZZZZN1', name: 'New' };
+    const el = { ...doc.pages[0]!.elements[2]!, id: eid('01HNEW'), name: 'New' };
     const inserted = reduce(doc, { op: 'insertElement', pageId: P, element: el, index: 1 });
     expect(inserted.pages[0]!.elements[1]!.id).toBe(el.id);
     const removed = reduce(inserted, { op: 'removeElement', pageId: P, elementId: el.id });
@@ -136,7 +146,7 @@ describe('guards (spec 11.4: agents cannot touch protected elements)', () => {
       { op: 'setStyle', pageId: P, elementId: ids.logo, patch: { opacity: 0.5 } },
     ] as const;
     for (const op of ops) {
-      expect(() => guardProtected(doc, op, 'agent')).toThrowError(/protected_element/);
+      expect(reasonOf(() => guardProtected(doc, op, 'agent'))).toBe('protected_element');
       expect(() => guardProtected(doc, op, 'user')).not.toThrow();
     }
     expect(() =>

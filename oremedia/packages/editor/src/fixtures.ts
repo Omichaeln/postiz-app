@@ -2,13 +2,16 @@ import type { BrandSnapshot } from '@oremedia/contracts/brand';
 import type { CreativeDocumentV1, Element } from '@oremedia/contracts/creative';
 
 /** Test fixtures shared by the editor tests and (later) the golden-render suite. Ids are valid prefixed ULIDs. */
+/** Valid element ids: 'el_' + 26 Crockford base32 characters (spec 11.2). */
+export const eid = (suffix: string): string => `el_${(suffix.toUpperCase() + '0'.repeat(26)).slice(0, 26)}`;
+
 export const ids = {
-  bg: 'el_01HZZZZZZZZZZZZZZZZZZZZZB0',
-  headline: 'el_01HZZZZZZZZZZZZZZZZZZZZZH1',
-  body: 'el_01HZZZZZZZZZZZZZZZZZZZZZB1',
-  logo: 'el_01HZZZZZZZZZZZZZZZZZZZZZL1',
-  image: 'el_01HZZZZZZZZZZZZZZZZZZZZZI1',
-  cta: 'el_01HZZZZZZZZZZZZZZZZZZZZZC1',
+  bg: eid('01HBG'),
+  headline: eid('01HHEAD'),
+  body: eid('01HBDY'),
+  logo: eid('01HMARK'),
+  image: eid('01HPHT'),
+  cta: eid('01HCTA'),
 } as const;
 
 export const fixtureSnapshot = (): BrandSnapshot => ({
