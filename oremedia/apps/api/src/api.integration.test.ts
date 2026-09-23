@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { createTestDatabase, type TestDatabase } from '@oremedia/db/testing';
-import { callPath, seedTwoTenants, type SeededTenant } from '@oremedia/test-fixtures';
+// Relative import: a workspace dependency here would create an api ↔ test-fixtures cycle (test-fixtures imports the router).
+import { callPath, seedTwoTenants, type SeededTenant } from '../../../tooling/test-fixtures/src';
 import { configureRateLimiter } from './trpc';
 
 describe('API request path (spec 4.3, 7.1–7.3)', () => {

@@ -25,7 +25,8 @@
     "db:generate": "pnpm --filter @oremedia/db db:generate",
     "db:migrate": "pnpm --filter @oremedia/db db:migrate",
     "progress:build": "node docs/progress/build.mjs",
-    "contracts:write": "tsx tooling/scripts/check-openapi-diff.ts --write && tsx tooling/scripts/generate-contract-docs.ts"
+    "contracts:write": "tsx tooling/scripts/check-openapi-diff.ts --write && tsx tooling/scripts/generate-contract-docs.ts",
+    "test:replay": "vitest run --project unit --passWithNoTests packages/workflows/src/replay"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

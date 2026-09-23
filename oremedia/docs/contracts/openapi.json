@@ -1,0 +1,900 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Oremedia application API (tRPC procedure catalogue)",
+    "version": "1"
+  },
+  "paths": {
+    "/trpc/access.apiClients.create": {
+      "post": {
+        "operationId": "access.apiClients.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "servicePrincipalId": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  }
+                },
+                "required": ["servicePrincipalId", "scopes"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/access.apiClients.rotate": {
+      "post": {
+        "operationId": "access.apiClients.rotate",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiClientId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["apiClientId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/access.brandGrants.set": {
+      "post": {
+        "operationId": "access.brandGrants.set",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "membershipId": {
+                    "type": "string"
+                  },
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["membershipId", "brandId", "roles"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/access.listCompanies": {
+      "get": {
+        "operationId": "access.listCompanies",
+        "x-trpc-type": "query"
+      }
+    },
+    "/trpc/access.me": {
+      "get": {
+        "operationId": "access.me",
+        "x-trpc-type": "query"
+      }
+    },
+    "/trpc/access.members.invite": {
+      "post": {
+        "operationId": "access.members.invite",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "admin",
+                      "brand_manager",
+                      "creator",
+                      "reviewer",
+                      "publisher",
+                      "analyst",
+                      "community"
+                    ]
+                  },
+                  "allBrands": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["email", "role"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/access.members.setRole": {
+      "post": {
+        "operationId": "access.members.setRole",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "membershipId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "admin",
+                      "brand_manager",
+                      "creator",
+                      "reviewer",
+                      "publisher",
+                      "analyst",
+                      "community"
+                    ]
+                  },
+                  "allBrands": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["membershipId", "expectedVersion", "role"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/access.servicePrincipals.create": {
+      "post": {
+        "operationId": "access.servicePrincipals.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["agent", "api_client", "mcp_client", "integration"]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "grants": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "brand.read",
+                            "brand.edit_standards",
+                            "brand.publish_version",
+                            "asset.read",
+                            "asset.upload",
+                            "asset.approve",
+                            "asset.manage_rights",
+                            "creative.read",
+                            "creative.edit",
+                            "creative.render",
+                            "content.plan",
+                            "content.edit",
+                            "review.request",
+                            "review.decide",
+                            "publication.schedule",
+                            "publication.cancel",
+                            "publication.delete_remote",
+                            "channel.connect",
+                            "channel.manage",
+                            "mandate.manage",
+                            "agent.start_run",
+                            "agent.cancel_run",
+                            "skill.author",
+                            "skill.publish",
+                            "insight.read",
+                            "experiment.manage",
+                            "playbook.approve",
+                            "inbox.respond",
+                            "billing.manage",
+                            "membership.manage",
+                            "audit.read"
+                          ]
+                        },
+                        "brandIds": {
+                          "anyOf": [
+                            {
+                              "const": "all"
+                            },
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          ]
+                        },
+                        "channelConnectionIds": {
+                          "anyOf": [
+                            {
+                              "const": "all"
+                            },
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["action", "brandIds"]
+                    }
+                  },
+                  "maxAutonomy": {
+                    "type": "string",
+                    "enum": ["assist", "create", "prepare_release", "managed_autopublish"]
+                  }
+                },
+                "required": ["kind", "name", "grants"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/access.servicePrincipals.revoke": {
+      "post": {
+        "operationId": "access.servicePrincipals.revoke",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "servicePrincipalId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["servicePrincipalId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/access.switchCompany": {
+      "post": {
+        "operationId": "access.switchCompany",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tenantId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["tenantId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.create": {
+      "post": {
+        "operationId": "brand.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  },
+                  "defaultLocale": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "timezone", "defaultLocale"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.get": {
+      "get": {
+        "operationId": "brand.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["brandId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.list": {
+      "get": {
+        "operationId": "brand.list",
+        "x-trpc-type": "query"
+      }
+    },
+    "/trpc/operations.audit.query": {
+      "get": {
+        "operationId": "operations.audit.query",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "object",
+                    "properties": {
+                      "resourceType": {
+                        "type": "string"
+                      },
+                      "resourceId": {
+                        "type": "string"
+                      },
+                      "actorId": {
+                        "type": "string"
+                      },
+                      "from": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string"
+                      }
+                    },
+                    "required": []
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["query", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/operations.deletion.request": {
+      "post": {
+        "operationId": "operations.deletion.request",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subjectType": {
+                    "type": "string",
+                    "enum": ["user", "asset", "brand", "tenant", "channel_connection", "customer_voice"]
+                  },
+                  "subjectId": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["subjectType", "subjectId", "reason"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/operations.flags.snapshot": {
+      "get": {
+        "operationId": "operations.flags.snapshot",
+        "x-trpc-type": "query"
+      }
+    },
+    "/trpc/operations.killSwitch.get": {
+      "get": {
+        "operationId": "operations.killSwitch.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": ["agent_starts", "release_dispatch"]
+                  },
+                  "brandId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["scope"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/operations.killSwitch.set": {
+      "post": {
+        "operationId": "operations.killSwitch.set",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": ["agent_starts", "release_dispatch"]
+                  },
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "engaged": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["scope", "engaged"]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-contract": {
+    "contractVersion": 1,
+    "procedures": {
+      "access.apiClients.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "servicePrincipalId": {
+              "type": "string"
+            },
+            "scopes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expiresAt": {
+              "type": "string"
+            }
+          },
+          "required": ["servicePrincipalId", "scopes"]
+        }
+      },
+      "access.apiClients.rotate": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "apiClientId": {
+              "type": "string"
+            }
+          },
+          "required": ["apiClientId"]
+        }
+      },
+      "access.brandGrants.set": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "membershipId": {
+              "type": "string"
+            },
+            "brandId": {
+              "type": "string"
+            },
+            "roles": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["membershipId", "brandId", "roles"]
+        }
+      },
+      "access.listCompanies": {
+        "type": "query",
+        "input": null
+      },
+      "access.me": {
+        "type": "query",
+        "input": null
+      },
+      "access.members.invite": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "email": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "admin",
+                "brand_manager",
+                "creator",
+                "reviewer",
+                "publisher",
+                "analyst",
+                "community"
+              ]
+            },
+            "allBrands": {
+              "type": "boolean"
+            }
+          },
+          "required": ["email", "role"]
+        }
+      },
+      "access.members.setRole": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "membershipId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "admin",
+                "brand_manager",
+                "creator",
+                "reviewer",
+                "publisher",
+                "analyst",
+                "community"
+              ]
+            },
+            "allBrands": {
+              "type": "boolean"
+            }
+          },
+          "required": ["membershipId", "expectedVersion", "role"]
+        }
+      },
+      "access.servicePrincipals.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["agent", "api_client", "mcp_client", "integration"]
+            },
+            "name": {
+              "type": "string"
+            },
+            "grants": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "brand.read",
+                      "brand.edit_standards",
+                      "brand.publish_version",
+                      "asset.read",
+                      "asset.upload",
+                      "asset.approve",
+                      "asset.manage_rights",
+                      "creative.read",
+                      "creative.edit",
+                      "creative.render",
+                      "content.plan",
+                      "content.edit",
+                      "review.request",
+                      "review.decide",
+                      "publication.schedule",
+                      "publication.cancel",
+                      "publication.delete_remote",
+                      "channel.connect",
+                      "channel.manage",
+                      "mandate.manage",
+                      "agent.start_run",
+                      "agent.cancel_run",
+                      "skill.author",
+                      "skill.publish",
+                      "insight.read",
+                      "experiment.manage",
+                      "playbook.approve",
+                      "inbox.respond",
+                      "billing.manage",
+                      "membership.manage",
+                      "audit.read"
+                    ]
+                  },
+                  "brandIds": {
+                    "anyOf": [
+                      {
+                        "const": "all"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ]
+                  },
+                  "channelConnectionIds": {
+                    "anyOf": [
+                      {
+                        "const": "all"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "required": ["action", "brandIds"]
+              }
+            },
+            "maxAutonomy": {
+              "type": "string",
+              "enum": ["assist", "create", "prepare_release", "managed_autopublish"]
+            }
+          },
+          "required": ["kind", "name", "grants"]
+        }
+      },
+      "access.servicePrincipals.revoke": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "servicePrincipalId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": ["servicePrincipalId", "expectedVersion"]
+        }
+      },
+      "access.switchCompany": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "tenantId": {
+              "type": "string"
+            }
+          },
+          "required": ["tenantId"]
+        }
+      },
+      "brand.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "timezone": {
+              "type": "string"
+            },
+            "defaultLocale": {
+              "type": "string"
+            }
+          },
+          "required": ["name", "timezone", "defaultLocale"]
+        }
+      },
+      "brand.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            }
+          },
+          "required": ["brandId"]
+        }
+      },
+      "brand.list": {
+        "type": "query",
+        "input": null
+      },
+      "operations.audit.query": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "object",
+              "properties": {
+                "resourceType": {
+                  "type": "string"
+                },
+                "resourceId": {
+                  "type": "string"
+                },
+                "actorId": {
+                  "type": "string"
+                },
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                }
+              },
+              "required": []
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["query", "page"]
+        }
+      },
+      "operations.deletion.request": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "subjectType": {
+              "type": "string",
+              "enum": ["user", "asset", "brand", "tenant", "channel_connection", "customer_voice"]
+            },
+            "subjectId": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": ["subjectType", "subjectId", "reason"]
+        }
+      },
+      "operations.flags.snapshot": {
+        "type": "query",
+        "input": null
+      },
+      "operations.killSwitch.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "enum": ["agent_starts", "release_dispatch"]
+            },
+            "brandId": {
+              "type": "string"
+            }
+          },
+          "required": ["scope"]
+        }
+      },
+      "operations.killSwitch.set": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "enum": ["agent_starts", "release_dispatch"]
+            },
+            "brandId": {
+              "type": "string"
+            },
+            "engaged": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": ["scope", "engaged"]
+        }
+      }
+    }
+  }
+}

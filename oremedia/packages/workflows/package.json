@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:replay": "vitest run --project unit src/replay"
+    "test:replay": "cd ../.. && pnpm test:replay"
   },
   "dependencies": {
     "@oremedia/contracts": "workspace:*",

@@ -8,7 +8,7 @@ import { INSERT_ONLY_TABLES } from './global-tables';
  * from the schema and INSERT_ONLY_TABLES so the grant list cannot drift (tooling/scripts/generate-db-roles.ts).
  */
 export function generateRoleSql(dbName: string, user: string, host = '%'): string {
-  const tables = Object.values(schema)
+  const tables = (Object.values(schema) as unknown[])
     .filter((v): v is MySqlTable => v instanceof MySqlTable)
     .map((t) => getTableName(t))
     .sort();
