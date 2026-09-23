@@ -1,0 +1,30 @@
+{
+  "name": "@oremedia/activities",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@oremedia/contracts": "workspace:*",
+    "@oremedia/db": "workspace:*",
+    "@oremedia/domain": "workspace:*",
+    "@oremedia/module-access": "workspace:*",
+    "@oremedia/module-assets": "workspace:*",
+    "@oremedia/module-brand": "workspace:*",
+    "@oremedia/module-operations": "workspace:*",
+    "@oremedia/observability": "workspace:*",
+    "@oremedia/providers": "workspace:*",
+    "@temporalio/activity": "^1.24.0",
+    "@temporalio/common": "^1.24.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@temporalio/testing": "^1.24.0"
+  }
+}

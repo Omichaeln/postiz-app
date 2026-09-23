@@ -18,6 +18,7 @@ import { auditEvents, deletionRequests, killSwitches, outboxEvents } from '@orem
 import { newId } from '@oremedia/domain/ids';
 import { hashToken, newOpaqueToken } from '@oremedia/module-access';
 import type { ErrorEnvelope } from '@oremedia/contracts/errors';
+import { SEED_EXTENSIONS } from './cross-tenant-inputs';
 
 export interface SeededTenant {
   tenantId: string;
@@ -143,6 +144,9 @@ async function seedTenant(db: Db, label: string): Promise<SeededTenant> {
       expiresAt: new Date(Date.now() + 3600_000),
     },
   ]);
+  const extraIds: Record<string, string> = {};
+  for (const ext of SEED_EXTENSIONS)
+    Object.assign(extraIds, await ext(db, { tenantId, brandIds, ownerUserId }));
   const snapshot = async () => {
     const counts = await Promise.all(
       [

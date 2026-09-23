@@ -1,0 +1,23 @@
+{
+  "name": "@oremedia/workflows",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:replay": "vitest run --project unit src/replay"
+  },
+  "dependencies": {
+    "@oremedia/contracts": "workspace:*",
+    "@temporalio/workflow": "^1.24.0",
+    "@temporalio/common": "^1.24.0"
+  },
+  "devDependencies": {
+    "@temporalio/worker": "^1.24.0",
+    "@temporalio/testing": "^1.24.0"
+  }
+}
