@@ -1,7 +1,7 @@
 /** Welch's t-test on per-unit values (continuous metrics, spec 16.6). p-value via regularised incomplete beta. */
 function lnGamma(x: number): number {
   const g = [
-    76.1800917294715, -86.50532032941677, 24.01409824083091, -1.231739572450155, 1.208650973866179e-3,
+    76.18009172947146, -86.50532032941678, 24.01409824083091, -1.231739572450155, 1.208650973866179e-3,
     -5.395239384953e-6,
   ];
   let y = x;
