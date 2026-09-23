@@ -1,0 +1,175 @@
+import type { BrandSnapshot } from '@oremedia/contracts/brand';
+import type { CreativeDocumentV1, Element } from '@oremedia/contracts/creative';
+
+/** Test fixtures shared by the editor tests and (later) the golden-render suite. Ids are valid prefixed ULIDs. */
+export const ids = {
+  bg: 'el_01HZZZZZZZZZZZZZZZZZZZZZB0',
+  headline: 'el_01HZZZZZZZZZZZZZZZZZZZZZH1',
+  body: 'el_01HZZZZZZZZZZZZZZZZZZZZZB1',
+  logo: 'el_01HZZZZZZZZZZZZZZZZZZZZZL1',
+  image: 'el_01HZZZZZZZZZZZZZZZZZZZZZI1',
+  cta: 'el_01HZZZZZZZZZZZZZZZZZZZZZC1',
+} as const;
+
+export const fixtureSnapshot = (): BrandSnapshot => ({
+  hash: 'h',
+  brandId: 'brd_1',
+  brandVersionId: 'bv_1',
+  brandVersionNumber: 1,
+  policyVersionId: 'pol_1',
+  eligibleTemplateVersionIds: [],
+  timezone: 'UTC',
+  defaultLocale: 'en',
+  facts: [
+    { id: 'fact_1', kind: 'offer', statement: '20% off in October', validFrom: null, validUntil: null },
+  ],
+  objectives: [],
+  policy: {
+    schemaVersion: 1,
+    reviewThresholds: { requireReviewForContentClasses: [], blockOnBrandReviewSeverity: 'blocking' },
+    restrictedTopics: [],
+    prohibitedTerms: [],
+    requireDistinctApprover: false,
+    holdOnDependencyRevocation: true,
+    mfaRequired: false,
+  },
+  document: {
+    schemaVersion: 1,
+    voice: {
+      summary: 'Plain and confident',
+      tone: ['plain'],
+      audiences: [],
+      preferredTerms: [],
+      prohibitedPhrases: ['cheap'],
+      locales: ['en'],
+      examples: [],
+    },
+    tokens: {
+      colours: [
+        { key: 'ink', value: '#172120', role: 'text' },
+        { key: 'paper', value: '#F4F6F3', role: 'background' },
+        { key: 'accent', value: '#0F6E63', role: 'accent' },
+        { key: 'mist', value: '#D3DAD5', role: 'neutral' },
+      ],
+      typeRoles: [
+        { role: 'display', fontAssetId: 'ast_font', weight: 600, minSizePx: 40 },
+        { role: 'heading', fontAssetId: 'ast_font', weight: 600, minSizePx: 28 },
+        { role: 'body', fontAssetId: 'ast_font', weight: 400, minSizePx: 18 },
+        { role: 'label', fontAssetId: 'ast_font', weight: 500, minSizePx: 14 },
+        { role: 'caption', fontAssetId: 'ast_font', weight: 400, minSizePx: 12 },
+      ],
+      spacingScale: [4, 8, 16, 24, 32, 48],
+      radii: [0, 4, 8],
+      contrastTarget: 'AA',
+    },
+    logoRules: [
+      {
+        assetId: 'ast_logo',
+        variant: 'primary',
+        allowedBackgroundColourKeys: ['paper'],
+        clearSpaceRatio: 0.5,
+        minWidthPx: 120,
+      },
+    ],
+    patterns: [],
+    channelGuidance: [],
+  },
+});
+
+const text = (
+  id: string,
+  name: string,
+  role: 'display' | 'heading' | 'body' | 'label' | 'caption',
+  t: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  sizePx: number,
+  colourToken = 'ink',
+  extra: Partial<Extract<Element, { type: 'text' }>> = {},
+): Element => ({
+  id,
+  name,
+  type: 'text',
+  locked: false,
+  visible: true,
+  opacity: 1,
+  protected: false,
+  transform: { x, y, width: w, height: h, rotation: 0 },
+  text: t,
+  style: {
+    typeRole: role,
+    fontAssetVersionId: 'av_font',
+    weight: 600,
+    sizePx,
+    lineHeight: 1.2,
+    tracking: 0,
+    colourToken,
+    align: 'left',
+    overflow: 'error',
+  },
+  factRefs: [],
+  ...extra,
+});
+
+export const fixtureDocument = (): CreativeDocumentV1 => ({
+  schemaVersion: 1,
+  brandVersionId: 'bv_1',
+  pages: [
+    {
+      id: 'page_1',
+      name: 'Feed',
+      formatKey: 'square_1080',
+      width: 1080,
+      height: 1080,
+      layoutConstraints: [
+        { elementId: ids.logo, anchor: 'bottom', marginPx: 60 },
+        { elementId: ids.headline, anchor: 'top', marginPx: 80 },
+      ],
+      elements: [
+        {
+          id: ids.bg,
+          name: 'Background',
+          type: 'background',
+          locked: true,
+          visible: true,
+          opacity: 1,
+          protected: false,
+          transform: { x: 0, y: 0, width: 1080, height: 1080, rotation: 0 },
+          fillToken: 'paper',
+        },
+        {
+          id: ids.image,
+          name: 'Hero',
+          type: 'image',
+          locked: false,
+          visible: true,
+          opacity: 1,
+          protected: false,
+          transform: { x: 80, y: 260, width: 920, height: 460, rotation: 0 },
+          assetVersionId: 'av_photo',
+          fit: 'cover',
+        },
+        text(ids.headline, 'Headline', 'display', 'October offer', 80, 80, 920, 120, 64),
+        text(ids.body, 'Body', 'body', '20% off in October', 80, 760, 920, 80, 24, 'ink', {
+          factRefs: ['fact_1'],
+        }),
+        {
+          id: ids.logo,
+          name: 'Logo',
+          type: 'logo',
+          locked: false,
+          visible: true,
+          opacity: 1,
+          protected: true,
+          semanticRole: 'logo',
+          transform: { x: 80, y: 900, width: 200, height: 60, rotation: 0 },
+          assetVersionId: 'av_logo',
+          variant: 'primary',
+        },
+      ],
+    },
+  ],
+  variants: [],
+});

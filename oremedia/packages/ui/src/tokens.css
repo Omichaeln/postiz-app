@@ -1,0 +1,44 @@
+/*
+ * Spec 8.4: Oremedia's UI identity is applied as a token file, not a refactor. These are NEUTRAL PLACEHOLDERS
+ * until D-12 names the governing brand system; customer brand tokens style creative documents, never this chrome.
+ * All styling uses these semantic properties only.
+ */
+:root {
+  --background: #f6f7f5;
+  --foreground: #172120;
+  --primary: #1f2a28;
+  --primary-foreground: #f6f7f5;
+  --secondary: #e7ebe8;
+  --secondary-foreground: #172120;
+  --accent: #0f6e63;
+  --accent-foreground: #ffffff;
+  --muted: #eef1ee;
+  --muted-foreground: #5d6966;
+  --border: #d3dad5;
+  --ring: #0f6e63;
+  --radius: 6px;
+  --status-good: #1e7a4c;
+  --status-warning: #a56a00;
+  --status-critical: #b2271f;
+  --status-info: #4b5a76;
+}
+.dark,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --background: #111514;
+  --foreground: #e6eae7;
+  --primary: #e6eae7;
+  --primary-foreground: #111514;
+  --secondary: #222a27;
+  --secondary-foreground: #e6eae7;
+  --accent: #5fc3b1;
+  --accent-foreground: #0b1513;
+  --muted: #191f1d;
+  --muted-foreground: #9ba6a2;
+  --border: #2c3532;
+  --ring: #5fc3b1;
+  --status-good: #5cbb86;
+  --status-warning: #e2a53d;
+  --status-critical: #ea7169;
+  --status-info: #93a3c6;
+}

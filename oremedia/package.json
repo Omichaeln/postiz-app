@@ -24,7 +24,8 @@
     "check:openapi": "tsx tooling/scripts/check-openapi-diff.ts",
     "db:generate": "pnpm --filter @oremedia/db db:generate",
     "db:migrate": "pnpm --filter @oremedia/db db:migrate",
-    "progress:build": "node docs/progress/build.mjs"
+    "progress:build": "node docs/progress/build.mjs",
+    "contracts:write": "tsx tooling/scripts/check-openapi-diff.ts --write && tsx tooling/scripts/generate-contract-docs.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -42,7 +43,10 @@
     "typescript-eslint": "^8.70.1",
     "vitest": "^3.2.4",
     "@oremedia/db": "workspace:*",
-    "drizzle-orm": "^0.45.3"
+    "drizzle-orm": "^0.45.3",
+    "@oremedia/api": "workspace:*",
+    "@oremedia/contracts": "workspace:*",
+    "zod": "^3.25.76"
   },
   "type": "module"
 }
