@@ -154,7 +154,7 @@ The genuine cost is **PostgreSQL row-level security**, which the study listed as
 Two engine-specific notes the implementing agent must respect:
 
 - **TiDB foreign keys.** Enforced foreign keys exist on recent TiDB versions but must be verified on the exact target version and cluster configuration. If they are not enforced, composite-integrity checks become (a) repository-level assertions and (b) a scheduled integrity-verification job that alerts on any orphan or cross-tenant reference. MySQL 8 InnoDB enforces them natively.
-- **TiDB write hotspots.** Time-ordered primary keys on a clustered index concentrate writes on one region. High-write tables (outbox, publication attempts, metric snapshots, audit events, tool invocations) use `NONCLUSTERED` primary keys with `SHARD_ROW_ID_BITS`, applied in the generated migration SQL. On MySQL this is a no-op concern.
+- **TiDB write hotspots.** Time-ordered primary keys on a clustered index concentrate writes on one region. High-write tables (outbox, publication attempts, metric snapshots, audit events, tool invocations) use `NONCLUSTERED` primary keys with `SHARD_ROW_ID_BITS`, applied in the generated migration SQL. That spreads row data but not a monotonic *index*: the primary-key index on time-ordered ULIDs and any time-leading secondary index (e.g. `ix_outbox_ready`) remain hotspots. On TiDB, give those tables non-monotonic IDs (random-prefixed ULIDs or UUIDv4) and load-test the remaining time-ordered indexes against the target write rate. On MySQL this is a no-op concern.
 
 ### 3.3 Repository layout
 
@@ -271,13 +271,13 @@ Each module owns its tables and writes. Other modules call its public service in
 | `content` | campaigns, briefs, content_packages, content_revisions, channel_variants, creative_attributes | Plan, adapt, calendar | Production |
 | `review` | review_requests, review_decisions, release_approvals, publishing_mandates | `evaluateRelease(packageRevisionId, target)` | Critical |
 | `skills` | skills, skill_versions, skill_bindings, evaluation_suites, evaluation_results | `resolveSkills(brandId, task)` | Production |
-| `agents` | agent_runs, agent_steps, tool_invocations, budget_reservations | `startRun(brief)`; tool dispatch | Critical (authority, spend) |
+| `agents` | agent_runs, agent_steps, tool_invocations | `startRun(brief)`; tool dispatch | Critical (authority, spend) |
 | `publishing` | channel_connections, credential_refs, publications, publication_attempts, remote_evidence, provider_capabilities | `schedule(approvedPackage)`; reconcile | Critical |
-| `measurement` | metric_definitions, metric_snapshots, link_tracking, conversions | Collect, normalise, freshness | Production |
+| `measurement` | metric_definitions, metric_snapshots, tracked_links, conversions | Collect, normalise, freshness | Production |
 | `intelligence` | insights, recommendations, learning_records, playbook_entries, customer_voice_clusters, listening_sources, anomalies | Analyst outputs and playbook | Production |
 | `experiments` | experiments, experiment_variants, experiment_assignments, experiment_results | Design, run, analyse | Production |
 | `community` | conversations, messages, assignments, response_drafts | Inbox (Release 2) | Production |
-| `billing` | plans, entitlements, subscriptions, usage_ledger, spend_limits | `checkEntitlement`, `reserveSpend` | Critical (money) |
+| `billing` | plans, entitlements, subscriptions, usage_ledger, spend_limits, budget_reservations | `checkEntitlement`, `reserveSpend` | Critical (money) |
 | `operations` | audit_events, outbox_events, idempotency_keys, deletion_requests, retention_policies, incidents | Audit, outbox, idempotency, retention | Critical |
 
 ### 4.3 Request path (every mutating call)
@@ -417,7 +417,8 @@ export abstract class TenantScopedRepository<T extends TenantTable> {
       .update(this.table)
       .set({ ...values, version: expectedVersion + 1 } as never)
       .where(this.scope(and(eq(this.table.id, id), eq((this.table as any).version, expectedVersion))));
-    if (res[0].affectedRows !== 1) throw new ConflictError(this.constructor.name, id, expectedVersion);
+    // affectedRows() normalises driver result shapes (mysql2 vs. serverless drivers); pin one driver per deployment.
+    if (affectedRows(res) !== 1) throw new ConflictError(this.constructor.name, id, expectedVersion);
   }
 }
 ```
@@ -625,6 +626,7 @@ export const brandObjectives = mysqlTable('brand_objectives', {
   name: varchar('name', { length: 160 }).notNull(),
   primaryMetricKey: varchar('primary_metric_key', { length: 80 }).notNull(),   // e.g. 'qualified_enquiries'
   guardrailMetricKeys: json('guardrail_metric_keys').$type<string[]>().notNull(),
+  engagementQualityWeights: json('engagement_quality_weights').$type<Record<string, number>>(),
   activeFrom: datetime('active_from', { fsp: 3 }).notNull(),
   activeUntil: datetime('active_until', { fsp: 3 }),
   createdAt: createdAt(),
@@ -745,7 +747,7 @@ export const publications = mysqlTable('publications', {
   scheduledFor: datetime('scheduled_for', { fsp: 3 }).notNull(),
   state: mysqlEnum('state', [
     'scheduled', 'dispatching', 'processing', 'published',
-    'failed', 'outcome_unknown', 'cancelled', 'held',
+    'failed', 'outcome_unknown', 'retry_eligible', 'cancelled', 'held',
   ]).notNull(),
   stateReason: varchar('state_reason', { length: 120 }),
   remotePostId: varchar('remote_post_id', { length: 200 }),
@@ -765,6 +767,7 @@ export const publicationAttempts = mysqlTable('publication_attempts', {
   requestFingerprint: char('request_fingerprint', { length: 64 }).notNull(),
   providerIdempotencyKey: varchar('provider_idempotency_key', { length: 120 }),
   startedAt: datetime('started_at', { fsp: 3 }).notNull(),
+  sentAt: datetime('sent_at', { fsp: 3 }),            // committed immediately before the outbound mutation
   finishedAt: datetime('finished_at', { fsp: 3 }),
   outcome: mysqlEnum('outcome', ['accepted', 'pending', 'rejected', 'retryable_error', 'unknown']).notNull(),
   errorCode: varchar('error_code', { length: 80 }),
@@ -866,7 +869,7 @@ Build every table below with the conventions in 6.1. Columns listed are the mini
 | Measurement | `tracked_links` | publication_id, variant_id, experiment_id, destination, utm JSON, short_code |
 | Measurement | `conversions` | brand_id, source (crm, pixel, form), external_ref, attributed_link_id, qualified, value_micros, occurred_at |
 | Intelligence | `insights` | brand_id, kind (change, anomaly, association, experimental_finding), statement, evidence JSON, strength (observed, directional, experimentally_supported), period, state |
-| Intelligence | `recommendations` | insight_ids, proposed_action (create_brief, generate_variants, open_canvas, prepare_test, assign_response, update_playbook), expected_benefit, effort, uncertainty, state (proposed, accepted, dismissed, executed), dismissal_reason |
+| Intelligence | `recommendations` | insight_ids, proposed_action (create_brief, generate_variants, open_canvas, prepare_test, assign_response, propose_playbook_update), expected_benefit, effort, uncertainty, state (proposed, accepted, dismissed, executed), dismissal_reason |
 | Intelligence | `learning_records` | recommendation_id, context_ref, evidence_ref, hypothesis, action, human_decision, executed_revision_id, observed_outcome_ref, verdict (supported, not_supported, inconclusive, pending) |
 | Intelligence | `playbook_entries` | brand_id, practice, evidence_ids, strength, approved_by, review_after, state |
 | Intelligence | `customer_voice_clusters` | brand_id, label, kind (question, objection, praise, need, complaint), size, sample_message_refs, first_seen, last_seen |
@@ -920,16 +923,36 @@ const rateLimited = tenantScoped.unstable_pipe(async ({ ctx, path, next }) => {
 
 export const tenantQuery = t.procedure.use(rateLimited);
 
-/** Mutations additionally require an idempotency key header and record the result. */
-export const tenantMutation = t.procedure.use(rateLimited).use(async ({ ctx, rawInput, path, next }) => {
+/** Mutations additionally require an idempotency key header. tRPC 11 exposes input via async getRawInput(). */
+export const tenantMutation = t.procedure.use(rateLimited).use(async ({ ctx, path, getRawInput, next }) => {
   const key = ctx.req.header('Idempotency-Key');
   if (!key) throw new TRPCError({ code: 'BAD_REQUEST', message: 'IDEMPOTENCY_KEY_REQUIRED' });
-  return ctx.services.operations.idempotency.run(
-    { tenantId: ctx.tenant.tenantId, principalId: ctx.actor.id, key, path, requestHash: hashRequest(path, rawInput) },
-    () => next(),
-  );
+  const requestHash = hashRequest(path, await getRawInput());
+  return next({ ctx: { ...ctx, idempotency: { key, path, requestHash } } });
 });
 ```
+
+The middleware only carries the key. Recording happens **inside the command's transaction**, because a middleware wrapping `next()` cannot share the command's transaction:
+
+```ts
+// packages/modules/operations/src/idempotent.ts
+export async function idempotent<T>(ctx: MutationContext, command: (tx: Tx) => Promise<T>): Promise<T> {
+  const prior = await idempotencyKeys.lookup(ctx);            // completed + same hash → replay; different hash → IDEMPOTENCY_KEY_REUSED
+  if (prior?.kind === 'replay') return prior.response as T;
+  return withTransaction(async (tx) => {
+    await idempotencyKeys.insertInProgress(ctx, tx);          // PK (tenant, principal, key): a concurrent duplicate blocks, then fails → lookup → replay
+    const result = await command(tx);
+    await idempotencyKeys.complete(ctx, result, tx);
+    return result;
+  });
+}
+
+// router usage
+schedule: tenantMutation.input(ScheduleCommand).mutation(({ ctx, input }) =>
+  idempotent(ctx, (tx) => ctx.services.publishing.schedulePublication(input, ctx.actor, tx))),
+```
+
+`withTransaction(fn)` is the unit-of-work export of `packages/db`; application commands accept the `tx` it provides and never import the raw client.
 
 `requestedTenantId` comes from an `X-Oremedia-Tenant` header set by the client's company switcher. It is a *selection*, verified against active memberships. It is never trusted on its own.
 
@@ -961,7 +984,7 @@ Clients branch on `code`, never on `message`.
 - Same key + same request hash → return stored response.
 - Same key + different request hash → `IDEMPOTENCY_KEY_REUSED` (409).
 - Same key while `in_progress` → 409 with `retryAfterMs`.
-- The idempotency row, the domain writes, the audit event and the outbox event commit in one transaction.
+- The idempotency row, the domain writes, the audit event and the outbox event commit in one transaction (the `idempotent` wrapper above).
 
 ### 7.4 Pagination and bounds
 
@@ -1220,9 +1243,15 @@ const LogoElement = Base.extend({ type: z.literal('logo'), assetVersionId: z.str
 const ShapeElement = Base.extend({ type: z.literal('shape'), shape: z.enum(['rect', 'ellipse', 'line']), fillToken: z.string().optional(), strokeToken: z.string().optional(), strokeWidth: z.number().default(0), cornerRadius: z.number().default(0) });
 const BackgroundElement = Base.extend({ type: z.literal('background'), fillToken: z.string().optional(), assetVersionId: z.string().optional() });
 
-type Element = z.infer<typeof TextElement> | z.infer<typeof ImageElement> | z.infer<typeof LogoElement> | z.infer<typeof ShapeElement> | z.infer<typeof BackgroundElement> | GroupElement;
-const GroupElement: z.ZodType<GroupElement> = z.lazy(() => Base.extend({ type: z.literal('group'), children: z.array(ElementSchema).max(200) }));
-const ElementSchema: z.ZodType<Element> = z.lazy(() => z.discriminatedUnion('type', [TextElement, ImageElement, LogoElement, ShapeElement, BackgroundElement, GroupElement as any]));
+type LeafElement = z.infer<typeof TextElement> | z.infer<typeof ImageElement> | z.infer<typeof LogoElement> | z.infer<typeof ShapeElement> | z.infer<typeof BackgroundElement>;
+interface GroupElementT extends z.infer<typeof Base> { type: 'group'; children: Element[] }
+type Element = LeafElement | GroupElementT;
+
+// Recursive schema: a plain union (not discriminatedUnion) avoids zod's restrictions on lazy members.
+const ElementSchema: z.ZodType<Element> = z.lazy(() => z.union([
+  TextElement, ImageElement, LogoElement, ShapeElement, BackgroundElement,
+  Base.extend({ type: z.literal('group'), children: z.array(ElementSchema).max(200) }),
+]));
 
 export const Page = z.object({
   id: z.string(), name: z.string(),
@@ -1276,7 +1305,7 @@ export const OperationBatch = z.object({
 ```ts
 // packages/modules/creative/src/apply-operations.ts
 export async function applyOperations(docId: string, batch: OperationBatch, actor: ResolvedActor) {
-  return db.transaction(async (tx) => {
+  return withTransaction(async (tx) => {
     const doc = await documents.getById(docId, tx);                           // tenant-scoped
     await policy.assert(actor, 'creative.edit', doc);
     if (doc.currentRevisionId !== batch.baseRevisionId) {
@@ -1362,6 +1391,8 @@ Postiz reference: it runs three separate AI stacks (CopilotKit chat, a Mastra ag
 // packages/workflows/src/agent-run.workflow.ts
 import { proxyActivities, condition, defineSignal, setHandler, CancellationScope } from '@temporalio/workflow';
 
+// Activities throw ApplicationFailure.nonRetryable(message, 'PolicyDenied' | 'BudgetExhausted' | 'ValidationFailed');
+// nonRetryableErrorTypes matches ApplicationFailure.type, not a JS class name.
 const act = proxyActivities<AgentActivities>({ startToCloseTimeout: '5 minutes', retry: { maximumAttempts: 3, nonRetryableErrorTypes: ['PolicyDenied', 'BudgetExhausted', 'ValidationFailed'] } });
 const model = proxyActivities<ModelActivities>({ startToCloseTimeout: '3 minutes', heartbeatTimeout: '30 seconds', retry: { maximumAttempts: 2 } });
 
@@ -1391,13 +1422,17 @@ export async function agentRunWorkflowV1(input: AgentRunInput): Promise<AgentRun
       }
     }
     return await act.finishRun(input.runId, cancelled ? 'cancelled' : 'completed');
+  } catch (err) {
+    const type = err instanceof ActivityFailure && err.cause instanceof ApplicationFailure ? err.cause.type : undefined;
+    const state = type === 'BudgetExhausted' ? 'budget_exhausted' : type === 'PolicyDenied' ? 'policy_denied' : 'failed';
+    return await act.finishRun(input.runId, state);
   } finally {
     await CancellationScope.nonCancellable(() => act.settleBudget(input.runId));
   }
 }
 ```
 
-States: `planned → running → waiting_for_review → completed | failed | cancelled | budget_exhausted | policy_denied`.
+States: `planned → running → waiting_for_review → completed | failed | cancelled | budget_exhausted | policy_denied | waiting_expired`.
 
 Model-call recovery: if a generation provider returns a job ID (images, video), persist it before waiting; on retry, poll that job rather than submitting again.
 
@@ -1512,9 +1547,29 @@ Implement `AnthropicModelAdapter` with the official SDK using the current tool-u
 |---|---|
 | Content revision | `draft → in_review → changes_requested | approved → superseded` |
 | Render job | `pending → rendering → ready | failed` |
-| Agent run | `planned → running → waiting_for_review → completed | failed | cancelled | budget_exhausted | policy_denied` |
-| Publication | `scheduled → dispatching → processing → published | failed | outcome_unknown | cancelled | held` |
+| Agent run | `planned → running → waiting_for_review → completed | failed | cancelled | budget_exhausted | policy_denied | waiting_expired` |
+| Publication | See the explicit transition table below |
 | Approval | `valid → consumed | invalidated | expired` |
+
+Publication transitions (exhaustive; anything else is rejected):
+
+| From | To | Trigger |
+|---|---|---|
+| `scheduled` | `dispatching` | Workflow claim (fencing token issued) |
+| `scheduled` | `cancelled` | User cancel before claim |
+| `scheduled` | `held` | Pre-dispatch dependency revocation (fact, asset, approval) |
+| `dispatching` | `held` | Release policy fails at dispatch |
+| `dispatching` | `published` | Provider accepted synchronously |
+| `dispatching` | `processing` | Provider returned pending |
+| `dispatching` | `failed` | Definitive rejection |
+| `dispatching` | `outcome_unknown` | Ambiguous failure after send, or worker loss |
+| `dispatching` | `scheduled` | Retryable error proven pre-send (attempt ledger), with backoff |
+| `processing` | `published` / `failed` / `outcome_unknown` | Status polling / finalisation result |
+| `outcome_unknown` | `published` | Reconciliation found the remote post |
+| `outcome_unknown` | `retry_eligible` | Reconciliation proved absence |
+| `outcome_unknown` | `held` | Reconciliation exhausted; needs a human |
+| `retry_eligible` | `scheduled` | Human or policy re-schedules (new attempt, same occurrence) |
+| `held` | `scheduled` / `cancelled` | Human resolves the hold |
 
 Each lives in `packages/domain/src/state-machines/*.ts` as a pure transition table with exhaustive tests. Status is never written by setting a string; it is written by `transition(entity, event)`, which rejects illegal moves.
 
@@ -1591,7 +1646,7 @@ A failed release check moves the publication to `held` with reasons and a needs-
 
 ### 13.5 Cancellation
 
-`publications.cancel` is race-safe: it transitions `scheduled → cancelled` with an expected version. If the publication is already `dispatching`/`processing`, the response is `{ prevented: false, state, message: 'Dispatch in progress; outcome will be reconciled' }`, and the workflow receives a cancel signal that is honoured only before the provider call. Deleting a live remote post is a separate `publication.delete_remote` action, never an automatic rollback.
+`publications.cancel` is race-safe: it transitions `scheduled → cancelled` with an expected version. If the publication is already `dispatching`/`processing`, the response is `{ prevented: false, state, message: 'Dispatch in progress; outcome will be reconciled' }`, and the workflow receives a cancel signal. The signal is checked in the wait loop and again immediately before `publishOnce`; once the provider call has started it cannot be honoured, and the outcome is reconciled. Deleting a live remote post is a separate `publication.delete_remote` action, never an automatic rollback.
 
 ---
 
@@ -1600,8 +1655,8 @@ A failed release check moves the publication to `held` with reasons and a needs-
 ### 14.1 Scheduling command (transactional outbox)
 
 ```ts
-export async function schedulePublication(cmd: ScheduleCommand, actor: ResolvedActor) {
-  return db.transaction(async (tx) => {
+export async function schedulePublication(cmd: ScheduleCommand, actor: ResolvedActor, outer?: Tx) {
+  return withTransaction(outer, async (tx) => {   // joins the idempotent() transaction when called from the API
     const variant = await variants.getById(cmd.channelVariantId, tx);
     await policy.assert(actor, 'publication.schedule', variant);
     const pre = await review.evaluateRelease(previewPublication(cmd, variant), cmd.scheduledFor);   // fail fast for UX
@@ -1623,7 +1678,7 @@ Deliberate repeats (recurring posts) receive a new `occurrence` value, so they a
 Portable lease-based claiming (works on MySQL and TiDB without relying on `SKIP LOCKED`):
 
 ```ts
-// apps/worker-core/src/outbox-dispatcher.ts
+// packages/modules/operations/src/outbox-dispatcher.ts (run by worker-core)
 export async function dispatchBatch(workerId: string) {
   const leaseUntil = addSeconds(new Date(), 60);
   await db.update(outboxEvents)
@@ -1652,35 +1707,44 @@ export async function dispatchBatch(workerId: string) {
 }
 ```
 
-This is platform-level code in `operations` (it legitimately spans tenants) and is the only non-`PlatformRepository` exception to the no-raw-db rule, allowlisted by path. Starting a workflow with a stable `workflowId` and `USE_EXISTING` makes duplicate delivery harmless. Alert on outbox age of oldest undispatched event > 60 seconds and on any event with `attempts ≥ 5` (dead-letter view with a replay action).
+This is platform-level code in `operations` (it legitimately spans tenants) and is the only non-`PlatformRepository` exception to the no-raw-db rule, allowlisted by path. Starting a workflow with a stable `workflowId` and `workflowIdConflictPolicy: 'USE_EXISTING'` dedupes only against a *running* workflow. Once that run has closed, a redelivered event would start a new run (set `workflowIdReusePolicy` deliberately, e.g. `ALLOW_DUPLICATE_FAILED_ONLY`); that run is still harmless because `readSchedule` exits unless the row is `scheduled`. The database row, not Temporal, is the dedupe authority. Alert on outbox age of oldest undispatched event > 60 seconds and on any event with `attempts ≥ 5` (dead-letter view with a replay action).
 
 ### 14.3 Publication workflow
 
 ```ts
 // packages/workflows/src/publication.workflow.v1.ts
-const control = proxyActivities<PublishControlActivities>({ startToCloseTimeout: '1 minute', retry: { maximumAttempts: 5 } });
+const control = proxyActivities<PublishControlActivities>({ startToCloseTimeout: '1 minute', retry: { maximumAttempts: 5 } });   // every control activity is idempotent
 
 export async function publicationWorkflowV1({ tenantId, publicationId }: { tenantId: string; publicationId: string }) {
+  const { workflowId, runId } = workflowInfo();
   let cancelRequested = false;
+  let rescheduled = false;
   setHandler(cancelSignal, () => { cancelRequested = true; });
-  setHandler(rescheduleSignal, () => { /* re-read scheduledFor on next loop */ });
+  setHandler(rescheduleSignal, () => { rescheduled = true; });   // wakes the wait so an earlier time is honoured
 
   // Wait until due. Re-read schedule each time: the row, not the workflow input, is authoritative.
   for (;;) {
+    rescheduled = false;
     const { scheduledFor, state } = await control.readSchedule({ tenantId, publicationId });
     if (state !== 'scheduled') return;
     const waitMs = Date.parse(scheduledFor) - Date.now();   // workflow Date.now is deterministic in Temporal
     if (waitMs <= 0) break;
-    await condition(() => cancelRequested, waitMs);
+    await condition(() => cancelRequested || rescheduled, waitMs);
     if (cancelRequested) return control.cancelIfNotStarted({ tenantId, publicationId });
   }
 
-  // Claim with a fencing token; a stale workflow (e.g. after a reschedule race) cannot publish.
-  const claim = await control.claimForDispatch({ tenantId, publicationId });   // scheduled → dispatching, fencingToken++
+  // Claim with a fencing token. Idempotent per run: if this runId already holds the claim (the first
+  // call committed but its response was lost), the same claim is returned instead of ok:false.
+  const claim = await control.claimForDispatch({ tenantId, publicationId, claimant: `${workflowId}:${runId}` });   // scheduled → dispatching
   if (!claim.ok) return;
 
   const release = await control.evaluateRelease({ tenantId, publicationId, fencingToken: claim.fencingToken });
-  if (!release.allow) return control.hold({ tenantId, publicationId, reasons: release.reasons });
+  if (!release.allow) return control.hold({ tenantId, publicationId, reasons: release.reasons });   // dispatching → held
+  if (cancelRequested) return control.releaseClaimAndCancel({ tenantId, publicationId, fencingToken: claim.fencingToken });
+
+  // The attempt row is committed BEFORE any outbound call; its existence is what distinguishes
+  // "never sent" from "maybe sent". Idempotent on (publicationId, fencingToken).
+  const attemptId = await control.openAttempt({ tenantId, publicationId, fencingToken: claim.fencingToken });
 
   const publish = proxyActivities<ProviderActivities>({
     taskQueue: `publish-${claim.providerKey}`,
@@ -1689,35 +1753,36 @@ export async function publicationWorkflowV1({ tenantId, publicationId }: { tenan
     retry: { maximumAttempts: 1 },          // never let Temporal blindly retry a mutation
   });
 
-  const attempt = await publish.publishOnce({ tenantId, publicationId, fencingToken: claim.fencingToken })
-    .catch((err) => ({ outcome: 'unknown' as const, error: summarise(err) }));
+  const attempt: AttemptResult = await publish.publishOnce({ tenantId, publicationId, attemptId, fencingToken: claim.fencingToken })
+    .catch((err) => ({ attemptId, outcome: 'unknown' as const, error: summarise(err) }));   // timeouts and worker loss land here
 
   switch (attempt.outcome) {
     case 'accepted':        return control.markPublished({ tenantId, publicationId, attempt });
     case 'pending':         return pollUntilSettled(tenantId, publicationId, claim, attempt);   // checkStatus / finalize, read-only polling with backoff
     case 'rejected':        return control.markFailed({ tenantId, publicationId, attempt });    // definitive: validation, permission, content policy
-    case 'retryable_error': return retryAfterProvenNoEffect(tenantId, publicationId, claim, attempt);   // only for errors the adapter classifies as pre-effect (e.g. connection refused, 429 before acceptance)
+    case 'retryable_error': return retryAfterProvenNoEffect(tenantId, publicationId, claim, attempt);   // adapter proved pre-send (e.g. connection refused, 429 before acceptance); back to scheduled with backoff
     case 'unknown':         return reconcile(tenantId, publicationId, claim, attempt);
   }
 }
 
-async function reconcile(tenantId: string, publicationId: string, claim: Claim, attempt: Attempt) {
-  await control.markOutcomeUnknown({ tenantId, publicationId, attempt });
+async function reconcile(tenantId: string, publicationId: string, claim: Claim, attempt: AttemptResult) {
+  await control.markOutcomeUnknown({ tenantId, publicationId, attemptId: attempt.attemptId });
+  const lookup = proxyActivities<ReconcileActivities>({ taskQueue: `publish-${claim.providerKey}`, startToCloseTimeout: '2 minutes', retry: { maximumAttempts: 3 } });   // read-only, safe to retry
   for (const delay of ['1 minute', '5 minutes', '15 minutes', '1 hour']) {
     await sleep(delay);
-    const found = await proxyReconcile(claim.providerKey).findRemotePost({ tenantId, publicationId, attemptId: attempt.id });
-    if (found.status === 'found') return control.markPublished({ tenantId, publicationId, evidence: found });
-    if (found.status === 'definitely_absent') return control.markRetryEligible({ tenantId, publicationId });   // a human or policy may retry
+    const found = await lookup.findRemotePost({ tenantId, publicationId, attemptId: attempt.attemptId });
+    if (found.status === 'found') return control.markPublished({ tenantId, publicationId, evidence: found });   // outcome_unknown → published
+    if (found.status === 'definitely_absent') return control.markRetryEligible({ tenantId, publicationId });   // outcome_unknown → retry_eligible
     // 'cannot_determine' → keep trying, then hand to a human
   }
-  return control.raiseNeedsAttention({ tenantId, publicationId, kind: 'outcome_unknown' });
+  return control.holdForHuman({ tenantId, publicationId, reason: 'outcome_unknown_unresolved' });   // outcome_unknown → held + needs-attention
 }
 ```
 
 Rules:
 
 - The provider activity **never** retries a mutation internally after the request may have reached the platform. Transport errors before the request is sent (DNS failure, connection refused) are `retryable_error`. Timeouts after sending, 5xx after sending, socket resets after sending, and worker loss are `unknown`.
-- A heartbeat timeout is `unknown`. Oremedia does not infer "never started" from missing heartbeat details (direct response to Postiz R4). The only safe "never started" signal is the attempt ledger: `publishOnce` writes the `publication_attempts` row with `startedAt` **before** the outbound call, so absence of an attempt row for the current fencing token proves the call was not made.
+- A heartbeat timeout is `unknown`. Oremedia does not infer "never started" from missing heartbeat details (direct response to Postiz R4). The only safe "never sent" signal is the attempt ledger: `openAttempt` commits the `publication_attempts` row, and `publishOnce` commits `sentAt` on it **immediately before** the outbound mutation. An attempt with no `sentAt` proves the call was not made and may be retried; an attempt with `sentAt` and no recorded outcome is `unknown` and goes to reconciliation.
 - Provider idempotency keys are used whenever the platform supports them (`providerIdempotencyKey = attempt.id`).
 - Rescheduling updates the row and signals the workflow; it **never terminates** an in-flight workflow (Postiz `startWorkflow` terminates running workflows before starting a new one; do not port that).
 - Workflow versioning: once a workflow type is deployed, its code is immutable. Changes ship as `publicationWorkflowV2` with new starts routed to it; V1 workers run until in-flight V1 histories drain. Replay tests (section 19.4) guard this. Postiz's `post.workflow.v1.0.1` … `v1.1.2` sequence is the reference for the discipline, not for the code.
@@ -1771,7 +1836,7 @@ export type PublishOutcome =
   | { outcome: 'unknown'; code: string; message: string };
 
 export type ProviderErrorClass =
-  | { kind: 'refresh_token' } | { kind: 'reconnect_required' } | { kind: 'rate_limited'; retryAfterMs?: number; phase: 'before_effect' }
+  | { kind: 'refresh_token' } | { kind: 'reconnect_required' } | { kind: 'rate_limited'; retryAfterMs?: number; phase: 'before_send' }
   | { kind: 'rejected'; code: string } | { kind: 'unknown' };
 ```
 
@@ -1865,7 +1930,7 @@ Postiz reference: analytics are fetched live through provider `analytics`/`postA
 
 ### 15.3 Engagement quality
 
-Compute a brand-configurable **engagement quality** composite that weights saves, shares, substantive comments (classified by the community classifier: question, opinion, testimonial vs. emoji-only or spam), repeat engagers (hashed), and negative feedback (hides, unfollows, reports where available). Weights live in `brand_objectives` configuration, default equal, and the UI always allows drill-down to components.
+Compute a brand-configurable **engagement quality** composite that weights saves, shares, substantive comments (classified by the community classifier: question, opinion, testimonial vs. emoji-only or spam), repeat engagers (hashed), and negative feedback (hides, unfollows, reports where available). Weights live in a `engagement_quality_weights` JSON column on `brand_objectives` (add it to the schema in 6.2), default equal, and the UI always allows drill-down to components.
 
 ### 15.4 Commercial outcomes and attribution
 
@@ -1952,6 +2017,7 @@ Analysis (recommended default):
 // packages/domain/src/experiments/two-proportion.ts
 // Fixed-horizon two-sided test on conversion-type metrics (e.g. qualified enquiry rate per click).
 export function twoProportion(a: { x: number; n: number }, b: { x: number; n: number }, alpha = 0.05) {
+  // Returns the estimate only; the verdict is assigned by the pre-registered decision rule (alpha, guardrails, sample reached).
   if (a.n === 0 || b.n === 0) return { verdict: 'inconclusive' as const, reason: 'no_data' };
   const pA = a.x / a.n, pB = b.x / b.n;
   const pooled = (a.x + b.x) / (a.n + b.n);
@@ -2173,7 +2239,7 @@ Paths are relative to the Postiz repository at commit `4c33d525`.
 | `libraries/nestjs-libraries/src/temporal/temporal.heartbeat.ts` | Heartbeat interval + heartbeat details on the activity context | **Port the details idea; change semantics** | `packages/activities/src/heartbeat.ts` | Keep per-context details (not singleton state). Do not use missing heartbeat details as proof of no effect; the attempt ledger decides |
 | `apps/orchestrator/src/workflows/post-workflows/post.workflow.v1.1.2.ts` | Wait, reload, publish, pending/finalize polling, comments, notifications, error handling | **Reference only** | `publicationWorkflowV1` | Rewrite around fencing, attempt ledger, release evaluation at dispatch, `outcome_unknown`, reconciliation. Do not port the heartbeat-timeout retry branch |
 | `apps/orchestrator/src/workflows/post-workflows/post.workflow.v1.0.1` … `v1.1.1` | Versioned workflow history | **Port the discipline** | Workflow versioning policy (section 14.3) | Replay tests per version |
-| `apps/orchestrator/src/workflows/missing.post.workflow.ts` + `temporal/infinite.workflow.register.ts` | Periodic scan for overdue queued posts, gated by `RUN_CRON` | **Replace** | Outbox dispatcher + `publicationSweeperWorkflowV1` | Sweeper still exists as defence in depth (finds `scheduled` rows past due with no running workflow and re-emits outbox events), always on, alerting when it finds anything |
+| `apps/orchestrator/src/workflows/missing.post.workflow.ts` + `temporal/infinite.workflow.register.ts` | Periodic scan for overdue queued posts, gated by `RUN_CRON` | **Replace** | Outbox dispatcher + `publicationSweeperWorkflowV1` | Sweeper still exists as defence in depth (finds `scheduled` rows past due and `dispatching` rows older than the claim lease with no running workflow; re-emits outbox events for the former and moves the latter to `outcome_unknown` for reconciliation), always on, alerting when it finds anything |
 | `apps/orchestrator/src/activities/post.activity.ts` | Activity implementations for publishing | **Reference only** | `packages/activities/src/publish.ts` | Credentials via broker; attempt row before send |
 | `libraries/nestjs-libraries/src/database/prisma/posts/posts.service.ts` (`createPost`, `startWorkflow`) | Validation, persistence, unawaited workflow start that terminates running workflows | **Do not port** | `schedulePublication` (section 14.1) | Outbox; no terminate; await and observe dispatch |
 | `libraries/nestjs-libraries/src/database/prisma/posts/posts.repository.ts` (`createOrUpdatePost`) | Upsert by caller-supplied ID; group sweeps without org predicate | **Do not port** | Scoped repositories | Separate create/update; tenant predicates everywhere |
@@ -2190,7 +2256,7 @@ Paths are relative to the Postiz repository at commit `4c33d525`.
 | `apps/backend/src/services/auth/auth.middleware.ts`, `permissions/permissions.guard.ts` | JWT + org selection + CASL guard; impersonation | **Reference** | `access` module | Resource-level policy; support sessions instead of impersonation |
 | `apps/backend/src/services/auth/public.auth.middleware.ts` | API key / OAuth resolution for public API | **Port as pattern** | Public REST auth | Hashed keys with prefixes; per-key scopes |
 | `apps/frontend/src/components/launches/polonto.tsx` | Polotno editor exporting a flattened PNG | **Do not port** | `packages/editor` | Persistent layered document; licence gate for Polotno |
-| Frontend calendar/composer (`apps/frontend/src/components/launches/`) | Calendar views, per-channel preview and settings | **Reference for UX** | Calendar and channel-variant editor | Rebuild on Oremedia contracts |
+| Frontend calendar (`apps/frontend/src/components/launches/`) and composer (`apps/frontend/src/components/new-launch/`) | Calendar views; composer with per-channel preview and settings | **Reference for UX** | Calendar and channel-variant editor | Rebuild on Oremedia contracts |
 | Prisma schema (`Organization`, `UserOrganization`, `Integration`, `Post`, `Media`, `Customer`, marketplace models) | Data model | **Map for migration only** (section 23) | — | Marketplace, orders, payouts, agencies listing: not carried forward |
 | `package.json` `prisma-db-push` with `--accept-data-loss` | Schema push | **Prohibited** | drizzle-kit versioned migrations | Expand/contract, rehearsal |
 | `.github/workflows/*` | Build, containers, CodeQL; `eslint` file lacks a `.yml` extension | **Reference** | Oremedia CI (section 22, Phase 1) | Add tests, cross-tenant suite, replay, scans |
@@ -2279,7 +2345,7 @@ Execute in order. Effort estimates are deliberately omitted until Phase 0's edit
 
 | Phase | Work packages | Acceptance gate (all must be verified) |
 |---|---|---|
-| **0. Decisions and spikes** | ADR-01 … ADR-10 drafted (section 24); D-01 … D-10 raised; editor bake-off on two real brand fixtures (Konva vs. Polotno if licence allows); first-channel feasibility with a real developer app; Temporal Cloud namespace | ADRs accepted by named owners; one fixture document round-trips save → reopen → render with pixel diff under threshold; one sandbox publish and read-back on the first channel |
+| **0. Decisions and spikes** | ADR-01 … ADR-10 drafted (section 24); D-01 … D-12 raised; editor bake-off on two real brand fixtures (Konva vs. Polotno if licence allows); first-channel feasibility with a real developer app; Temporal Cloud namespace | ADRs accepted by named owners; one fixture document round-trips save → reopen → render with pixel diff under threshold; one sandbox publish and read-back on the first channel |
 | **1. Trustworthy foundation** | Monorepo, CI (format, lint incl. custom rules, typecheck, unit, integration with Testcontainers, cross-tenant harness skeleton, dependency and container scans, OpenAPI diff), `packages/db` with scoped repositories and migrations, `access` module, policy engine, audit, idempotency, error envelope, observability, credential broker skeleton, feature flags and entitlements | Two tenants with restricted brands; cross-tenant harness green on every procedure; secrets scan clean; migrations apply and roll forward on MySQL (and TiDB if chosen) |
 | **2. Brand and asset core** | Brand versions, facts, objectives, policy versions; asset ingestion workflow, rights, derivatives, eligibility search; templates | Ineligible assets never appear in search, agent context or render; every revision records brand version; SVG/font/image attack fixtures rejected |
 | **3. Creative studio** | Document schema, reducer, operation engine, revisions, comments, editor adapter (Konva), render worker, golden renders, format variants | Save/reopen/undo; stale edits return 409 and rebase; protected elements immune to agent operations; the export file approved in review is byte-identical (same hash) to the file handed to the provider |
