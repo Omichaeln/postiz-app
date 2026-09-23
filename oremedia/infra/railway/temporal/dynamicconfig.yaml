@@ -1,0 +1,11 @@
+# Temporal dynamic config for the self-hosted server: per-namespace limits that protect publishing queues.
+frontend.namespaceRPS.visibility:
+  - value: 10
+frontend.persistenceMaxQPS:
+  - value: 2000
+history.persistenceMaxQPS:
+  - value: 3000
+limit.maxIDLength:
+  - value: 255
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true

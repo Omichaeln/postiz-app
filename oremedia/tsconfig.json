@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": ["vitest.config.ts", "tooling/scripts/**/*.ts", "tooling/test-fixtures/**/*.ts"],
+  "compilerOptions": { "types": ["node"] }
+}

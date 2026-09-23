@@ -1,0 +1,1969 @@
+{
+  "programme": "Oremedia",
+  "specification": "docs/spec/BUILD_PROMPT.md (prepared 23 September 2026)",
+  "updatedAt": "2026-09-23T23:40:00Z",
+  "repository": "omichaeln/postiz-app · branch claude/gallant-gauss-rh58uh · directory oremedia/",
+  "statusLegend": {
+    "complete": "Genuinely complete and verified; needs no additional work.",
+    "in_progress": "Started; not yet complete or not yet verified.",
+    "open": "Not started.",
+    "blocked": "Cannot be completed in this environment without a human decision, credential or account (the reason is stated).",
+    "not_applicable": "Deliberately not built, with the reason."
+  },
+  "phases": [
+    {
+      "id": "0",
+      "title": "Decisions and spikes",
+      "spec": "22, 24",
+      "gate": [
+        [
+          "0.g1",
+          "ADR-01 … ADR-10 accepted by named owners",
+          "blocked",
+          "Drafted as Proposed in docs/adr. Acceptance is a human act; no owner has recorded acceptance."
+        ],
+        [
+          "0.g2",
+          "One fixture document round-trips save → reopen → render with pixel diff under threshold",
+          "open",
+          "Depends on the Phase 3 editor and render worker spike."
+        ],
+        [
+          "0.g3",
+          "One sandbox publish and read-back on the first channel with a real developer app",
+          "blocked",
+          "No platform developer-app credentials exist in this environment. Not fabricated."
+        ]
+      ],
+      "items": [
+        [
+          "0.1",
+          "ADR-01 modular monolith + three worker pools drafted",
+          "production",
+          "24.1",
+          "complete",
+          "docs/adr/ADR-01-modular-monolith.md (Proposed)"
+        ],
+        [
+          "0.2",
+          "ADR-02 company = tenant drafted",
+          "critical",
+          "24.1",
+          "complete",
+          "docs/adr/ADR-02-company-is-tenant.md (Proposed)"
+        ],
+        [
+          "0.3",
+          "ADR-03 creative schema behind editor adapter drafted",
+          "production",
+          "24.1",
+          "complete",
+          "docs/adr/ADR-03-creative-schema-editor-adapter.md (Proposed)"
+        ],
+        [
+          "0.4",
+          "ADR-04 Temporal, single agent loop drafted",
+          "production",
+          "24.1",
+          "complete",
+          "docs/adr/ADR-04-temporal-single-agent-loop.md (Proposed)"
+        ],
+        [
+          "0.5",
+          "ADR-05 release policy and approval binding drafted",
+          "critical",
+          "24.1",
+          "complete",
+          "docs/adr/ADR-05-release-policy-and-approval-binding.md (Proposed)"
+        ],
+        [
+          "0.6",
+          "ADR-06 Postiz reference-only / licensing drafted",
+          "critical",
+          "24.1",
+          "complete",
+          "docs/adr/ADR-06-postiz-reference-only.md (Proposed; legal decision D-07 open)"
+        ],
+        [
+          "0.7",
+          "ADR-07 MySQL/TiDB structural tenancy drafted",
+          "critical",
+          "24.1",
+          "complete",
+          "docs/adr/ADR-07-mysql-tidb-structural-tenancy.md (Proposed)"
+        ],
+        [
+          "0.8",
+          "ADR-08 publication outcome model drafted",
+          "critical",
+          "24.1",
+          "complete",
+          "docs/adr/ADR-08-publication-outcome-model.md (Proposed)"
+        ],
+        [
+          "0.9",
+          "ADR-09 credential envelope encryption drafted",
+          "critical",
+          "24.1",
+          "complete",
+          "docs/adr/ADR-09-credential-envelope-encryption.md (Proposed)"
+        ],
+        [
+          "0.10",
+          "ADR-10 learning isolation drafted",
+          "production",
+          "24.1",
+          "complete",
+          "docs/adr/ADR-10-learning-isolation.md (Proposed)"
+        ],
+        [
+          "0.11",
+          "D-01 … D-12 raised with labelled working assumptions",
+          "critical",
+          "24.2",
+          "complete",
+          "docs/decisions/DECISIONS.md"
+        ],
+        [
+          "0.12",
+          "D-01 … D-12 decided by named humans",
+          "critical",
+          "24.2",
+          "blocked",
+          "Each row in DECISIONS.md is Open; deciding is the user's call. Working assumptions are labelled and reversible."
+        ],
+        [
+          "0.13",
+          "Editor bake-off on two real brand fixtures (Konva)",
+          "production",
+          "22 Phase 0",
+          "open",
+          "Scheduled with the Phase 3 editor spike (two fixture brands with different scripts and fonts)."
+        ],
+        [
+          "0.14",
+          "Polotno evaluation",
+          "production",
+          "11.6",
+          "not_applicable",
+          "Requires written permission from Polotno (D-05); none exists. Konva only."
+        ],
+        [
+          "0.15",
+          "First-channel feasibility with a real developer app",
+          "critical",
+          "22 Phase 0",
+          "blocked",
+          "Needs platform app credentials and app review; not available here."
+        ],
+        [
+          "0.16",
+          "Temporal Cloud namespace (or self-hosted namespace config)",
+          "production",
+          "3.1, 17.1",
+          "open",
+          "Provisioning needs the user’s Temporal Cloud or Railway account. Self-hosted configuration written: infra/railway/temporal (auto-setup image, separate MySQL persistence, dynamic config)."
+        ]
+      ]
+    },
+    {
+      "id": "1",
+      "title": "Trustworthy foundation",
+      "spec": "3, 5, 6, 7, 17.3, 22.1, 22.2",
+      "gate": [
+        [
+          "1.g1",
+          "Two tenants with restricted brands seeded and exercised",
+          "complete",
+          "tooling/test-fixtures/src/seed.ts seeds two tenants, each with an owner (all brands), a creator restricted to brand 1, two brands, a service principal and an API client; cross-tenant test proves the creator cannot see brand 2 and an API client cannot select the other tenant"
+        ],
+        [
+          "1.g2",
+          "Cross-tenant harness green on every tRPC procedure",
+          "complete",
+          "pnpm test:cross-tenant: 21/21 (every procedure in the router, fixture coverage enforced)"
+        ],
+        [
+          "1.g3",
+          "Secrets scan clean",
+          "complete",
+          "pnpm check:secrets: no findings; gitleaks step wired in CI"
+        ],
+        [
+          "1.g4",
+          "Migrations apply and roll forward on MySQL 8",
+          "in_progress",
+          "0000_init applies to a fresh MySQL 8.0.46 database (90 tables, 61 foreign keys, all FK targets indexed). Roll-forward of a second migration on a populated database will be exercised with the first Phase 2 schema change."
+        ]
+      ],
+      "items": [
+        [
+          "1.1",
+          "Monorepo: pnpm workspaces + Turborepo; TypeScript strict + noUncheckedIndexedAccess",
+          "production",
+          "3.1, 3.3",
+          "complete",
+          "oremedia/package.json, pnpm-workspace.yaml, turbo.json, tsconfig.base.json; typecheck passes for contracts, domain, db"
+        ],
+        [
+          "1.2",
+          "ESLint rule oremedia/no-raw-db",
+          "critical",
+          "5.4",
+          "complete",
+          "tooling/eslint-config/src/rules/no-raw-db.js; RuleTester cases pass (unit); full lint run green"
+        ],
+        [
+          "1.3",
+          "ESLint rule oremedia/no-provider-branching",
+          "production",
+          "2.2, 5.4",
+          "complete",
+          "no-provider-branching.js; RuleTester cases pass; lint green"
+        ],
+        [
+          "1.4",
+          "ESLint rule: adapters never call fetch directly",
+          "critical",
+          "14.5",
+          "complete",
+          "no-direct-fetch-in-providers.js; RuleTester cases pass; lint green"
+        ],
+        [
+          "1.5",
+          "ESLint rule: module table ownership (no cross-module tables)",
+          "production",
+          "4.2",
+          "complete",
+          "module-table-ownership.js (test seeds exempt); RuleTester cases pass; lint green"
+        ],
+        [
+          "1.6",
+          "Dependency rule enforced with eslint-plugin-boundaries",
+          "production",
+          "3.3",
+          "complete",
+          "eslint-plugin-boundaries policies in eslint.config.js (folder-level elements); a real violation (app → domain) was caught and fixed during Phase 1; lint green"
+        ],
+        [
+          "1.7",
+          "CI: format, lint, typecheck, unit, integration (MySQL 8 service), cross-tenant, replay, dependency and container scans, OpenAPI diff, secrets scan, schema check",
+          "production",
+          "2.1.12, 22",
+          "in_progress",
+          ".github/workflows/oremedia-ci.yml written (static, unit, integration with MySQL 8 + Redis services, replay, supply-chain). Every step runs locally; the workflow itself has not yet executed on GitHub (first run happens on push)."
+        ],
+        [
+          "1.8",
+          "Contracts package: error vocabulary and envelope",
+          "production",
+          "7.2",
+          "complete",
+          "packages/contracts/src/errors.ts; typechecks"
+        ],
+        [
+          "1.9",
+          "Contracts package: prefixed ULID id vocabulary",
+          "production",
+          "6.1",
+          "complete",
+          "packages/contracts/src/ids.ts; newId tests pass"
+        ],
+        [
+          "1.10",
+          "Contracts package: event envelope and catalogue",
+          "production",
+          "7.7",
+          "complete",
+          "packages/contracts/src/events.ts"
+        ],
+        [
+          "1.11",
+          "Contracts package: pagination bounds (50 default, 200 max, 200-id lists)",
+          "production",
+          "7.4",
+          "complete",
+          "packages/contracts/src/pagination.ts"
+        ],
+        [
+          "1.12",
+          "Contracts package: brand, creative, approval, skills, provider capability, publishing, review, agents, assets, content, measurement, intelligence, experiments, billing, access, operations schemas",
+          "production",
+          "6-16",
+          "complete",
+          "packages/contracts/src/*.ts; typechecks. Router DTOs extend as modules land."
+        ],
+        [
+          "1.13",
+          "Domain: state machines as exhaustive transition tables (publication, content revision, render job, agent run, approval, brand version, review request)",
+          "critical",
+          "13.1",
+          "complete",
+          "packages/domain/src/state-machines; 18 publication transitions plus exhaustive rejection test pass"
+        ],
+        [
+          "1.14",
+          "Domain: RFC 8785 canonical JSON and SHA-256 hashing",
+          "critical",
+          "6.1, 13.2",
+          "complete",
+          "canonical-json.test.ts (RFC appendix fixture) passes"
+        ],
+        [
+          "1.15",
+          "Domain: approval binding hash with pinned fixture",
+          "critical",
+          "13.2",
+          "complete",
+          "approval-binding.test.ts pins hash 516c8e86…"
+        ],
+        [
+          "1.16",
+          "Domain: policy engine authorize() with the 8 ordered checks and default role grants",
+          "critical",
+          "5.5",
+          "complete",
+          "policy.test.ts covers each check, agent never-actions, obligations, separation of duties, external reviewer and operator paths"
+        ],
+        [
+          "1.17",
+          "Domain: autonomy min rule, occurrence key, text normalisation",
+          "production",
+          "12.5, 14.1, 13.2",
+          "complete",
+          "autonomy.test.ts passes"
+        ],
+        [
+          "1.18",
+          "db: schema for the full record catalogue with composite (tenant, brand, id) integrity",
+          "critical",
+          "6.2, 6.3",
+          "complete",
+          "90 tables, 42 foreign keys; static check confirms every FK target has a matching index"
+        ],
+        [
+          "1.19",
+          "db: tenant context (AsyncLocalStorage, loud on missing)",
+          "critical",
+          "5.2",
+          "complete",
+          "Integration test: query without context throws TENANT_CONTEXT_MISSING"
+        ],
+        [
+          "1.20",
+          "db: TenantScopedRepository / BrandScopedRepository / PlatformRepository, withTransaction",
+          "critical",
+          "5.3, 7.1",
+          "complete",
+          "packages/db/src/scoped-repository.integration.test.ts: 8 tests against MySQL 8.0.46 (missing context loud, foreign id → NOT_FOUND, tenant stamping, optimistic concurrency, brand restriction, composite FK integrity, transaction join/rollback, platform repository guard)"
+        ],
+        [
+          "1.21",
+          "db: versioned migrations via drizzle-kit; no schema push",
+          "critical",
+          "2.1.11",
+          "complete",
+          "packages/db/migrations/0000_init.sql applied via src/migrate.ts"
+        ],
+        [
+          "1.22",
+          "db: GLOBAL_TABLES with justifications and CI schema tenancy check",
+          "critical",
+          "5.4",
+          "complete",
+          "tooling/scripts/check-schema-tenancy.ts: 89 tables checked, 0 failures"
+        ],
+        [
+          "1.23",
+          "db: insert-only enforcement (no update methods) and DB role without UPDATE/DELETE",
+          "critical",
+          "6.1",
+          "complete",
+          "INSERT_ONLY_TABLES + generated packages/db/roles/app-role.sql; immutability.integration.test.ts proves the app role can INSERT/SELECT but not UPDATE/DELETE audit_events"
+        ],
+        [
+          "1.24",
+          "db: test harness (TEST_DATABASE_URL or Testcontainers MySQL 8)",
+          "production",
+          "19.1",
+          "complete",
+          "packages/db/src/testing; fresh database per test file"
+        ],
+        [
+          "1.25",
+          "access: memberships, brand grants, service principals, API clients, sessions, external reviewer links, support sessions repositories and services",
+          "critical",
+          "4.2, 5",
+          "complete",
+          "packages/modules/access: repositories, services (tenant bootstrap, invite, set role, brand grants, service principals, API clients, reviewer links, support sessions); exercised by API integration tests"
+        ],
+        [
+          "1.26",
+          "access: resolveTenantContext (selection header verified against active memberships)",
+          "critical",
+          "7.1",
+          "complete",
+          "resolveTenantContext in packages/modules/access/src/resolve.ts; API test: X-Oremedia-Tenant for a non-member → FORBIDDEN; API client cannot select another tenant"
+        ],
+        [
+          "1.27",
+          "access: authentication (session; D-03 pending)",
+          "critical",
+          "3.1, 18",
+          "in_progress",
+          "Opaque session, API-key, reviewer-link and support tokens hashed at rest with constant-time comparison (authenticator.ts, resolve.ts). Sign-in flows (password/OIDC/magic link) wait on D-03."
+        ],
+        [
+          "1.28",
+          "access: support sessions instead of impersonation",
+          "critical",
+          "5.7",
+          "in_progress",
+          "openSupportSession (reason, ticket, consent flag, time box, read-only) and audited use via supportSessionId; second-operator escalation and the audit-completeness test are pending"
+        ],
+        [
+          "1.29",
+          "operations: audit events written in the command transaction",
+          "critical",
+          "4.3",
+          "complete",
+          "audit.record in the command transaction for allowed decisions; denials audited on their own connection so they survive rollback (API test: creator’s denied invite is audited with reason role_missing); metadata allowlisted"
+        ],
+        [
+          "1.30",
+          "operations: idempotent() wrapper recording inside the transaction; replay, reuse and in-progress semantics",
+          "critical",
+          "7.1, 7.3",
+          "complete",
+          "idempotent(): replay, IDEMPOTENCY_KEY_REUSED, in-progress 409, tenant/principal key scope, atomic rollback of row + write + audit + outbox (5 integration tests)"
+        ],
+        [
+          "1.31",
+          "operations: outbox.add in the same transaction",
+          "critical",
+          "2.1.5, 14.1",
+          "complete",
+          "outbox.add requires the transaction; atomicity and payload-size tests pass"
+        ],
+        [
+          "1.32",
+          "operations: rate limiting per principal and tenant (Redis)",
+          "production",
+          "4.3",
+          "complete",
+          "RateLimiter with memory and Redis stores; per tenant, per principal, per expensive path; API test observes RATE_LIMITED with retryAfterMs"
+        ],
+        [
+          "1.33",
+          "operations: kill switches (agent starts, release dispatch)",
+          "critical",
+          "13.4, 23.3",
+          "complete",
+          "killSwitch.isOn/set per tenant and brand, audited; integration test"
+        ],
+        [
+          "1.34",
+          "operations: feature flags, server-enforced, with owner/removal date/metric",
+          "production",
+          "22.1",
+          "complete",
+          "FLAG_DEFINITIONS with owner, removal date, success metric, default off; evaluateFlag (allowlist, stable percentage bucketing) tested; operations.flags.snapshot procedure"
+        ],
+        [
+          "1.35",
+          "billing: checkEntitlement(tenant, feature) single function",
+          "critical",
+          "22.1",
+          "complete",
+          "entitlements.resolve/check/assert with pilot plan, overrides, usage counters registered by owning modules; written behaviour for trial expiry, downgrade, grace (D-08 placeholders)"
+        ],
+        [
+          "1.36",
+          "billing: reserveSpend with SELECT … FOR UPDATE; usage ledger; settle/release",
+          "critical",
+          "12.6",
+          "complete",
+          "budgets.reserveSpend locks spend_limits rows FOR UPDATE; 8 parallel reservations against a 10M limit: exactly 3 succeed; consume ledgers cost then ends with budget_exhausted; settle idempotent"
+        ],
+        [
+          "1.37",
+          "observability: pino logger with field allowlist",
+          "production",
+          "17.3",
+          "complete",
+          "pino logger with field allowlist + forbidden-substring filter + pino redact; test proves a token under an allowed key never reaches the log line"
+        ],
+        [
+          "1.38",
+          "observability: OpenTelemetry traces/metrics, Sentry, correlation IDs",
+          "production",
+          "3.1, 17.3",
+          "in_progress",
+          "OTel SDK bootstrap, metric names (spec 17.3) and Sentry init written; exporters gated on OTEL_EXPORTER_OTLP_ENDPOINT / SENTRY_DSN; not yet exercised against a collector"
+        ],
+        [
+          "1.39",
+          "credential broker skeleton: AES-256-GCM envelope encryption with KMS wrap (local KMS for tests)",
+          "critical",
+          "14.7",
+          "complete",
+          "packages/modules/publishing/src/{kms,envelope}.ts: AES-256-GCM with per-record data key wrapped by KMS, AAD = tenant:connection; LocalKms for tests; WrapOnlyKms models the API process; 4 tests"
+        ],
+        [
+          "1.40",
+          "apps/api: tRPC setup (authed, tenantScoped, rateLimited, tenantQuery, tenantMutation, error formatter, X-Oremedia-Tenant, Idempotency-Key)",
+          "critical",
+          "7.1",
+          "complete",
+          "apps/api/src/trpc.ts: domainErrors, authed, tenantScoped (runInTenant), rateLimited, idempotencyKey (+CSRF for cookie sessions), error formatter with envelope; API integration tests 8/8"
+        ],
+        [
+          "1.41",
+          "apps/api: access router (me, listCompanies, switchCompany, members, brandGrants, servicePrincipals, apiClients)",
+          "critical",
+          "7.5",
+          "complete",
+          "apps/api/src/routers/access.ts (me, listCompanies, switchCompany, members.invite/setRole, brandGrants.set, servicePrincipals.create/revoke, apiClients.create/rotate) + brand.create/list/get + operations.audit.query/flags/killSwitch/deletion.request"
+        ],
+        [
+          "1.42",
+          "Cross-tenant harness: allProcedures() generated from the router; missing buildInput fails CI",
+          "critical",
+          "19.3",
+          "complete",
+          "tooling/test-fixtures: allProcedures() from the router; CROSS_TENANT_INPUTS must cover every procedure (missing or stale fixture fails); 21 tests pass: every procedure rejects tenant B ids from tenant A with NOT_FOUND/FORBIDDEN/VALIDATION_FAILED or returns no data, and tenant B’s snapshot is unchanged"
+        ],
+        ["1.43", "Secrets scan script", "production", "22", "complete", "tooling/scripts/check-secrets.ts"]
+      ]
+    },
+    {
+      "id": "2",
+      "title": "Brand and asset core",
+      "spec": "8, 9",
+      "gate": [
+        ["2.g1", "Ineligible assets never appear in search, agent context or render", "open", ""],
+        ["2.g2", "Every revision records its brand version", "open", ""],
+        ["2.g3", "SVG, font and image attack fixtures are rejected", "open", ""]
+      ],
+      "items": [
+        [
+          "2.1",
+          "Brands: create, list, get; timezone and locale",
+          "production",
+          "7.5",
+          "complete",
+          "packages/modules/brand: create (policy + brands entitlement), list (visible brands only), get (foreign or ungranted → NOT_FOUND); router brand.create/list/get; covered by API and harness tests"
+        ],
+        [
+          "2.2",
+          "Brand versions: draft → in_review → published → retired; exactly one published",
+          "production",
+          "8.2",
+          "open",
+          ""
+        ],
+        [
+          "2.3",
+          "BrandSystemDocumentV1 validated on read and write; content hash",
+          "production",
+          "8.1",
+          "open",
+          ""
+        ],
+        ["2.4", "Design tokens per version", "production", "6.3", "open", ""],
+        [
+          "2.5",
+          "Approved facts: propose / approve / revoke with validity window; expired offers block release",
+          "production",
+          "6.2, 13.4",
+          "open",
+          ""
+        ],
+        [
+          "2.6",
+          "Brand objectives (required before recommendations are ranked)",
+          "production",
+          "16.1",
+          "open",
+          ""
+        ],
+        [
+          "2.7",
+          "Policy versions (thresholds, restricted topics, prohibited terms, distinct approver, hold on revocation)",
+          "production",
+          "6.3",
+          "open",
+          ""
+        ],
+        ["2.8", "resolveBrandSnapshot: immutable hashed bundle", "production", "8.3", "open", ""],
+        [
+          "2.9",
+          "brand.version_published event and impact job proposing updates to dependants",
+          "production",
+          "8.2",
+          "open",
+          ""
+        ],
+        [
+          "2.10",
+          "Fact/logo revocation → hold dependent scheduled publications (default) or flag",
+          "critical",
+          "8.2",
+          "open",
+          ""
+        ],
+        [
+          "2.11",
+          "Upload intents: declared mime, per-kind size caps, presigned PUT to quarantine/{tenant}/{intent}",
+          "production",
+          "9.1",
+          "open",
+          ""
+        ],
+        [
+          "2.12",
+          "StorageProvider: S3/R2, tenant-prefixed keys enforced, head/copy/delete, no local storage in production",
+          "production",
+          "9.1, 20.2",
+          "open",
+          ""
+        ],
+        [
+          "2.13",
+          "assetIngestWorkflowV1 step 1: verify object exists and size ≤ cap",
+          "production",
+          "9.1",
+          "open",
+          ""
+        ],
+        [
+          "2.14",
+          "assetIngestWorkflowV1 step 2: content sniffing (file-type) authoritative over declared type",
+          "critical",
+          "9.1",
+          "open",
+          ""
+        ],
+        [
+          "2.15",
+          "assetIngestWorkflowV1 step 3: malware scan (ClamAV or managed scanner)",
+          "critical",
+          "9.1",
+          "open",
+          ""
+        ],
+        [
+          "2.16",
+          "assetIngestWorkflowV1 step 4: sanitise SVG (scripts/external refs), parse fonts in sandbox, strip EXIF GPS, normalise orientation, record colour profile",
+          "critical",
+          "9.1",
+          "open",
+          ""
+        ],
+        [
+          "2.17",
+          "assetIngestWorkflowV1 step 5: SHA-256 dedupe within brand (propose link, never silently merge)",
+          "production",
+          "9.1",
+          "open",
+          ""
+        ],
+        [
+          "2.18",
+          "assetIngestWorkflowV1 step 6: derivatives (thumbnail, preview, web-optimised)",
+          "production",
+          "9.1",
+          "open",
+          ""
+        ],
+        [
+          "2.19",
+          "assetIngestWorkflowV1 step 7–8: move original to immutable path; catalogue row pending_review/approved",
+          "production",
+          "9.1",
+          "open",
+          ""
+        ],
+        ["2.20", "Accepted kinds and caps; archives rejected", "production", "9.1", "open", ""],
+        [
+          "2.21",
+          "Usage rights (owner, licence, channels, territories, expiry, releases, restrictions)",
+          "critical",
+          "6.3",
+          "open",
+          ""
+        ],
+        [
+          "2.22",
+          "Asset grants (cross-brand within a tenant) and asset usages (impact analysis)",
+          "production",
+          "5.1, 6.3",
+          "open",
+          ""
+        ],
+        [
+          "2.23",
+          "findEligibleAssets: filter before ranking (brand or grant, approved, rights, expiry, kind)",
+          "critical",
+          "9.2",
+          "open",
+          ""
+        ],
+        [
+          "2.24",
+          "authoriseUse re-checked at render and at dispatch; expiring rights cause a hold",
+          "critical",
+          "9.2",
+          "open",
+          ""
+        ],
+        [
+          "2.25",
+          "Delivery: private buckets; 5-minute signed URLs via a media endpoint that re-checks authorisation",
+          "critical",
+          "9.3",
+          "open",
+          ""
+        ],
+        [
+          "2.26",
+          "Release derivatives minted at dispatch with provider processing-window lifetime",
+          "production",
+          "9.3",
+          "open",
+          ""
+        ],
+        [
+          "2.27",
+          "Templates and template versions (slots, constraints, formats)",
+          "production",
+          "6.3",
+          "open",
+          ""
+        ],
+        [
+          "2.28",
+          "Attack fixtures: malformed SVG/font/image, decompression bombs, oversized input, SSRF/redirect chains",
+          "critical",
+          "18",
+          "open",
+          ""
+        ]
+      ]
+    },
+    {
+      "id": "3",
+      "title": "Creative studio",
+      "spec": "11, 21.4",
+      "gate": [
+        ["3.g1", "Save / reopen / undo work", "open", ""],
+        ["3.g2", "Stale edits return 409 and the client rebases", "open", ""],
+        ["3.g3", "Protected elements are immune to agent operations", "open", ""],
+        [
+          "3.g4",
+          "The export file approved in review is byte-identical (same hash) to the file handed to the provider",
+          "open",
+          ""
+        ]
+      ],
+      "items": [
+        [
+          "3.1",
+          "packages/editor schema re-export of CreativeDocumentV1 (no HTML/SVG/script in the schema)",
+          "production",
+          "11.2",
+          "open",
+          ""
+        ],
+        [
+          "3.2",
+          "Pure reducer for all 13 operations; property tests (round-trip, stable IDs)",
+          "production",
+          "11.3, 19.1",
+          "open",
+          ""
+        ],
+        [
+          "3.3",
+          "EditorAdapter interface (mount, onIntent, applyRemote, select, destroy)",
+          "production",
+          "11.6",
+          "open",
+          ""
+        ],
+        ["3.4", "Konva/react-konva adapter with state outside the stage", "production", "11.6", "open", ""],
+        [
+          "3.5",
+          "applyOperations: tenant-scoped load, policy assert, stale revision → 409",
+          "critical",
+          "11.4",
+          "open",
+          ""
+        ],
+        [
+          "3.6",
+          "applyOperations: guardProtected (agents cannot touch protected elements)",
+          "critical",
+          "11.4",
+          "open",
+          ""
+        ],
+        [
+          "3.7",
+          "applyOperations: guardAssets via assets.authoriseUse for every referenced asset version",
+          "critical",
+          "11.4",
+          "open",
+          ""
+        ],
+        [
+          "3.8",
+          "applyOperations: validateAgainstBrand (tokens, logo rules, min sizes, contrast); agent proposals must be clean",
+          "production",
+          "11.4",
+          "open",
+          ""
+        ],
+        [
+          "3.9",
+          "applyOperations: revision create, setCurrentRevision (optimistic), comments marked outdated, outbox event, approval invalidation",
+          "critical",
+          "11.4",
+          "open",
+          ""
+        ],
+        [
+          "3.10",
+          "operations.propose: dry-run with preview render and diff; accept / modify / reject",
+          "production",
+          "11.4",
+          "open",
+          ""
+        ],
+        ["3.11", "Undo as a new revision; history never rewritten", "production", "11.4", "open", ""],
+        ["3.12", "Element comments add/resolve; outdated badge", "production", "7.5, 21.4", "open", ""],
+        [
+          "3.13",
+          "Render worker: headless Chromium, render-only bundle of the same renderer, pinned fonts, manifest, PNG/JPEG/PDF",
+          "production",
+          "11.5",
+          "open",
+          ""
+        ],
+        [
+          "3.14",
+          "Deterministic render checks: overflow, missing font/asset, logo distortion > 0.5 %, clear space, min size, contrast AA, safe areas, size/dimension limits",
+          "production",
+          "11.5",
+          "open",
+          ""
+        ],
+        [
+          "3.15",
+          "Render isolation: no credentials, egress only to object store, per-job limits, fresh browser context",
+          "critical",
+          "11.5",
+          "open",
+          ""
+        ],
+        [
+          "3.16",
+          "Golden renders: two fixture brands with different scripts/fonts; ≤ 0.1 % pixel difference",
+          "production",
+          "19.5",
+          "open",
+          ""
+        ],
+        ["3.17", "createFormatVariant reflows via layout constraints", "production", "11.3", "open", ""],
+        [
+          "3.18",
+          "Studio layout: header context, left panels, canvas, right conversation/properties, bottom format strip, save state",
+          "production",
+          "11.1",
+          "open",
+          ""
+        ],
+        [
+          "3.19",
+          "Keyboard path for every canvas action; visible focus; screen-reader labels",
+          "production",
+          "21.3",
+          "open",
+          ""
+        ],
+        [
+          "3.20",
+          "Pending batch on debounce; rebase on STALE_REVISION; conflicts shown",
+          "production",
+          "21.4",
+          "open",
+          ""
+        ],
+        [
+          "3.21",
+          "Agent proposals as overlay diff with Accept / Modify / Reject",
+          "production",
+          "21.4",
+          "open",
+          ""
+        ],
+        [
+          "3.22",
+          "Required states: autosave, stale conflict, proposal pending, render failure, unsaved work on navigation",
+          "production",
+          "21.2",
+          "open",
+          ""
+        ]
+      ]
+    },
+    {
+      "id": "4",
+      "title": "Bounded agents",
+      "spec": "10, 12",
+      "gate": [
+        [
+          "4.g1",
+          "Evaluation suites pass with recorded variance over ≥ 3 runs",
+          "blocked",
+          "Needs model access (ANTHROPIC_API_KEY); not available in this environment. Deterministic checks can run without it."
+        ],
+        [
+          "4.g2",
+          "Injection fixtures cannot widen scope or reach unlisted tools",
+          "open",
+          "Verifiable deterministically through the dispatcher"
+        ],
+        [
+          "4.g3",
+          "Parallel runs cannot overspend",
+          "in_progress",
+          "Reservation-level overspend guard verified (billing test); the agent-run workflow that calls it is Phase 4 work"
+        ]
+      ],
+      "items": [
+        ["4.1", "ModelAdapter interface; model IDs as configuration", "production", "12.7", "open", ""],
+        [
+          "4.2",
+          "AnthropicModelAdapter via the official SDK (tool use)",
+          "production",
+          "3.1, 12.7",
+          "open",
+          ""
+        ],
+        [
+          "4.3",
+          "Tenant model-routing policy checked before every call; private reasoning not stored",
+          "critical",
+          "12.7",
+          "open",
+          ""
+        ],
+        [
+          "4.4",
+          "Context resolver: snapshot hash; precedence platform > company > brand > brief > skill > evidence; evidence labelled untrusted",
+          "critical",
+          "10.3, 12.3",
+          "open",
+          ""
+        ],
+        [
+          "4.5",
+          "Tool dispatcher: allowlist, schema validation, runInTenant, policy.authorize, audit, budget consume, timeout, output parse",
+          "critical",
+          "12.4",
+          "open",
+          ""
+        ],
+        [
+          "4.6",
+          "Release 1 tool registry (15 tools); no agent tool publishes",
+          "critical",
+          "12.4",
+          "open",
+          ""
+        ],
+        [
+          "4.7",
+          "Autonomy modes: run mode = min(requested, principal max, tenant policy, entitlement)",
+          "critical",
+          "12.5",
+          "complete",
+          "effectiveAutonomy in domain; enforced in authorize(); dispatcher wiring pending"
+        ],
+        [
+          "4.8",
+          "Budgets: reserveSpend under SELECT … FOR UPDATE; per-call consumption; settle and release; per run/brand/tenant limits",
+          "critical",
+          "12.6",
+          "complete",
+          "packages/modules/billing/src/budgets.ts; parallel overspend test passes (see 1.36)"
+        ],
+        [
+          "4.9",
+          "agentRunWorkflowV1 (signals, 72-hour proposal wait, non-retryable failure types, non-cancellable budget settlement)",
+          "critical",
+          "12.2",
+          "open",
+          ""
+        ],
+        [
+          "4.10",
+          "Model-call recovery: persist provider job IDs before waiting; poll instead of resubmit",
+          "production",
+          "12.2",
+          "open",
+          ""
+        ],
+        [
+          "4.11",
+          "Skills registry: SkillManifestV1, lifecycle draft → sandbox_evaluation → in_review → published (rollout %) → retired, bindings, import/export of SKILL.md packages, declarative only",
+          "production",
+          "10.1, 10.2",
+          "open",
+          ""
+        ],
+        ["4.12", "Built-in skill: brand-onboarding", "production", "10.4", "open", ""],
+        ["4.13", "Built-in skill: campaign-planning", "production", "10.4", "open", ""],
+        ["4.14", "Built-in skill: brand-copywriting", "production", "10.4", "open", ""],
+        ["4.15", "Built-in skill: social-layout", "production", "10.4", "open", ""],
+        ["4.16", "Built-in skill: channel-adaptation", "production", "10.4", "open", ""],
+        ["4.17", "Built-in skill: brand-review", "production", "10.4", "open", ""],
+        ["4.18", "Built-in skill: performance-review", "production", "10.4", "open", ""],
+        ["4.19", "Built-in skill: experiment-design", "production", "10.4", "open", ""],
+        [
+          "4.20",
+          "Evaluation harness: deterministic checks + rubric grading by a separate model call; variance over ≥ 3 runs",
+          "production",
+          "19.6",
+          "open",
+          ""
+        ],
+        [
+          "4.21",
+          "Injection fixtures (guidelines, OCR text, captions, comments, web pages)",
+          "critical",
+          "18",
+          "open",
+          ""
+        ],
+        [
+          "4.22",
+          "Agent runs UI: runs, steps, costs, exceptions; required states",
+          "production",
+          "21.1, 21.2",
+          "open",
+          ""
+        ]
+      ]
+    },
+    {
+      "id": "5",
+      "title": "Review and publication",
+      "spec": "13, 14",
+      "gate": [
+        ["5.g1", "An approved revision publishes", "open", ""],
+        ["5.g2", "Any post-approval edit blocks dispatch", "open", ""],
+        ["5.g3", "A revoked approver blocks dispatch", "open", ""],
+        ["5.g4", "Crash-after-send produces outcome_unknown and reconciles without a duplicate", "open", ""],
+        ["5.g5", "Duplicate outbox delivery is harmless", "open", ""],
+        ["5.g6", "The cancel race behaves as specified", "open", ""]
+      ],
+      "items": [
+        [
+          "5.1",
+          "Review requests freeze a manifest with hash; package change marks the request stale with a reason",
+          "critical",
+          "13.3",
+          "open",
+          ""
+        ],
+        [
+          "5.2",
+          "Review decisions (insert-only) with verified email, IP and user-agent hash",
+          "critical",
+          "5.6, 6.3",
+          "open",
+          ""
+        ],
+        [
+          "5.3",
+          "External reviewer links: single-use per session, expiring, revocable, bound to one request, magic-link verification, separate origin",
+          "critical",
+          "5.6",
+          "open",
+          ""
+        ],
+        ["5.4", "Review portal app (separate origin build target)", "production", "21.1", "open", ""],
+        [
+          "5.5",
+          "Release approvals bound by ApprovalBindingV1 hash; eager invalidation hooks",
+          "critical",
+          "13.2",
+          "open",
+          ""
+        ],
+        [
+          "5.6",
+          "Publishing mandates (behind mandates.managed_autopublish, default off)",
+          "critical",
+          "13.4, 22.1",
+          "open",
+          ""
+        ],
+        [
+          "5.7",
+          "evaluateRelease: approval path checks (valid, matches live binding, not expired, approver still authorised, timing)",
+          "critical",
+          "13.4",
+          "open",
+          ""
+        ],
+        [
+          "5.8",
+          "evaluateRelease: mandate path checks (active window, channel, content class, daily quota, source rules, owner authorised, kill switch, brand review clean)",
+          "critical",
+          "13.4",
+          "open",
+          ""
+        ],
+        [
+          "5.9",
+          "evaluateRelease: channel active, asset rights valid, facts valid, capability valid; failed check → held with reasons and needs-attention",
+          "critical",
+          "13.4",
+          "open",
+          ""
+        ],
+        [
+          "5.10",
+          "schedulePublication: joins the idempotent transaction, fail-fast pre-check, occurrence key unique per tenant, outbox event and audit in the same transaction",
+          "critical",
+          "14.1",
+          "open",
+          ""
+        ],
+        [
+          "5.11",
+          "Cancellation: race-safe scheduled → cancelled; in-flight returns prevented:false and signals the workflow; delete_remote is a separate action",
+          "critical",
+          "13.5",
+          "open",
+          ""
+        ],
+        [
+          "5.12",
+          "Rescheduling updates the row and signals; never terminates an in-flight workflow",
+          "critical",
+          "14.3",
+          "open",
+          ""
+        ],
+        [
+          "5.13",
+          "Outbox dispatcher: lease-based claiming, backoff, stable workflow IDs with USE_EXISTING, dead-letter view with replay, alerts on age > 60 s and attempts ≥ 5",
+          "critical",
+          "14.2",
+          "open",
+          ""
+        ],
+        [
+          "5.14",
+          "publicationWorkflowV1: durable wait re-reading the row; claim with fencing token; release evaluation at dispatch; attempt row before send; publishOnce with maximumAttempts 1; outcome switch",
+          "critical",
+          "14.3",
+          "open",
+          ""
+        ],
+        [
+          "5.15",
+          "Reconciliation: outcome_unknown → findRemotePost at 1 m / 5 m / 15 m / 1 h → published, retry_eligible or held for a human",
+          "critical",
+          "14.3",
+          "open",
+          ""
+        ],
+        [
+          "5.16",
+          "publicationSweeperWorkflowV1 (overdue scheduled rows, stale dispatching claims) always on, alerting",
+          "critical",
+          "20.2",
+          "open",
+          ""
+        ],
+        [
+          "5.17",
+          "Partial multi-channel publication: each channel its own publication and workflow; per-channel retry",
+          "production",
+          "14.4",
+          "open",
+          ""
+        ],
+        [
+          "5.18",
+          "Provider adapter contract (auth, validation, publish/checkStatus/finalize, findRemotePost, metrics, comments, classifyError)",
+          "critical",
+          "14.5",
+          "open",
+          ""
+        ],
+        [
+          "5.19",
+          "ProviderIO: SSRF-safe pinned-DNS dispatcher, explicit timeout, send tracking (before/after send), heartbeat detail, rate-limit accounting, redacting logs; no direct fetch",
+          "critical",
+          "14.5, 18",
+          "open",
+          ""
+        ],
+        [
+          "5.20",
+          "Provider base: error taxonomy, failure payload truncation for Temporal, scope checks; no mutation retry after 429/500",
+          "critical",
+          "20.2, 20.3",
+          "open",
+          ""
+        ],
+        [
+          "5.21",
+          "Capability register (ProviderCapabilityV1) and certification gate; uncertified providers cannot be connected",
+          "critical",
+          "14.6",
+          "open",
+          ""
+        ],
+        [
+          "5.22",
+          "Provider registry keyed by provider key; only certified adapters enabled",
+          "production",
+          "20.2",
+          "open",
+          ""
+        ],
+        [
+          "5.23",
+          "Adapter: LinkedIn Page (fixtures, error classification, refresh, reconciliation)",
+          "critical",
+          "14.8",
+          "open",
+          ""
+        ],
+        [
+          "5.24",
+          "Adapter: Instagram Business via Facebook Graph (container polling, finalize-already-completed)",
+          "critical",
+          "14.8",
+          "open",
+          ""
+        ],
+        ["5.25", "Adapter: Facebook Page", "critical", "14.8", "open", ""],
+        ["5.26", "Adapter: X or TikTok (pilot decision D-04)", "critical", "14.8", "open", ""],
+        [
+          "5.27",
+          "Certification of 3–5 channels with the platform's own app (sandbox publish, read-back, refresh, reconnect, rate limits, error fixtures, reconciliation, metrics)",
+          "critical",
+          "14.6",
+          "blocked",
+          "Requires platform developer apps and app review; cannot be done from this environment."
+        ],
+        [
+          "5.28",
+          "Credential broker: withCredentials only in worker-core and worker-ingest; API cannot decrypt (KMS IAM); zeroing after use",
+          "critical",
+          "14.7",
+          "open",
+          ""
+        ],
+        [
+          "5.29",
+          "tokenRefreshWorkflowV1 per connection with per-connection lock, credential row versioning, refresh_needed/reconnect_needed and publisher notification",
+          "critical",
+          "14.7",
+          "open",
+          ""
+        ],
+        [
+          "5.30",
+          "Workflow and activity payloads carry channelConnectionId only",
+          "critical",
+          "14.7",
+          "open",
+          ""
+        ],
+        [
+          "5.31",
+          "Tracked links and stateless redirect service (hashed visitor, buffered writes)",
+          "production",
+          "15.4",
+          "open",
+          ""
+        ],
+        [
+          "5.32",
+          "Workflow versioning policy; recorded histories replayed in CI",
+          "critical",
+          "14.3, 19.4",
+          "open",
+          "Replay needs recorded histories; time-skipping test server download is blocked by the proxy here (GitHub releases 403)."
+        ],
+        [
+          "5.33",
+          "Cross-tenant activity tests (mismatched tenantId and resource IDs)",
+          "critical",
+          "19.3",
+          "open",
+          ""
+        ],
+        [
+          "5.34",
+          "Calendar and publishing UI with required states (token expiry, invalid media, partial success, outcome_unknown with reconcile action, cancel race, held with reasons)",
+          "production",
+          "21.2",
+          "open",
+          ""
+        ],
+        [
+          "5.35",
+          "Review inbox UI with required states (changes requested, stale approval, revoked external access)",
+          "production",
+          "21.2",
+          "open",
+          ""
+        ]
+      ]
+    },
+    {
+      "id": "6",
+      "title": "Measurement and first intelligence",
+      "spec": "15, 16",
+      "gate": [
+        ["6.g1", "Snapshots carry provenance and completeness; missing ≠ zero verified", "open", ""],
+        [
+          "6.g2",
+          "One recommendation flows to a brief, a variant, an experiment and a learning record end to end",
+          "open",
+          ""
+        ],
+        ["6.g3", "Baseline comparison job runs", "open", ""]
+      ],
+      "items": [
+        [
+          "6.1",
+          "Metric definitions (global + tenant) with comparable_group and definition_version",
+          "production",
+          "15.1",
+          "open",
+          ""
+        ],
+        [
+          "6.2",
+          "metricCollectionWorkflowV1 with schedule from analytics.latencyHours (+1 h … +28 d, then weekly for 90 days)",
+          "production",
+          "15.1",
+          "open",
+          ""
+        ],
+        [
+          "6.3",
+          "Raw snapshots with source, fetched_at, UTC window, brand timezone, completeness; unavailable stored without a value",
+          "critical",
+          "15.1",
+          "open",
+          ""
+        ],
+        [
+          "6.4",
+          "Normalisation: aggregate only within comparable_group; derived rates keep numerator/denominator snapshot IDs; series kept as series",
+          "production",
+          "15.2",
+          "open",
+          ""
+        ],
+        [
+          "6.5",
+          "Freshness shown next to every number; stale (> latency × 2) marked",
+          "production",
+          "15.2",
+          "open",
+          ""
+        ],
+        [
+          "6.6",
+          "Engagement quality composite with brand-configurable weights and component drill-down",
+          "production",
+          "15.3",
+          "open",
+          ""
+        ],
+        [
+          "6.7",
+          "Creative attributes captured at creation (copy, layout, editor); human correction with source",
+          "production",
+          "16.2",
+          "open",
+          ""
+        ],
+        [
+          "6.8",
+          "brandAnalystWorkflowV1 weekly per active brand and on demand: what changed, likely reasons (hypotheses), recommended actions",
+          "production",
+          "16.3",
+          "open",
+          ""
+        ],
+        [
+          "6.9",
+          "Recommendations with exactly the relevant actions; accepting creates the downstream object with a back-reference; dismissal reason stored",
+          "production",
+          "16.4",
+          "open",
+          ""
+        ],
+        [
+          "6.10",
+          "Customer voice: comment ingestion (read-only), Haiku-class classification, tenant-isolated embedding, incremental clustering, per-tenant salted author hashes",
+          "production",
+          "16.5",
+          "open",
+          ""
+        ],
+        [
+          "6.11",
+          "Experiments: pre-registration frozen with hash; results against a changed design rejected",
+          "production",
+          "16.6",
+          "open",
+          ""
+        ],
+        [
+          "6.12",
+          "Experiments: structured comparisons labelled 'directional; not causal'",
+          "production",
+          "16.6",
+          "open",
+          ""
+        ],
+        [
+          "6.13",
+          "Experiments: randomised link experiments with hashed-visitor assignment and delivered exposure per variant",
+          "production",
+          "16.6",
+          "open",
+          ""
+        ],
+        [
+          "6.14",
+          "Statistics: two-proportion, required sample, Holm–Bonferroni, Welch, winsorising, mSPRT",
+          "production",
+          "16.6",
+          "complete",
+          "packages/domain/src/experiments; tests against independently computed reference values pass"
+        ],
+        [
+          "6.15",
+          "Verdicts: supported / not_supported / inconclusive; guardrail breach → not_supported; no result before sample and window",
+          "production",
+          "16.6",
+          "open",
+          ""
+        ],
+        [
+          "6.16",
+          "Learning records: context → evidence → hypothesis → action → decision → executed revision → outcome → verdict",
+          "production",
+          "16.8",
+          "open",
+          ""
+        ],
+        [
+          "6.17",
+          "Monthly baseline comparison of recommendation ranking; fall back to baseline when not beaten",
+          "production",
+          "16.8",
+          "open",
+          ""
+        ],
+        [
+          "6.18",
+          "Exploration share once volume threshold is met (context-dependent)",
+          "production",
+          "16.8",
+          "open",
+          ""
+        ],
+        [
+          "6.19",
+          "Playbook entries require playbook.approve, record strength and review_after; standards never rewritten automatically",
+          "critical",
+          "16.8",
+          "open",
+          ""
+        ],
+        [
+          "6.20",
+          "Learning isolation per tenant and brand; no cross-tenant pooling",
+          "critical",
+          "16.8",
+          "open",
+          ""
+        ],
+        [
+          "6.21",
+          "Intelligence workspace: What changed / What we learned / What to do next / Experiments / Brand playbook, with coverage statements and freshness",
+          "production",
+          "16.9, 21.2",
+          "open",
+          ""
+        ]
+      ]
+    },
+    {
+      "id": "7",
+      "title": "Pilot readiness",
+      "spec": "17, 25",
+      "gate": [
+        ["7.g1", "Section 25 production-readiness checklist verified item by item", "open", ""],
+        ["7.g2", "Residual risks documented with owners", "open", ""]
+      ],
+      "items": [
+        [
+          "7.1",
+          "UAT with two real client brands",
+          "critical",
+          "22",
+          "blocked",
+          "Requires real client brands and stakeholders."
+        ],
+        [
+          "7.2",
+          "Top-of-hour burst load test at 2–3× expected peak (k6/Artillery)",
+          "production",
+          "17.4, 19.1",
+          "open",
+          ""
+        ],
+        [
+          "7.3",
+          "Restore rehearsal with post-restore reconciliation (scheduled/dispatching/processing → held)",
+          "critical",
+          "17.6",
+          "open",
+          ""
+        ],
+        ["7.4", "Runbook exercised: reconnect a channel", "production", "17.7", "open", ""],
+        [
+          "7.5",
+          "Runbook exercised: reconcile an outcome_unknown publication",
+          "critical",
+          "17.7",
+          "open",
+          ""
+        ],
+        [
+          "7.6",
+          "Runbook exercised: drain and replay the outbox and dead letters",
+          "critical",
+          "17.7",
+          "open",
+          ""
+        ],
+        ["7.7", "Runbook exercised: engage the tenant/brand kill switch", "critical", "17.7", "open", ""],
+        ["7.8", "Runbook exercised: handle partial multi-channel success", "production", "17.7", "open", ""],
+        ["7.9", "Runbook exercised: recover rendering", "production", "17.7", "open", ""],
+        [
+          "7.10",
+          "Runbook exercised: revoke a compromised credential, API client, skill or template",
+          "critical",
+          "17.7",
+          "open",
+          ""
+        ],
+        ["7.11", "Runbook exercised: restore a single tenant", "critical", "17.7", "open", ""],
+        [
+          "7.12",
+          "Runbook exercised: respond to a suspected cross-tenant exposure",
+          "critical",
+          "17.7",
+          "open",
+          ""
+        ],
+        ["7.13", "Runbook exercised: roll back a workflow version safely", "critical", "17.7", "open", ""],
+        [
+          "7.14",
+          "SLO dashboards answering up / fast / erroring / keeping-up per journey",
+          "production",
+          "17.2",
+          "open",
+          ""
+        ],
+        ["7.15", "Incident process: severities, paging, postmortems", "production", "18", "open", ""],
+        [
+          "7.16",
+          "Retention and deletion paths work end to end (fan-out to DB, object store, indexes, Temporal visibility, logs, provider data, backups)",
+          "critical",
+          "17.5",
+          "open",
+          ""
+        ]
+      ]
+    },
+    {
+      "id": "8",
+      "title": "Expansion (each capability separately gated)",
+      "spec": "16.10, 22",
+      "gate": [
+        [
+          "8.g1",
+          "Each capability brings its own security, quality and operational evidence",
+          "open",
+          "Not started; Release 2+."
+        ]
+      ],
+      "items": [
+        [
+          "8.1",
+          "Unified inbox and community assistant (drafts only for agents; human sends)",
+          "production",
+          "16.10",
+          "open",
+          "Release 2"
+        ],
+        [
+          "8.2",
+          "Social listening and opportunity radar with coverage report",
+          "production",
+          "16.10",
+          "open",
+          "Release 2"
+        ],
+        [
+          "8.3",
+          "CRM and conversion attribution (HubSpot, Salesforce, Pipedrive, webhook)",
+          "production",
+          "15.4",
+          "open",
+          "Release 2"
+        ],
+        ["8.4", "Reputation and anomaly monitoring", "production", "16.10", "open", "Release 2"],
+        ["8.5", "Agency operations intelligence", "production", "16.10", "open", "Release 2"],
+        ["8.6", "Content lifecycle management", "production", "16.10", "open", "Release 2"],
+        ["8.7", "Remaining provider catalogue", "critical", "1.3", "open", "Later"],
+        ["8.8", "Video editing", "production", "1.3", "open", "Later"],
+        [
+          "8.9",
+          "Real-time co-editing (CRDT)",
+          "production",
+          "11.4",
+          "open",
+          "Context-dependent; not promised in Release 1"
+        ],
+        [
+          "8.10",
+          "Managed autopublish release with per-brand policy and its own gate",
+          "critical",
+          "23.2",
+          "open",
+          "Separate release"
+        ],
+        ["8.11", "Forecasting and budget scenarios", "production", "16.10", "open", "Context-dependent"]
+      ]
+    }
+  ],
+  "crossCutting": [
+    {
+      "id": "R",
+      "title": "Railway deployment",
+      "spec": "17.1, Appendix A",
+      "items": [
+        [
+          "R.1",
+          "Dockerfile per service: api, worker-core, worker-render, worker-ingest, web, link redirector",
+          "production",
+          "17.1",
+          "in_progress",
+          "infra/railway/Dockerfile (parameterised Node services, pnpm deploy + tsup bundle), Dockerfile.render (Playwright image), Dockerfile.web (Caddy); worker/web/redirector apps do not exist yet so only the api image can build today"
+        ],
+        [
+          "R.2",
+          "railway.json per service (root directory oremedia, Dockerfile path, health check, restart policy)",
+          "production",
+          "17.1",
+          "complete",
+          "infra/railway/{api,worker-core,worker-render,worker-ingest,web,redirector}/railway.json with health checks, restart policy and the api pre-deploy migration command"
+        ],
+        [
+          "R.3",
+          "Managed MySQL and Redis on Railway; object storage on Cloudflare R2 (external; Railway has no S3-compatible store)",
+          "production",
+          "3.1",
+          "in_progress",
+          "Documented in infra/railway/README.md and the runbook; StorageProvider for R2 arrives with Phase 2 assets"
+        ],
+        [
+          "R.4",
+          "Temporal: Cloud (recommended) or self-hosted service on Railway with its own MySQL persistence, never the application database",
+          "critical",
+          "3.1",
+          "in_progress",
+          "infra/railway/temporal: auto-setup image on a separate MySQL, dynamic config; Temporal Cloud path documented; namespace not provisioned"
+        ],
+        [
+          "R.5",
+          "Environment variable names from Appendix A wired per service; secrets as Railway sealed variables; no flag disables SSRF protection",
+          "critical",
+          "Appendix A",
+          "in_progress",
+          "Variable names wired in .env.example and the runbook per service; the api reads DATABASE_URL, REDIS_URL, WEB_ORIGIN, REVIEW_PORTAL_ORIGIN, SENTRY_DSN, OTEL endpoint; remaining names are consumed by later phases"
+        ],
+        [
+          "R.6",
+          "Deploy and rollback runbook (artifact promoted, migrations as a pre-deploy job with verification query, kill switches)",
+          "production",
+          "22.2, 23.3",
+          "complete",
+          "docs/runbooks/deploy-railway.md: provisioning, per-service variables, DB role, migrations as pre-deploy, verify, rollback (redeploy previous build, flags, kill switches)"
+        ],
+        [
+          "R.7",
+          "Railway project provisioned and services deployed",
+          "production",
+          "17.1",
+          "blocked",
+          "Requires the user's Railway account (no RAILWAY_TOKEN in this environment). Configuration is written so the deploy is a `railway up` per service."
+        ],
+        [
+          "R.8",
+          "Separate development, staging and production environments; no production data in lower environments",
+          "critical",
+          "17.1",
+          "open",
+          ""
+        ]
+      ]
+    },
+    {
+      "id": "F",
+      "title": "Frontend structure and accessibility",
+      "spec": "21, 8.4",
+      "items": [
+        [
+          "F.1",
+          "apps/web: React 19 + Vite + React Router 7 data routers; route tree of 21.1",
+          "production",
+          "21.1",
+          "open",
+          ""
+        ],
+        [
+          "F.2",
+          "tRPC client with Idempotency-Key per intent and X-Oremedia-Tenant from the URL",
+          "production",
+          "21.1",
+          "open",
+          ""
+        ],
+        [
+          "F.3",
+          "Semantic CSS custom-property tokens (light and dark) as neutral placeholders until D-12",
+          "production",
+          "8.4",
+          "open",
+          ""
+        ],
+        ["F.4", "Portfolio and brand home with required states", "production", "21.2", "open", ""],
+        [
+          "F.5",
+          "WCAG 2.2 AA for application chrome; colour never the only carrier of status",
+          "production",
+          "21.3",
+          "open",
+          ""
+        ],
+        [
+          "F.6",
+          "Sanitiser on any rendered user/agent/provider content; no dangerouslySetInnerHTML without it",
+          "critical",
+          "2.2",
+          "open",
+          ""
+        ]
+      ]
+    },
+    {
+      "id": "T",
+      "title": "Testing layers",
+      "spec": "19",
+      "items": [
+        [
+          "T.1",
+          "Domain unit (Vitest): state machines, binding hashing, policy table, statistics",
+          "production",
+          "19.1",
+          "complete",
+          "70 tests pass"
+        ],
+        [
+          "T.2",
+          "Database integration (real MySQL 8): tenant scoping, composite integrity, optimistic concurrency, outbox atomicity, idempotency, immutability",
+          "critical",
+          "19.1",
+          "in_progress",
+          "Scoping, composite integrity, optimistic concurrency, transaction atomicity, outbox atomicity, idempotency and role-enforced immutability all pass on MySQL 8.0.46 (31 integration tests). Outbox dispatcher and publication tables arrive in Phase 5."
+        ],
+        [
+          "T.3",
+          "API contract: identical authorisation across tRPC, REST and MCP; envelope; pagination; idempotency replay; revoked permissions",
+          "critical",
+          "19.1",
+          "in_progress",
+          "tRPC contract covered (envelope, validation details, idempotency replay/reuse, tenant selection, rate limit, revoked key). REST and MCP surfaces arrive in Phase 5 and must share the same fixtures."
+        ],
+        [
+          "T.4",
+          "Temporal time-skipping tests: durable waits, cancel races, reschedule, crash at each activity boundary, replay",
+          "critical",
+          "19.1",
+          "blocked",
+          "@temporalio/testing downloads its test server from GitHub releases, which the environment proxy blocks (403). Activities can be tested with MockActivityEnvironment."
+        ],
+        [
+          "T.5",
+          "Provider adapter fixture tests: canonical request/response, before/after-send classification, refresh, rate limits, reconciliation",
+          "critical",
+          "19.1",
+          "open",
+          ""
+        ],
+        [
+          "T.6",
+          "Creative: reducer properties, save/reopen, golden renders, overflow, export hash stability, keyboard operability",
+          "production",
+          "19.1",
+          "open",
+          ""
+        ],
+        ["T.7", "Agent evaluations harness", "production", "19.1", "open", ""],
+        [
+          "T.8",
+          "End-to-end (Playwright): two companies, roles, create → review → schedule, post-approval edit invalidates, partial failure, restore and reconcile",
+          "critical",
+          "19.1",
+          "open",
+          ""
+        ],
+        [
+          "T.9",
+          "Operational: burst load, queue fairness, provider outage, secret redaction, backup restore",
+          "production",
+          "19.1",
+          "open",
+          ""
+        ],
+        [
+          "T.10",
+          "Every critical-tier path in section 18 has at least one adversarial test",
+          "critical",
+          "19.2",
+          "open",
+          ""
+        ]
+      ]
+    },
+    {
+      "id": "S",
+      "title": "Threat model verification rows",
+      "spec": "18",
+      "items": [
+        [
+          "S.1",
+          "IDOR/BOLA: cross-tenant harness across tRPC, REST, MCP, agent tools, workers, exports",
+          "critical",
+          "18",
+          "in_progress",
+          "Repository-level and tRPC-level cross-tenant tests pass (21 procedures). REST, MCP, agent tools, workers and exports are added to the same harness as they land."
+        ],
+        [
+          "S.2",
+          "Prompt injection: fixtures in guidelines, OCR text, captions, comments, web pages cannot widen scope",
+          "critical",
+          "18",
+          "open",
+          ""
+        ],
+        [
+          "S.3",
+          "Agent → publication authority: tool abuse, stale approvals, revoked approvers, wrong channel, quota breach",
+          "critical",
+          "18",
+          "in_progress",
+          "Policy unit tests cover never-actions and channel scope; dispatch-time checks pending"
+        ],
+        [
+          "S.4",
+          "Skill package → runtime: malicious package fixtures (path traversal, links)",
+          "critical",
+          "18",
+          "open",
+          ""
+        ],
+        [
+          "S.5",
+          "Upload/render → host or network: malformed SVG/font/image, bombs, oversized input, SSRF",
+          "critical",
+          "18",
+          "open",
+          ""
+        ],
+        [
+          "S.6",
+          "Credential store → model/log/history: automated scan asserts secrets absent from prompts, events, logs, histories",
+          "critical",
+          "18",
+          "in_progress",
+          "Log allowlist test passes; envelope tests prove no plaintext credentials in ciphertext; prompt/event/workflow-history scans arrive with those components"
+        ],
+        [
+          "S.7",
+          "Retry/cancel → duplicate publication: crash after acceptance, timeout after send, duplicate outbox delivery, cancel-dispatch race, reschedule race",
+          "critical",
+          "18",
+          "open",
+          ""
+        ],
+        [
+          "S.8",
+          "Portfolio/export disclosure: mixed-client export and revoked-link tests",
+          "critical",
+          "18",
+          "open",
+          ""
+        ],
+        [
+          "S.9",
+          "Runaway cost: parallel overspend, provider timeout, retry-after-acceptance",
+          "critical",
+          "18",
+          "in_progress",
+          "Parallel overspend test passes; provider timeout and retry-after-acceptance tests arrive with the provider layer"
+        ],
+        [
+          "S.10",
+          "External reviewer link escalation: reuse on other requests, post-revocation use",
+          "critical",
+          "18",
+          "open",
+          ""
+        ],
+        [
+          "S.11",
+          "Platform operator: audit completeness",
+          "critical",
+          "18",
+          "in_progress",
+          "Support sessions carry supportSessionId into every audit row; audit-completeness test pending"
+        ],
+        ["S.12", "Inbound webhooks: forged and replayed", "critical", "18", "open", ""],
+        ["S.13", "Outbound webhooks: private-range and DNS-rebinding tests", "critical", "18", "open", ""]
+      ]
+    }
+  ]
+}

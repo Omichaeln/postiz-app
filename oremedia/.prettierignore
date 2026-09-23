@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+pnpm-lock.yaml
+docs/spec
+docs/progress/index.html
+packages/db/migrations
+tooling/test-fixtures/histories

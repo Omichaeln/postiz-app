@@ -1,0 +1,32 @@
+{
+  "name": "@oremedia/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./schema": "./src/schema/index.ts",
+    "./schema/*": "./src/schema/*.ts",
+    "./testing": "./src/testing/index.ts",
+    "./roles": "./src/roles.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/migrate.ts",
+    "db:check": "drizzle-kit check"
+  },
+  "dependencies": {
+    "@oremedia/contracts": "workspace:*",
+    "@oremedia/domain": "workspace:*",
+    "drizzle-orm": "^0.45.3",
+    "mysql2": "^3.24.4",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@testcontainers/mysql": "^12.1.0",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.20.6"
+  }
+}

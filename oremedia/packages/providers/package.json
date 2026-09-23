@@ -1,0 +1,19 @@
+{
+  "name": "@oremedia/providers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@oremedia/contracts": "workspace:*",
+    "@oremedia/observability": "workspace:*",
+    "undici": "^8.11.0",
+    "zod": "^3.25.76"
+  }
+}

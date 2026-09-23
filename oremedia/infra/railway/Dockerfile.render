@@ -1,0 +1,25 @@
+# worker-render: isolated rendering with headless Chromium (spec 11.5). No credential access; egress restricted
+# at the network layer (Railway private networking + object-store endpoint only).
+# syntax=docker/dockerfile:1.7
+FROM mcr.microsoft.com/playwright:v1.63.0-noble AS base
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+RUN corepack enable && corepack prepare pnpm@10.6.1 --activate
+
+FROM base AS build
+WORKDIR /src
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc turbo.json tsconfig.base.json tsconfig.json ./
+COPY apps ./apps
+COPY packages ./packages
+COPY tooling ./tooling
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm --filter @oremedia/worker-render build
+RUN pnpm --filter @oremedia/worker-render deploy --prod --legacy /out
+
+FROM base AS runtime
+ENV NODE_ENV=production OREMEDIA_SERVICE=oremedia-worker-render
+WORKDIR /app
+COPY --from=build --chown=pwuser:pwuser /out/dist ./dist
+COPY --from=build --chown=pwuser:pwuser /out/node_modules ./node_modules
+COPY --from=build --chown=pwuser:pwuser /out/package.json ./package.json
+USER pwuser
+CMD ["node", "dist/main.js"]

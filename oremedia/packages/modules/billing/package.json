@@ -1,0 +1,21 @@
+{
+  "name": "@oremedia/module-billing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@oremedia/contracts": "workspace:*",
+    "@oremedia/db": "workspace:*",
+    "@oremedia/domain": "workspace:*",
+    "@oremedia/module-operations": "workspace:*",
+    "@oremedia/observability": "workspace:*",
+    "drizzle-orm": "^0.45.3",
+    "zod": "^3.25.76"
+  }
+}

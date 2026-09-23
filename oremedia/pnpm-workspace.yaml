@@ -1,0 +1,15 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'packages/modules/*'
+  - 'tooling/*'
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - '@temporalio/core-bridge'
+  - protobufjs
+  - cpu-features
+  - ssh2
+  - playwright
+  - '@sentry/cli'
+  - '@sentry-internal/node-cpu-profiler'
