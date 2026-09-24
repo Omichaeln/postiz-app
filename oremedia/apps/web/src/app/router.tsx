@@ -11,6 +11,9 @@ import { BrandHomeRoute } from './c/$company/b/$brand/home/route';
 import { BrandSystemRoute } from './c/$company/b/$brand/system/route';
 import { AssetLibraryRoute } from './c/$company/b/$brand/assets/route';
 import { StudioRoute } from './c/$company/b/$brand/studio/$doc/route';
+import { CalendarRoute } from './c/$company/b/$brand/calendar/route';
+import { ReviewInboxRoute } from './c/$company/b/$brand/review/route';
+import { AgentRunsRoute } from './c/$company/b/$brand/agents/route';
 import { PLACEHOLDER_ROUTES } from './c/$company/b/$brand/placeholders';
 import { ReviewPortalRoute } from './review-portal/route';
 
@@ -81,6 +84,33 @@ export function createAppRouter({ trpc, queryClient }: RouterDeps) {
                   queryClient.ensureQueryData(
                     trpc.creative.documents.get.queryOptions(
                       { documentId: param(args, 'doc') },
+                      { trpc: { context: { tenantId: param(args, 'company') } } },
+                    ),
+                  ),
+                ),
+            },
+            { path: 'agents', Component: AgentRunsRoute },
+            {
+              path: 'calendar',
+              Component: CalendarRoute,
+              loader: (args) =>
+                prefetch(
+                  queryClient.ensureQueryData(
+                    trpc.publishing.channels.list.queryOptions(
+                      { brandId: param(args, 'brand') },
+                      { trpc: { context: { tenantId: param(args, 'company') } } },
+                    ),
+                  ),
+                ),
+            },
+            {
+              path: 'review',
+              Component: ReviewInboxRoute,
+              loader: (args) =>
+                prefetch(
+                  queryClient.ensureQueryData(
+                    trpc.review.inbox.list.queryOptions(
+                      { brandId: param(args, 'brand'), page: { limit: 100 } },
                       { trpc: { context: { tenantId: param(args, 'company') } } },
                     ),
                   ),

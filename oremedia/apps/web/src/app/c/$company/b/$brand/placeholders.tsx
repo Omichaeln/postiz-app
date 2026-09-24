@@ -10,18 +10,6 @@ const PLACEHOLDERS: Array<{ segment: string; title: string; phase: string; detai
     detail: 'Briefs, suggested plans and assigned work arrive with the bounded agents.',
   },
   {
-    segment: 'review',
-    title: 'Review inbox',
-    phase: 'Phase 5',
-    detail: 'Review requests, frozen manifests and approvals arrive with review and publication.',
-  },
-  {
-    segment: 'calendar',
-    title: 'Calendar and publishing',
-    phase: 'Phase 5',
-    detail: 'Scheduling and per-channel outcomes arrive with the publication workflow.',
-  },
-  {
     segment: 'intelligence',
     title: 'Intelligence',
     phase: 'Phase 6',
@@ -32,12 +20,6 @@ const PLACEHOLDERS: Array<{ segment: string; title: string; phase: string; detai
     title: 'Experiments',
     phase: 'Phase 6',
     detail: 'Randomised link experiments arrive with measurement.',
-  },
-  {
-    segment: 'agents',
-    title: 'Agent activity',
-    phase: 'Phase 4',
-    detail: 'Runs, steps, costs and exceptions arrive with the agent runtime.',
   },
   {
     segment: 'settings',

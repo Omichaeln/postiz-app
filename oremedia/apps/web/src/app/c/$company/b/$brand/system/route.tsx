@@ -26,7 +26,7 @@ import {
   type BrandVersionSummary,
 } from '../../../../../../features/brand/use-brand';
 import { useTRPC } from '../../../../../../lib/trpc';
-import { intentContext, useIntentKey } from '../../../../../../lib/intent-key';
+import { mutationIntent, useIntentKey } from '../../../../../../lib/intent-key';
 import { toUiError, type UiError } from '../../../../../../lib/errors';
 
 const VERSION_TONE: Record<BrandVersionSummary['state'], Tone> = {
@@ -84,7 +84,7 @@ function Versions({ publishedVersionId }: { publishedVersionId: string | null })
   const draftIntent = useIntentKey();
   const createDraft = useMutation(
     trpc.brand.versions.createDraft.mutationOptions({
-      ...intentContext(draftIntent.key),
+      ...mutationIntent(draftIntent.key),
       onSuccess: () => {
         draftIntent.renew();
         invalidate();
@@ -95,7 +95,7 @@ function Versions({ publishedVersionId }: { publishedVersionId: string | null })
   const submitIntent = useIntentKey();
   const submitForReview = useMutation(
     trpc.brand.versions.submitForReview.mutationOptions({
-      ...intentContext(submitIntent.key),
+      ...mutationIntent(submitIntent.key),
       onSuccess: () => {
         submitIntent.renew();
         invalidate();
@@ -106,7 +106,7 @@ function Versions({ publishedVersionId }: { publishedVersionId: string | null })
   const publishIntent = useIntentKey();
   const publish = useMutation(
     trpc.brand.versions.publish.mutationOptions({
-      ...intentContext(publishIntent.key),
+      ...mutationIntent(publishIntent.key),
       onSuccess: () => {
         publishIntent.renew();
         invalidate();
@@ -291,7 +291,7 @@ function Facts() {
   const approveIntent = useIntentKey();
   const approve = useMutation(
     trpc.brand.facts.approve.mutationOptions({
-      ...intentContext(approveIntent.key),
+      ...mutationIntent(approveIntent.key),
       onSuccess: () => {
         approveIntent.renew();
         invalidate();
@@ -302,7 +302,7 @@ function Facts() {
   const revokeIntent = useIntentKey();
   const revoke = useMutation(
     trpc.brand.facts.revoke.mutationOptions({
-      ...intentContext(revokeIntent.key),
+      ...mutationIntent(revokeIntent.key),
       onSuccess: () => {
         revokeIntent.renew();
         invalidate();
@@ -316,7 +316,7 @@ function Facts() {
   const [evidence, setEvidence] = useState('');
   const propose = useMutation(
     trpc.brand.facts.propose.mutationOptions({
-      ...intentContext(proposeIntent.key),
+      ...mutationIntent(proposeIntent.key),
       onSuccess: () => {
         proposeIntent.renew();
         setStatement('');
@@ -471,7 +471,7 @@ function Objectives() {
   const [metric, setMetric] = useState('');
   const set = useMutation(
     trpc.brand.objectives.set.mutationOptions({
-      ...intentContext(intent.key),
+      ...mutationIntent(intent.key),
       onSuccess: () => {
         intent.renew();
         setName('');

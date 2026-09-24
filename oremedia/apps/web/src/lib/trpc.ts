@@ -33,6 +33,11 @@ export interface ClientOptions {
   /** Where the current path comes from (tests inject one). */
   pathname?: () => string;
   fetch?: typeof fetch;
+  /**
+   * Where the bearer token comes from. The app reads the per-tab session token; the review portal (spec 5.6, 21.1)
+   * passes the `rl_…` link token it holds in memory, so reviewer credentials never touch the app's storage.
+   */
+  bearerToken?: () => string | null;
 }
 
 /** Per-request headers: tenant from the URL (or the operation context), CSRF double-submit, correlation id. */
@@ -43,7 +48,7 @@ export function headersFor(op: Operation, opts: ClientOptions): Record<string, s
     (typeof ctx.tenantId === 'string' && ctx.tenantId) ||
     tenantFromPath((opts.pathname ?? (() => window.location.pathname))());
   if (tenant) headers[HEADER_TENANT] = tenant;
-  const bearer = getBearerToken();
+  const bearer = opts.bearerToken ? opts.bearerToken() : getBearerToken();
   if (bearer) headers['authorization'] = `Bearer ${bearer}`;
   const csrf = readCookie(CSRF_COOKIE);
   if (csrf) headers[HEADER_CSRF] = csrf;

@@ -8,7 +8,7 @@ import { useCompanies } from '../../../features/portfolio/use-companies';
 import { useBrands } from '../../../features/brand/use-brand';
 import { brandPath } from '../../../features/brand/brand-context';
 import { useTRPC } from '../../../lib/trpc';
-import { intentContext, useIntentKey } from '../../../lib/intent-key';
+import { mutationIntent, useIntentKey } from '../../../lib/intent-key';
 import { toUiError } from '../../../lib/errors';
 
 /** The brands of one company (`/c/:company`); restricted access shows as the server's FORBIDDEN, never a blank page. */
@@ -70,7 +70,7 @@ function CreateBrand() {
   const [name, setName] = useState('');
   const create = useMutation(
     trpc.brand.create.mutationOptions({
-      ...intentContext(intent.key),
+      ...mutationIntent(intent.key),
       onSuccess: () => {
         intent.renew();
         setName('');

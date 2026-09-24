@@ -7,7 +7,7 @@ import { brandPath, useBrandContext } from '../../../../../../features/brand/bra
 import { useBrandVersions, useFacts } from '../../../../../../features/brand/use-brand';
 import { readRecentDocuments, rememberDocument } from '../../../../../../lib/recent-documents';
 import { useTRPC } from '../../../../../../lib/trpc';
-import { intentContext, useIntentKey } from '../../../../../../lib/intent-key';
+import { mutationIntent, useIntentKey } from '../../../../../../lib/intent-key';
 import { toUiError } from '../../../../../../lib/errors';
 
 /** Spec 21.2 brand home states: setup incomplete; outdated standards; action needed. All from live data. */
@@ -100,7 +100,7 @@ function NewDocument({ disabledReason }: { disabledReason?: string }) {
   const [openId, setOpenId] = useState('');
   const create = useMutation(
     trpc.creative.documents.create.mutationOptions({
-      ...intentContext(intent.key),
+      ...mutationIntent(intent.key),
       onSuccess: (res) => {
         intent.renew();
         rememberDocument({ companyId, brandId, documentId: res.documentId, title: title.trim() });

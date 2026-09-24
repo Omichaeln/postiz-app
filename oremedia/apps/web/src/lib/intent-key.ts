@@ -24,3 +24,11 @@ export function useIntentKey(): IntentKey {
 export const intentContext = (key: string): { context: { idempotencyKey: string } } => ({
   context: { idempotencyKey: key },
 });
+
+/**
+ * The same context for `mutationOptions`: the tRPC query integration reads request options from `trpc`, not from
+ * the top level of the options object, so spreading `intentContext` there silently drops the key.
+ */
+export const mutationIntent = (key: string): { trpc: { context: { idempotencyKey: string } } } => ({
+  trpc: intentContext(key),
+});

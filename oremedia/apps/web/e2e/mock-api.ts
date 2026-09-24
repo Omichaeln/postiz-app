@@ -34,6 +34,7 @@ import {
 } from '@oremedia/contracts/errors';
 import { applyBatch, changedElementIds, guardProtected, validateAgainstBrand } from '@oremedia/editor';
 import { fixtureDocument, fixtureSnapshot, ids } from '@oremedia/editor/fixtures';
+import { Phase5Backend, phase5Routers, type ReviewerLink } from './mock-phase5';
 
 /**
  * A UI-only transport for the studio smoke test: the same procedure paths, input DTOs, error envelope and header
@@ -112,6 +113,8 @@ const now = () => new Date().toISOString();
 const rid = (p: string) => `${p}_${randomUUID().replace(/-/g, '').slice(0, 26).toUpperCase()}`;
 
 export class MockBackend {
+  /** Phase 5: calendar, publications, channels, review requests and reviewer links (mock-phase5.ts). */
+  readonly phase5 = new Phase5Backend();
   readonly docs = new Map<string, Doc>();
   readonly comments: Comment[] = [];
   readonly jobs = new Map<string, RenderJob>();
@@ -246,9 +249,11 @@ export class MockBackend {
 interface Ctx {
   headers: IncomingHttpHeaders;
   correlationId: string;
+  /** Set when the bearer was an external reviewer link token (`rl_…`), spec 5.6. */
+  reviewer?: ReviewerLink | null;
 }
 
-const t = initTRPC.context<Ctx>().create({
+export const t = initTRPC.context<Ctx>().create({
   transformer: superjson,
   errorFormatter: ({ shape, error, ctx }) => {
     const correlationId = ctx?.correlationId ?? 'unknown';
@@ -298,20 +303,29 @@ const domainErrors = t.middleware(async ({ next }) => {
     throw err;
   }
 });
-const authed = t.middleware(({ ctx, next }) => {
-  if (first(ctx.headers['authorization']) !== `Bearer ${E2E.token}`)
-    throw new TRPCError({ code: 'UNAUTHORIZED' });
-  return next();
-});
-const tenantScoped = t.middleware(({ ctx, next }) => {
-  const tenant = first(ctx.headers['x-oremedia-tenant']);
-  if (!tenant) throw new TRPCError({ code: 'FORBIDDEN', message: 'Select a company first' });
-  if (tenant !== E2E.tenantId)
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'You are not a member of this company' });
-  return next();
-});
-
-export function createMockRouter(backend: MockBackend) {
+/**
+ * The shared middlewares as apps/api applies them: bearer authentication (the session token, or an `rl_…` reviewer
+ * link token that resolves to a stored link), tenant scoping from the X-Oremedia-Tenant header (an external
+ * reviewer is bound to its link's tenant and sends none), and Idempotency-Key replay on every mutation.
+ */
+export function createBuilders(backend: MockBackend) {
+  const authed = t.middleware(({ ctx, next }) => {
+    const bearer = first(ctx.headers['authorization']);
+    let reviewer: ReviewerLink | null = null;
+    if (bearer !== `Bearer ${E2E.token}`) {
+      reviewer = bearer?.startsWith('Bearer rl_') ? backend.phase5.linkByToken(bearer.slice(7)) : null;
+      if (!reviewer) throw new TRPCError({ code: 'UNAUTHORIZED' });
+    }
+    return next({ ctx: { ...ctx, reviewer } });
+  });
+  const tenantScoped = t.middleware(({ ctx, next }) => {
+    if (ctx.reviewer) return next();
+    const tenant = first(ctx.headers['x-oremedia-tenant']);
+    if (!tenant) throw new TRPCError({ code: 'FORBIDDEN', message: 'Select a company first' });
+    if (tenant !== E2E.tenantId)
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'You are not a member of this company' });
+    return next();
+  });
   const idempotent = t.middleware(async ({ ctx, path, next }) => {
     const key = first(ctx.headers['idempotency-key']);
     if (!key) throw new TRPCError({ code: 'BAD_REQUEST', message: 'IDEMPOTENCY_KEY_REQUIRED' });
@@ -330,6 +344,12 @@ export function createMockRouter(backend: MockBackend) {
   const query = t.procedure.use(domainErrors).use(authed).use(tenantScoped);
   const mutation = query.use(idempotent);
   const authedOnly = t.procedure.use(domainErrors).use(authed);
+  return { query, mutation, authedOnly };
+}
+export type MockBuilders = ReturnType<typeof createBuilders>;
+
+export function createMockRouter(backend: MockBackend) {
+  const { query, mutation, authedOnly } = createBuilders(backend);
   const brandDoc = fixtureSnapshot().document;
   const brandVersion = {
     id: E2E.brandVersionId,
@@ -349,6 +369,7 @@ export function createMockRouter(backend: MockBackend) {
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVQIW2NkYPj/n4GBgYGJgYEBAAgQAgHfTMWQAAAAAElFTkSuQmCC';
 
   return t.router({
+    ...phase5Routers(backend.phase5, { router: t.router, query, mutation }),
     access: t.router({
       listCompanies: authedOnly.query(() => [
         {

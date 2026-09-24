@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Badge, Button, EmptyState, StatusBanner } from '@oremedia/ui';
 import { useTRPC } from '../../lib/trpc';
-import { intentContext, useIntentKey } from '../../lib/intent-key';
+import { mutationIntent, useIntentKey } from '../../lib/intent-key';
 import { toUiError } from '../../lib/errors';
 import { useRenderJob } from './use-document';
 
@@ -20,7 +20,7 @@ export function RenderPanel({ documentId, revisionId, formatKey, hasLocalWork }:
   const [jobId, setJobId] = useState<string | null>(null);
   const request = useMutation(
     trpc.creative.renders.request.mutationOptions({
-      ...intentContext(intent.key),
+      ...mutationIntent(intent.key),
       onSuccess: (res) => {
         intent.renew();
         setJobId(res.renderJobId);
