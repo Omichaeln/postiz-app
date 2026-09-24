@@ -1,0 +1,48 @@
+[
+  {
+    "id": "experiment-feasible-cta",
+    "title": "A CTA wording test with enough traffic for a 10% lift in four weeks",
+    "input": {
+      "recommendationId": "rec_fixture_cta",
+      "objective": { "primaryMetricKey": "qualified_enquiries", "guardrailMetricKeys": ["unfollows"] },
+      "availableTraffic": { "eventsPerWeek": 12000, "weeks": 4 },
+      "hypothesis": "A question-led CTA increases enquiries from office managers"
+    },
+    "brandFixtureRef": "harare-coffee",
+    "expected": {
+      "properties": ["schema_valid", "no_prohibited_terms", "budget_respected"],
+      "rubric": [
+        {
+          "dimension": "sizing_correct",
+          "description": "Sample size and duration follow the sizing reference from the fixture baseline",
+          "minScore": 8
+        },
+        {
+          "dimension": "falsifiable",
+          "description": "The hypothesis names the change, the metric, the MDE and the mechanism",
+          "minScore": 8
+        }
+      ]
+    }
+  },
+  {
+    "id": "experiment-insufficient-traffic",
+    "title": "Traffic supports only a fraction of the required sample; the draft is marked infeasible",
+    "input": {
+      "recommendationId": "rec_fixture_format",
+      "objective": { "primaryMetricKey": "bookings", "guardrailMetricKeys": [] },
+      "availableTraffic": { "eventsPerWeek": 150, "weeks": 2 }
+    },
+    "brandFixtureRef": "harare-coffee",
+    "expected": {
+      "properties": ["schema_valid", "budget_respected"],
+      "rubric": [
+        {
+          "dimension": "honest_power",
+          "description": "feasible is false, the required traffic is stated and no early-stop rule pretends otherwise",
+          "minScore": 9
+        }
+      ]
+    }
+  }
+]

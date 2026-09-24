@@ -1,0 +1,69 @@
+[
+  {
+    "id": "review-unsupported-claim-and-prohibited-term",
+    "title": "A revision with an unsupported statistic and a prohibited term is blocked with element ids",
+    "input": {
+      "revisionId": "pr_fixture_3",
+      "policyVersionId": "pol_fixture_1",
+      "copy": "Nine out of ten offices switch to us within a month. Cheap coffee, big taste.",
+      "elements": [
+        {
+          "id": "el_fixture_headline",
+          "type": "text",
+          "text": "Nine out of ten offices switch to us",
+          "factRefs": []
+        },
+        { "id": "el_fixture_logo", "type": "image", "assetVersionId": "av_fixture_logo", "protected": true }
+      ]
+    },
+    "brandFixtureRef": "harare-coffee",
+    "expected": {
+      "properties": [
+        "schema_valid",
+        "claims_reference_facts",
+        "protected_elements_untouched",
+        "no_prohibited_terms"
+      ],
+      "rubric": [
+        {
+          "dimension": "precision",
+          "description": "Findings name the element id and the exact text that fails",
+          "minScore": 8
+        },
+        {
+          "dimension": "no_editing",
+          "description": "The output contains findings only, no rewritten copy",
+          "minScore": 9
+        }
+      ]
+    }
+  },
+  {
+    "id": "review-compliant-revision",
+    "title": "A compliant revision passes with at most notes",
+    "input": {
+      "revisionId": "pr_fixture_4",
+      "policyVersionId": "pol_fixture_1",
+      "copy": "Freshly roasted every Monday. Free delivery within Harare for your first month. Order this week.",
+      "elements": [
+        {
+          "id": "el_fixture_headline2",
+          "type": "text",
+          "text": "Freshly roasted every Monday",
+          "factRefs": ["fact_fixture_winter_offer"]
+        }
+      ]
+    },
+    "brandFixtureRef": "harare-coffee",
+    "expected": {
+      "properties": ["schema_valid", "claims_reference_facts", "no_prohibited_terms"],
+      "rubric": [
+        {
+          "dimension": "no_false_positives",
+          "description": "No blocking finding is raised on supported, compliant copy",
+          "minScore": 8
+        }
+      ]
+    }
+  }
+]

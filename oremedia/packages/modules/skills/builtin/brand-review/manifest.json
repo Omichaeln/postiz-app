@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "key": "brand-review",
+  "title": "Brand review",
+  "description": "Reviews an exact content revision against an exact policy version and the brand snapshot, returning findings that reference element ids and fact ids. Blocking findings must be resolved before release; the reviewer never edits content.",
+  "taskKinds": ["brand_review"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "revisionId": { "type": "string" },
+      "policyVersionId": { "type": "string" },
+      "copy": { "type": "string", "maxLength": 10000 },
+      "elements": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "type": { "type": "string" },
+            "text": { "type": "string" },
+            "assetVersionId": { "type": "string" },
+            "factRefs": { "type": "array", "items": { "type": "string" } },
+            "protected": { "type": "boolean" }
+          },
+          "required": ["id", "type"]
+        }
+      }
+    },
+    "required": ["revisionId", "policyVersionId"],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "severity": { "enum": ["blocking", "warning", "note"] },
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "elementId": { "type": "string" },
+            "factId": { "type": "string" },
+            "evidenceRef": { "type": "string" }
+          },
+          "required": ["id", "severity", "code", "message"]
+        }
+      },
+      "verdict": { "enum": ["pass", "warnings", "blocked"] },
+      "reviewedRevisionId": { "type": "string" },
+      "reviewedPolicyVersionId": { "type": "string" }
+    },
+    "required": ["findings", "verdict", "reviewedRevisionId", "reviewedPolicyVersionId"]
+  },
+  "requiredContext": ["brand_snapshot", "approved_facts"],
+  "allowedTools": ["brand.getSnapshot", "facts.list", "review.runBrandReview"],
+  "budgets": {
+    "maxSteps": 12,
+    "maxTokens": 60000,
+    "maxCostMicros": 600000,
+    "maxVariants": 1,
+    "deadlineSeconds": 300
+  },
+  "modelCompatibility": ["anthropic:*"],
+  "instructionsPath": "SKILL.md"
+}

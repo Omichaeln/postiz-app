@@ -320,6 +320,148 @@
         }
       }
     },
+    "/trpc/agents.runs.approveProposal": {
+      "post": {
+        "operationId": "agents.runs.approveProposal",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  },
+                  "stepId": {
+                    "type": "string"
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": ["accept", "reject", "modify"]
+                  },
+                  "batch": {}
+                },
+                "required": ["runId", "stepId", "decision"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/agents.runs.cancel": {
+      "post": {
+        "operationId": "agents.runs.cancel",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["runId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/agents.runs.get": {
+      "get": {
+        "operationId": "agents.runs.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["runId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/agents.runs.start": {
+      "post": {
+        "operationId": "agents.runs.start",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "servicePrincipalId": {
+                    "type": "string"
+                  },
+                  "requestedAutonomy": {
+                    "type": "string",
+                    "enum": ["assist", "create", "prepare_release", "managed_autopublish"]
+                  },
+                  "taskKind": {
+                    "type": "string"
+                  },
+                  "brief": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": ["brandId", "servicePrincipalId", "taskKind", "brief"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/agents.runs.steps": {
+      "get": {
+        "operationId": "agents.runs.steps",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["runId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
     "/trpc/assets.approve": {
       "post": {
         "operationId": "assets.approve",
@@ -3034,6 +3176,443 @@
           }
         }
       }
+    },
+    "/trpc/skills.bindings.set": {
+      "post": {
+        "operationId": "skills.bindings.set",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": ["platform", "tenant", "brand"]
+                  },
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "skillId": {
+                    "type": "string"
+                  },
+                  "skillVersionId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["scope", "skillId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/skills.export": {
+      "get": {
+        "operationId": "skills.export",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "skillVersionId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["skillVersionId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/skills.get": {
+      "get": {
+        "operationId": "skills.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "skillId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["skillId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/skills.import": {
+      "post": {
+        "operationId": "skills.import",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["path", "content"]
+                    }
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": ["platform", "tenant", "brand"]
+                  },
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "input": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "brandFixtureRef": {
+                          "type": "string"
+                        },
+                        "expected": {
+                          "type": "object",
+                          "properties": {
+                            "properties": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "schema_valid",
+                                  "only_eligible_assets",
+                                  "claims_reference_facts",
+                                  "no_prohibited_terms",
+                                  "protected_elements_untouched",
+                                  "budget_respected"
+                                ]
+                              }
+                            },
+                            "rubric": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "dimension": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "minScore": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": ["dimension", "description", "minScore"]
+                              }
+                            }
+                          },
+                          "required": ["properties"]
+                        }
+                      },
+                      "required": ["id", "title", "input", "brandFixtureRef", "expected"]
+                    }
+                  }
+                },
+                "required": ["files"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/skills.list": {
+      "get": {
+        "operationId": "skills.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": ["platform", "tenant", "brand"]
+                  },
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/skills.versions.create": {
+      "post": {
+        "operationId": "skills.versions.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "skillId": {
+                    "type": "string"
+                  },
+                  "skillKey": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": ["platform", "tenant", "brand"]
+                  },
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "manifest": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "instructions": {
+                    "type": "string"
+                  },
+                  "references": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["path", "content"]
+                    }
+                  },
+                  "cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "input": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "brandFixtureRef": {
+                          "type": "string"
+                        },
+                        "expected": {
+                          "type": "object",
+                          "properties": {
+                            "properties": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "schema_valid",
+                                  "only_eligible_assets",
+                                  "claims_reference_facts",
+                                  "no_prohibited_terms",
+                                  "protected_elements_untouched",
+                                  "budget_respected"
+                                ]
+                              }
+                            },
+                            "rubric": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "dimension": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "minScore": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": ["dimension", "description", "minScore"]
+                              }
+                            }
+                          },
+                          "required": ["properties"]
+                        }
+                      },
+                      "required": ["id", "title", "input", "brandFixtureRef", "expected"]
+                    }
+                  }
+                },
+                "required": ["manifest", "instructions"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/skills.versions.evaluate": {
+      "post": {
+        "operationId": "skills.versions.evaluate",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "skillVersionId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "input": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "brandFixtureRef": {
+                          "type": "string"
+                        },
+                        "expected": {
+                          "type": "object",
+                          "properties": {
+                            "properties": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "schema_valid",
+                                  "only_eligible_assets",
+                                  "claims_reference_facts",
+                                  "no_prohibited_terms",
+                                  "protected_elements_untouched",
+                                  "budget_respected"
+                                ]
+                              }
+                            },
+                            "rubric": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "dimension": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "minScore": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": ["dimension", "description", "minScore"]
+                              }
+                            }
+                          },
+                          "required": ["properties"]
+                        }
+                      },
+                      "required": ["id", "title", "input", "brandFixtureRef", "expected"]
+                    }
+                  },
+                  "runs": {
+                    "type": "number"
+                  }
+                },
+                "required": ["skillVersionId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/skills.versions.publish": {
+      "post": {
+        "operationId": "skills.versions.publish",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "skillVersionId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "rolloutPercent": {
+                    "type": "number"
+                  }
+                },
+                "required": ["skillVersionId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
     }
   },
   "x-contract": {
@@ -3276,6 +3855,103 @@
             }
           },
           "required": ["tenantId"]
+        }
+      },
+      "agents.runs.approveProposal": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            },
+            "stepId": {
+              "type": "string"
+            },
+            "decision": {
+              "type": "string",
+              "enum": ["accept", "reject", "modify"]
+            },
+            "batch": {}
+          },
+          "required": ["runId", "stepId", "decision"]
+        }
+      },
+      "agents.runs.cancel": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": ["runId"]
+        }
+      },
+      "agents.runs.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            }
+          },
+          "required": ["runId"]
+        }
+      },
+      "agents.runs.start": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "servicePrincipalId": {
+              "type": "string"
+            },
+            "requestedAutonomy": {
+              "type": "string",
+              "enum": ["assist", "create", "prepare_release", "managed_autopublish"]
+            },
+            "taskKind": {
+              "type": "string"
+            },
+            "brief": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "required": ["brandId", "servicePrincipalId", "taskKind", "brief"]
+        }
+      },
+      "agents.runs.steps": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["runId", "page"]
         }
       },
       "assets.approve": {
@@ -5528,6 +6204,371 @@
             }
           },
           "required": ["eventId"]
+        }
+      },
+      "skills.bindings.set": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "enum": ["platform", "tenant", "brand"]
+            },
+            "brandId": {
+              "type": "string"
+            },
+            "skillId": {
+              "type": "string"
+            },
+            "skillVersionId": {
+              "type": "string"
+            }
+          },
+          "required": ["scope", "skillId"]
+        }
+      },
+      "skills.export": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "skillVersionId": {
+              "type": "string"
+            }
+          },
+          "required": ["skillVersionId"]
+        }
+      },
+      "skills.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "skillId": {
+              "type": "string"
+            }
+          },
+          "required": ["skillId"]
+        }
+      },
+      "skills.import": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path", "content"]
+              }
+            },
+            "scope": {
+              "type": "string",
+              "enum": ["platform", "tenant", "brand"]
+            },
+            "brandId": {
+              "type": "string"
+            },
+            "cases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "input": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "brandFixtureRef": {
+                    "type": "string"
+                  },
+                  "expected": {
+                    "type": "object",
+                    "properties": {
+                      "properties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "schema_valid",
+                            "only_eligible_assets",
+                            "claims_reference_facts",
+                            "no_prohibited_terms",
+                            "protected_elements_untouched",
+                            "budget_respected"
+                          ]
+                        }
+                      },
+                      "rubric": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "dimension": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "minScore": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["dimension", "description", "minScore"]
+                        }
+                      }
+                    },
+                    "required": ["properties"]
+                  }
+                },
+                "required": ["id", "title", "input", "brandFixtureRef", "expected"]
+              }
+            }
+          },
+          "required": ["files"]
+        }
+      },
+      "skills.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "enum": ["platform", "tenant", "brand"]
+            },
+            "brandId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["page"]
+        }
+      },
+      "skills.versions.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "skillId": {
+              "type": "string"
+            },
+            "skillKey": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string",
+              "enum": ["platform", "tenant", "brand"]
+            },
+            "brandId": {
+              "type": "string"
+            },
+            "manifest": {
+              "type": "object",
+              "additionalProperties": {}
+            },
+            "instructions": {
+              "type": "string"
+            },
+            "references": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path", "content"]
+              }
+            },
+            "cases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "input": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "brandFixtureRef": {
+                    "type": "string"
+                  },
+                  "expected": {
+                    "type": "object",
+                    "properties": {
+                      "properties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "schema_valid",
+                            "only_eligible_assets",
+                            "claims_reference_facts",
+                            "no_prohibited_terms",
+                            "protected_elements_untouched",
+                            "budget_respected"
+                          ]
+                        }
+                      },
+                      "rubric": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "dimension": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "minScore": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["dimension", "description", "minScore"]
+                        }
+                      }
+                    },
+                    "required": ["properties"]
+                  }
+                },
+                "required": ["id", "title", "input", "brandFixtureRef", "expected"]
+              }
+            }
+          },
+          "required": ["manifest", "instructions"]
+        }
+      },
+      "skills.versions.evaluate": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "skillVersionId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "cases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "input": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "brandFixtureRef": {
+                    "type": "string"
+                  },
+                  "expected": {
+                    "type": "object",
+                    "properties": {
+                      "properties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "schema_valid",
+                            "only_eligible_assets",
+                            "claims_reference_facts",
+                            "no_prohibited_terms",
+                            "protected_elements_untouched",
+                            "budget_respected"
+                          ]
+                        }
+                      },
+                      "rubric": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "dimension": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "minScore": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["dimension", "description", "minScore"]
+                        }
+                      }
+                    },
+                    "required": ["properties"]
+                  }
+                },
+                "required": ["id", "title", "input", "brandFixtureRef", "expected"]
+              }
+            },
+            "runs": {
+              "type": "number"
+            }
+          },
+          "required": ["skillVersionId", "expectedVersion"]
+        }
+      },
+      "skills.versions.publish": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "skillVersionId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "rolloutPercent": {
+              "type": "number"
+            }
+          },
+          "required": ["skillVersionId", "expectedVersion"]
         }
       }
     }

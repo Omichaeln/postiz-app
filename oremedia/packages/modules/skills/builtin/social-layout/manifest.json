@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "key": "social-layout",
+  "title": "Social layout",
+  "description": "Proposes an OperationBatch that lays out approved copy and eligible assets on a new or existing creative document using the brand's tokens and templates. Geometry, logo, typography and contrast checks gate the result; protected elements are never touched.",
+  "taskKinds": ["layout"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "documentId": { "type": "string" },
+      "baseRevisionId": { "type": "string" },
+      "copy": {
+        "type": "object",
+        "properties": {
+          "headline": { "type": "string" },
+          "body": { "type": "string" },
+          "cta": { "type": "string" }
+        },
+        "required": ["headline"]
+      },
+      "formatKeys": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 6 },
+      "templateVersionId": { "type": "string" },
+      "assetVersionIds": { "type": "array", "items": { "type": "string" }, "maxItems": 10 }
+    },
+    "required": ["copy", "formatKeys"],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "operationBatch": {
+        "type": "object",
+        "properties": {
+          "documentId": { "type": "string" },
+          "baseRevisionId": { "type": "string" },
+          "operations": { "type": "array", "items": { "type": "object", "required": ["op"] } },
+          "summary": { "type": "string" }
+        },
+        "required": ["operations", "summary"]
+      },
+      "renderRequested": { "type": "boolean" },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "severity": { "enum": ["blocking", "warning", "note"] },
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "elementId": { "type": "string" }
+          },
+          "required": ["severity", "code", "message"]
+        }
+      }
+    },
+    "required": ["operationBatch", "renderRequested", "findings"]
+  },
+  "requiredContext": ["brand_snapshot", "eligible_assets"],
+  "allowedTools": [
+    "brand.getSnapshot",
+    "assets.searchEligible",
+    "creative.proposeOperations",
+    "creative.requestRender",
+    "review.runBrandReview"
+  ],
+  "budgets": {
+    "maxSteps": 30,
+    "maxTokens": 100000,
+    "maxCostMicros": 2500000,
+    "maxVariants": 6,
+    "deadlineSeconds": 900
+  },
+  "modelCompatibility": ["anthropic:*"],
+  "instructionsPath": "SKILL.md"
+}

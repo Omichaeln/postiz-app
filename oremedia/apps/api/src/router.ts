@@ -4,6 +4,8 @@ import { operationsRouter } from './routers/operations';
 import { brandRouter } from './routers/brand';
 import { assetsRouter } from './routers/assets';
 import { creativeRouter } from './routers/creative';
+import { skillsRouter } from './routers/skills';
+import { agentsRouter } from './routers/agents';
 
 /** Spec 7.5 router map. Routers are added per phase; the cross-tenant harness enumerates every procedure. */
 export const appRouter = router({
@@ -11,6 +13,8 @@ export const appRouter = router({
   brand: brandRouter,
   assets: assetsRouter,
   creative: creativeRouter,
+  skills: skillsRouter,
+  agents: agentsRouter,
   operations: operationsRouter,
 });
 export type AppRouter = typeof appRouter;

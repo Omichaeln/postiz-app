@@ -30,6 +30,10 @@ a breaking change creates a new event type or schema version with dual publishin
 | `publication.state_changed`     | 1              |
 | `agent.run_requested`           | 1              |
 | `agent.run_finished`            | 1              |
+| `agent.proposal_decided`        | 1              |
+| `agent.run_cancel_requested`    | 1              |
+| `skill.version_evaluated`       | 1              |
+| `skill.version_published`       | 1              |
 | `measurement.collection_due`    | 1              |
 | `intelligence.analysis_due`     | 1              |
 | `experiment.started`            | 1              |

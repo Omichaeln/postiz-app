@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "key": "experiment-design",
+  "title": "Experiment design",
+  "description": "Turns a recommendation into a pre-registration draft: hypothesis, metrics, variants, allocation, sample size, duration, stop rules and analysis plan, sized against the traffic actually available. An analyst approves the pre-registration; the skill never starts an experiment.",
+  "taskKinds": ["experiment_design"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "recommendationId": { "type": "string" },
+      "objective": {
+        "type": "object",
+        "properties": {
+          "primaryMetricKey": { "type": "string" },
+          "guardrailMetricKeys": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["primaryMetricKey", "guardrailMetricKeys"]
+      },
+      "availableTraffic": {
+        "type": "object",
+        "properties": {
+          "eventsPerWeek": { "type": "integer", "minimum": 0 },
+          "weeks": { "type": "integer", "minimum": 1, "maximum": 12 }
+        },
+        "required": ["eventsPerWeek", "weeks"]
+      },
+      "hypothesis": { "type": "string", "maxLength": 1000 }
+    },
+    "required": ["recommendationId", "objective", "availableTraffic"],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "preRegistration": {
+        "type": "object",
+        "properties": {
+          "hypothesis": { "type": "string" },
+          "primaryMetricKey": { "type": "string" },
+          "guardrailMetricKeys": { "type": "array", "items": { "type": "string" } },
+          "variants": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "object",
+              "properties": { "key": { "type": "string" }, "description": { "type": "string" } },
+              "required": ["key", "description"]
+            }
+          },
+          "allocation": { "type": "object", "additionalProperties": { "type": "number" } },
+          "minimumDetectableEffect": { "type": "number" },
+          "sampleSizePerVariant": { "type": "integer" },
+          "durationDays": { "type": "integer" },
+          "stopRules": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "analysisPlan": { "type": "string" },
+          "feasible": { "type": "boolean" }
+        },
+        "required": [
+          "hypothesis",
+          "primaryMetricKey",
+          "guardrailMetricKeys",
+          "variants",
+          "allocation",
+          "minimumDetectableEffect",
+          "sampleSizePerVariant",
+          "durationDays",
+          "stopRules",
+          "analysisPlan",
+          "feasible"
+        ]
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "severity": { "enum": ["blocking", "warning", "note"] },
+            "code": { "type": "string" },
+            "message": { "type": "string" }
+          },
+          "required": ["severity", "code", "message"]
+        }
+      }
+    },
+    "required": ["preRegistration", "findings"]
+  },
+  "requiredContext": ["brand_snapshot", "metrics", "playbook"],
+  "allowedTools": ["brand.getSnapshot", "metrics.query", "experiments.proposeDesign"],
+  "budgets": {
+    "maxSteps": 12,
+    "maxTokens": 50000,
+    "maxCostMicros": 500000,
+    "maxVariants": 4,
+    "deadlineSeconds": 300
+  },
+  "modelCompatibility": ["anthropic:*"],
+  "instructionsPath": "SKILL.md"
+}

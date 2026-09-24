@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "key": "channel-adaptation",
+  "title": "Channel adaptation",
+  "description": "Adapts a master content package into per-channel text and format variants within each provider's declared capabilities. Variants keep the master's facts and assets; capability validation gates them.",
+  "taskKinds": ["channel_adaptation"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "masterPackage": {
+        "type": "object",
+        "properties": {
+          "copy": { "type": "string", "maxLength": 5000 },
+          "factIds": { "type": "array", "items": { "type": "string" } },
+          "assetVersionIds": { "type": "array", "items": { "type": "string" } },
+          "formatKeys": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["copy", "factIds", "assetVersionIds", "formatKeys"]
+      },
+      "channels": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 10,
+        "items": {
+          "type": "object",
+          "properties": {
+            "channelKey": { "type": "string" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "maxTextLength": { "type": "integer" },
+                "maxHashtags": { "type": "integer" },
+                "supportsLinks": { "type": "boolean" },
+                "mediaKinds": { "type": "array", "items": { "type": "string" } },
+                "formatKeys": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "required": ["channelKey", "capabilities"]
+        }
+      }
+    },
+    "required": ["masterPackage", "channels"],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "variants": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "channelKey": { "type": "string" },
+            "text": { "type": "string" },
+            "formatKey": { "type": "string" },
+            "assetVersionIds": { "type": "array", "items": { "type": "string" } },
+            "factIds": { "type": "array", "items": { "type": "string" } },
+            "capabilityNotes": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["channelKey", "text", "formatKey", "assetVersionIds", "factIds", "capabilityNotes"]
+        }
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "severity": { "enum": ["blocking", "warning", "note"] },
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "channelKey": { "type": "string" }
+          },
+          "required": ["severity", "code", "message"]
+        }
+      }
+    },
+    "required": ["variants", "findings"]
+  },
+  "requiredContext": ["brand_snapshot", "approved_facts"],
+  "allowedTools": ["brand.getSnapshot", "facts.list", "content.draftCopy"],
+  "budgets": {
+    "maxSteps": 16,
+    "maxTokens": 60000,
+    "maxCostMicros": 800000,
+    "maxVariants": 10,
+    "deadlineSeconds": 300
+  },
+  "modelCompatibility": ["anthropic:*"],
+  "instructionsPath": "SKILL.md"
+}

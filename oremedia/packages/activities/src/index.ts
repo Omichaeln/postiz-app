@@ -13,3 +13,4 @@ export {
   type RenderTargetInput,
   type RenderTargetOutput,
 } from './render-job';
+export { createAgentRunActivities, toActivityFailure } from './agent-run';

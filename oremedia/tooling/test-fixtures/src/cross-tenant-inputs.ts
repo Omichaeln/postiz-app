@@ -8,6 +8,10 @@ import { OPERATIONS_SEED } from './inputs/operations-seed';
 import { ASSETS_INPUTS, ASSETS_SEED } from './inputs/assets';
 import { CREATIVE_INPUTS } from './inputs/creative';
 import { CREATIVE_SEED } from './inputs/creative-seed';
+import { SKILLS_INPUTS } from './inputs/skills';
+import { SKILLS_SEED } from './inputs/skills-seed';
+import { AGENTS_INPUTS } from './inputs/agents';
+import { AGENTS_SEED } from './inputs/agents-seed';
 
 /**
  * Spec 19.3: every procedure needs a fixture that points every ID field at the *foreign* tenant. A procedure
@@ -33,10 +37,14 @@ export const CROSS_TENANT_INPUTS: Record<string, CrossTenantFixture> = {
   ...OPERATIONS_INPUTS,
   ...ASSETS_INPUTS,
   ...CREATIVE_INPUTS,
+  ...SKILLS_INPUTS,
+  ...AGENTS_INPUTS,
 };
 export const SEED_EXTENSIONS: SeedExtension[] = [
   ASSETS_SEED,
   BRAND_SEED,
   CREATIVE_SEED,
   OPERATIONS_SEED,
+  SKILLS_SEED,
+  AGENTS_SEED,
 ].filter((s): s is SeedExtension => s !== null);

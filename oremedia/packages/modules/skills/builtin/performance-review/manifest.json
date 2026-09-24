@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "key": "performance-review",
+  "title": "Performance review",
+  "description": "Reads metric snapshots with their freshness and completeness, experiment results and the playbook, and produces insights and recommendations with evidence. It proposes only: it cannot change standards, the playbook or objectives.",
+  "taskKinds": ["performance_review"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "period": {
+        "type": "object",
+        "properties": {
+          "from": { "type": "string", "format": "date" },
+          "to": { "type": "string", "format": "date" }
+        },
+        "required": ["from", "to"]
+      },
+      "metricKeys": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 30 },
+      "experimentIds": { "type": "array", "items": { "type": "string" }, "maxItems": 20 }
+    },
+    "required": ["period", "metricKeys"],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "insights": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "statement": { "type": "string", "maxLength": 1000 },
+            "evidence": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": { "enum": ["metric_snapshot", "experiment_result", "comment", "other"] },
+                  "ref": { "type": "string" },
+                  "note": { "type": "string" }
+                },
+                "required": ["kind", "ref"]
+              }
+            },
+            "confidence": { "enum": ["high", "medium", "low"] },
+            "freshness": { "type": "string" }
+          },
+          "required": ["id", "statement", "evidence", "confidence", "freshness"]
+        }
+      },
+      "recommendations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "action": { "enum": ["brief", "variant", "experiment", "playbook_entry", "objective_review"] },
+            "rationale": { "type": "string", "maxLength": 2000 },
+            "insightIds": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "proposedExperiment": { "type": "object" }
+          },
+          "required": ["id", "action", "rationale", "insightIds"]
+        }
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "severity": { "enum": ["blocking", "warning", "note"] },
+            "code": { "type": "string" },
+            "message": { "type": "string" }
+          },
+          "required": ["severity", "code", "message"]
+        }
+      }
+    },
+    "required": ["insights", "recommendations", "findings"]
+  },
+  "requiredContext": ["brand_snapshot", "metrics", "playbook", "customer_voice"],
+  "allowedTools": ["brand.getSnapshot", "metrics.query", "voice.clusters", "recommendations.create"],
+  "budgets": {
+    "maxSteps": 20,
+    "maxTokens": 100000,
+    "maxCostMicros": 1500000,
+    "maxVariants": 1,
+    "deadlineSeconds": 900
+  },
+  "modelCompatibility": ["anthropic:*"],
+  "instructionsPath": "SKILL.md"
+}

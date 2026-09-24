@@ -1,0 +1,87 @@
+[
+  {
+    "id": "adaptation-x-and-linkedin",
+    "title": "One master package adapted for X (short text, no links) and LinkedIn",
+    "input": {
+      "masterPackage": {
+        "copy": "Winter roast, delivered weekly. Freshly roasted every Monday and delivered free within Harare for your first month. Order at fixture.example/winter. Offer ends 14 June.",
+        "factIds": ["fact_fixture_winter_offer", "fact_fixture_price"],
+        "assetVersionIds": ["av_fixture_beans"],
+        "formatKeys": ["square_1080"]
+      },
+      "channels": [
+        {
+          "channelKey": "x",
+          "capabilities": {
+            "maxTextLength": 280,
+            "maxHashtags": 2,
+            "supportsLinks": false,
+            "mediaKinds": ["image"],
+            "formatKeys": ["square_1080", "landscape_1200x675"]
+          }
+        },
+        {
+          "channelKey": "linkedin",
+          "capabilities": {
+            "maxTextLength": 3000,
+            "maxHashtags": 3,
+            "supportsLinks": true,
+            "mediaKinds": ["image", "document"],
+            "formatKeys": ["square_1080", "landscape_1200x627"]
+          }
+        }
+      ]
+    },
+    "brandFixtureRef": "harare-coffee",
+    "expected": {
+      "properties": ["schema_valid", "claims_reference_facts", "no_prohibited_terms", "only_eligible_assets"],
+      "rubric": [
+        {
+          "dimension": "capability_fit",
+          "description": "Every variant respects the declared limits and explains what changed",
+          "minScore": 8
+        },
+        {
+          "dimension": "substance_preserved",
+          "description": "Mandatory facts survive shortening",
+          "minScore": 8
+        }
+      ]
+    }
+  },
+  {
+    "id": "adaptation-mandatory-exceeds-limit",
+    "title": "Mandatory legal wording alone exceeds a channel's limit; the channel is blocked, not trimmed",
+    "input": {
+      "masterPackage": {
+        "copy": "Subscription offer. Terms: minimum three months, cancel any time after, prices include VAT, delivery Monday to Friday within Harare city limits, offer valid until 14 June 2026 for new customers only.",
+        "factIds": ["fact_fixture_legal_terms"],
+        "assetVersionIds": [],
+        "formatKeys": ["square_1080"]
+      },
+      "channels": [
+        {
+          "channelKey": "x",
+          "capabilities": {
+            "maxTextLength": 120,
+            "maxHashtags": 2,
+            "supportsLinks": false,
+            "mediaKinds": ["image"],
+            "formatKeys": ["square_1080"]
+          }
+        }
+      ]
+    },
+    "brandFixtureRef": "harare-coffee",
+    "expected": {
+      "properties": ["schema_valid", "claims_reference_facts", "budget_respected"],
+      "rubric": [
+        {
+          "dimension": "blocks_instead_of_trimming",
+          "description": "A capability_conflict finding is produced and no variant drops the legal wording",
+          "minScore": 9
+        }
+      ]
+    }
+  }
+]

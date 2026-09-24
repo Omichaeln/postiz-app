@@ -10,3 +10,4 @@ export * from './approved-fact';
 export * from './policy-version';
 export * from './asset';
 export * from './template-version';
+export * from './skill-version';

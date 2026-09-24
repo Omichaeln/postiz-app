@@ -7,12 +7,13 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsx watch src/worker.ts",
     "build": "tsup",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@oremedia/activities": "workspace:*",
     "@oremedia/ai": "workspace:*",
     "@oremedia/contracts": "workspace:*",
     "@oremedia/db": "workspace:*",
@@ -25,7 +26,10 @@
     "@oremedia/module-operations": "workspace:*",
     "@oremedia/module-skills": "workspace:*",
     "@oremedia/observability": "workspace:*",
+    "@oremedia/workflows": "workspace:*",
+    "@temporalio/activity": "^1.24.0",
     "@temporalio/client": "^1.24.0",
+    "@temporalio/worker": "^1.24.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

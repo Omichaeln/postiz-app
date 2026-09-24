@@ -1005,62 +1005,69 @@
           "4.g1",
           "Evaluation suites pass with recorded variance over ≥ 3 runs",
           "blocked",
-          "Needs model access (ANTHROPIC_API_KEY); not available in this environment. Deterministic checks can run without it."
+          "The evaluation harness runs each suite ≥ 3 times with recorded variance and passes against the scripted FakeModelAdapter (unit + integration). A real-model run needs ANTHROPIC_API_KEY_REF, which this environment does not have; the harness credentials were never used."
         ],
         [
           "4.g2",
           "Injection fixtures cannot widen scope or reach unlisted tools",
-          "open",
-          "Verifiable deterministically through the dispatcher"
+          "complete",
+          "injection.integration.test.ts: five injection fixtures obeyed by a fake model cannot widen scope (mode stays at the computed minimum), reach unlisted tools (denied before policy/schema) or produce any external effect; every denial is audited."
         ],
         [
           "4.g3",
           "Parallel runs cannot overspend",
-          "in_progress",
-          "Reservation-level overspend guard verified (billing test); the agent-run workflow that calls it is Phase 4 work"
+          "complete",
+          "agents.integration.test.ts: six concurrent reserveBudget activities against one brand-day limit — only the affordable number succeed, the rest are BudgetExhausted, held + settled never exceeds the limit (billing's SELECT … FOR UPDATE reservation); exceeding a reservation is ledgered then ends the run budget_exhausted."
         ]
       ],
       "items": [
-        ["4.1", "ModelAdapter interface; model IDs as configuration", "production", "12.7", "open", ""],
+        [
+          "4.1",
+          "ModelAdapter interface; model IDs as configuration",
+          "production",
+          "12.7",
+          "complete",
+          "packages/ai/src/model-adapter.ts: ModelAdapter exactly as spec 12.7 (complete with model, system, messages, tools, maxOutputTokens, temperature, timeoutMs, metadata → content, toolCalls, usage, stopReason); model ids are configuration (OREMEDIA_MODEL_ID / MODEL_ROUTING_POLICY_REF via modelConfigFromEnv), never literals at call sites; FakeModelAdapter scripts steps for tests and evaluations."
+        ],
         [
           "4.2",
           "AnthropicModelAdapter via the official SDK (tool use)",
           "production",
           "3.1, 12.7",
-          "open",
-          ""
+          "in_progress",
+          "packages/ai/src/anthropic-adapter.ts over @anthropic-ai/sdk 0.128 messages API with tool use, maxRetries 0 (Temporal retries), per-request timeout, thinking blocks stripped and never stored; the key comes only from ANTHROPIC_API_KEY_REF (file path or injected value) and the base URL is explicit, so the harness variables are never read. Verified by anthropic-adapter.test.ts with an injected fetch (request shape and response mapping). Open: no live call — blocked on an application key (ANTHROPIC_API_KEY_REF)."
         ],
         [
           "4.3",
           "Tenant model-routing policy checked before every call; private reasoning not stored",
           "critical",
           "12.7",
-          "open",
-          ""
+          "in_progress",
+          "routing-policy.ts: Zod tenant policy (permitted vendors, regions, retention, data classes) asserted before every model call (assertRoutingAllowed); private reasoning is never stored or shown (runs.steps returns actions, redacted inputs, outputs and costs). Open: policies live behind a source hook in memory — the schema has no settings column for them (schema frozen this phase)."
         ],
         [
           "4.4",
           "Context resolver: snapshot hash; precedence platform > company > brand > brief > skill > evidence; evidence labelled untrusted",
           "critical",
           "10.3, 12.3",
-          "open",
-          ""
+          "complete",
+          "context-resolver.ts: ContextSnapshot per spec 12.3 with hash = hashCanonical of the bundle, server-established tenant and brand ids, brand snapshot, pinned skills through registerSkillResolver → skillsService.resolveForRun, eligible assets through assetService.findEligibleAssets, facts, playbook (empty until Phase 6), evidence labelled untrusted; prompt.ts assembles the 10.3 precedence with delimited evidence blocks that cannot change instructions, permissions or tools; brand/skill conflicts become run findings. Unit tests (precedence order, delimiting, hash determinism)."
         ],
         [
           "4.5",
           "Tool dispatcher: allowlist, schema validation, runInTenant, policy.authorize, audit, budget consume, timeout, output parse",
           "critical",
           "12.4",
-          "open",
-          ""
+          "complete",
+          "tool-dispatcher.ts per spec 12.4: unknown or unlisted tool → denied(tool_not_allowed) before anything else; schema failure → invalid (returned to the model, counts as a step); runInTenant + policy decision for the service principal on the tool's action and resource; audit of every invocation (redacted input, input hash); budgets.consume for costed tools; timeout; output parsed. Unit tests + injection.integration.test.ts."
         ],
         [
           "4.6",
           "Release 1 tool registry (15 tools); no agent tool publishes",
           "critical",
           "12.4",
-          "open",
-          ""
+          "in_progress",
+          "tools/*: all fifteen Release 1 tools registered with real Zod schemas, actions and effects (registry names == TOOL_NAMES_RELEASE_1; an external-effect tool cannot be registered); brand.getSnapshot, assets.searchEligible, facts.list, creative.proposeOperations (proposal_requires_user), creative.requestRender, review.runBrandReview and images.generate (costed; provider_not_configured without IMAGE_GEN_PROVIDER) implemented; the eight tools whose backing modules arrive in Phases 5–6 return denied(tool_not_available_yet). No tool publishes; publications.proposeSchedule is a pending proposal only."
         ],
         [
           "4.7",
@@ -1083,48 +1090,104 @@
           "agentRunWorkflowV1 (signals, 72-hour proposal wait, non-retryable failure types, non-cancellable budget settlement)",
           "critical",
           "12.2",
-          "open",
-          ""
+          "complete",
+          "packages/workflows/src/agent-run.workflow.v1.ts: spec 12.2 structure (proposalDecision and cancelRun signals, 72-hour condition wait → waiting_expired, nonRetryableErrorTypes by ApplicationFailure type, terminal-state mapping BudgetExhausted → budget_exhausted / PolicyDenied → policy_denied, settleBudget in CancellationScope.nonCancellable). Workflow unit tests (done after N steps, proposal accepted, wait expired, cancel during wait and between steps, error mapping, settle always). Activities re-establish tenant context and re-load grants (packages/activities/src/agent-run.ts, MockActivityEnvironment integration). Input is a reference-only AgentRunWorkflowInputV1 (the row is re-loaded by activities)."
         ],
         [
           "4.10",
           "Model-call recovery: persist provider job IDs before waiting; poll instead of resubmit",
           "production",
           "12.2",
-          "open",
-          ""
+          "in_progress",
+          "provider-jobs.ts: provider job ids are persisted through a registered store before waiting and polled on retry (images.generate path). Open: the store is in-process until an image provider is configured."
         ],
         [
           "4.11",
           "Skills registry: SkillManifestV1, lifecycle draft → sandbox_evaluation → in_review → published (rollout %) → retired, bindings, import/export of SKILL.md packages, declarative only",
           "production",
           "10.1, 10.2",
-          "open",
-          ""
+          "complete",
+          "packages/modules/skills: Agent Skills package import/export (SKILL.md front matter or manifest.json, references, byte-identical round trip), declarative-only enforcement (scripts/, executable extensions, shebangs, manifest scripts → executable_content_prohibited), allowedTools ⊆ TOOL_NAMES_RELEASE_1, skillVersionMachine draft → sandbox_evaluation → in_review → published → retired (evaluation failure returns to draft), publish gated on the latest passing evaluation of that exact version, rollout % by deterministic bucket with fallback to the newest other published version, bindings with precedence brand > tenant > platform, rollback = binding an earlier published version (future runs only), resolveForRun returns only pinned published versions; agents never publish (propose_only + agent_never). skills.integration.test.ts 22/22; cross-tenant harness covers all eight skills.* procedures."
         ],
-        ["4.12", "Built-in skill: brand-onboarding", "production", "10.4", "open", ""],
-        ["4.13", "Built-in skill: campaign-planning", "production", "10.4", "open", ""],
-        ["4.14", "Built-in skill: brand-copywriting", "production", "10.4", "open", ""],
-        ["4.15", "Built-in skill: social-layout", "production", "10.4", "open", ""],
-        ["4.16", "Built-in skill: channel-adaptation", "production", "10.4", "open", ""],
-        ["4.17", "Built-in skill: brand-review", "production", "10.4", "open", ""],
-        ["4.18", "Built-in skill: performance-review", "production", "10.4", "open", ""],
-        ["4.19", "Built-in skill: experiment-design", "production", "10.4", "open", ""],
+        [
+          "4.12",
+          "Built-in skill: brand-onboarding",
+          "production",
+          "10.4",
+          "complete",
+          "packages/modules/skills/builtin/<key>: SKILL.md (inputs, context, 10.3 precedence, numbered procedure, output contract, never-list, conflicts surfaced as findings), manifest.json (valid SkillManifestV1: task kinds, JSON-schema input/output, requiredContext, allowedTools ⊆ TOOL_NAMES_RELEASE_1, budgets within limits), references, two evaluation cases with expected properties and rubric. loadBuiltinSkills() validates all eight; seedBuiltinSkills registers them as platform skills v1 in draft (publishing needs a passing evaluation; nothing auto-publishes). skills.integration.test.ts."
+        ],
+        [
+          "4.13",
+          "Built-in skill: campaign-planning",
+          "production",
+          "10.4",
+          "complete",
+          "packages/modules/skills/builtin/<key>: SKILL.md (inputs, context, 10.3 precedence, numbered procedure, output contract, never-list, conflicts surfaced as findings), manifest.json (valid SkillManifestV1: task kinds, JSON-schema input/output, requiredContext, allowedTools ⊆ TOOL_NAMES_RELEASE_1, budgets within limits), references, two evaluation cases with expected properties and rubric. loadBuiltinSkills() validates all eight; seedBuiltinSkills registers them as platform skills v1 in draft (publishing needs a passing evaluation; nothing auto-publishes). skills.integration.test.ts."
+        ],
+        [
+          "4.14",
+          "Built-in skill: brand-copywriting",
+          "production",
+          "10.4",
+          "complete",
+          "packages/modules/skills/builtin/<key>: SKILL.md (inputs, context, 10.3 precedence, numbered procedure, output contract, never-list, conflicts surfaced as findings), manifest.json (valid SkillManifestV1: task kinds, JSON-schema input/output, requiredContext, allowedTools ⊆ TOOL_NAMES_RELEASE_1, budgets within limits), references, two evaluation cases with expected properties and rubric. loadBuiltinSkills() validates all eight; seedBuiltinSkills registers them as platform skills v1 in draft (publishing needs a passing evaluation; nothing auto-publishes). skills.integration.test.ts."
+        ],
+        [
+          "4.15",
+          "Built-in skill: social-layout",
+          "production",
+          "10.4",
+          "complete",
+          "packages/modules/skills/builtin/<key>: SKILL.md (inputs, context, 10.3 precedence, numbered procedure, output contract, never-list, conflicts surfaced as findings), manifest.json (valid SkillManifestV1: task kinds, JSON-schema input/output, requiredContext, allowedTools ⊆ TOOL_NAMES_RELEASE_1, budgets within limits), references, two evaluation cases with expected properties and rubric. loadBuiltinSkills() validates all eight; seedBuiltinSkills registers them as platform skills v1 in draft (publishing needs a passing evaluation; nothing auto-publishes). skills.integration.test.ts."
+        ],
+        [
+          "4.16",
+          "Built-in skill: channel-adaptation",
+          "production",
+          "10.4",
+          "complete",
+          "packages/modules/skills/builtin/<key>: SKILL.md (inputs, context, 10.3 precedence, numbered procedure, output contract, never-list, conflicts surfaced as findings), manifest.json (valid SkillManifestV1: task kinds, JSON-schema input/output, requiredContext, allowedTools ⊆ TOOL_NAMES_RELEASE_1, budgets within limits), references, two evaluation cases with expected properties and rubric. loadBuiltinSkills() validates all eight; seedBuiltinSkills registers them as platform skills v1 in draft (publishing needs a passing evaluation; nothing auto-publishes). skills.integration.test.ts."
+        ],
+        [
+          "4.17",
+          "Built-in skill: brand-review",
+          "production",
+          "10.4",
+          "complete",
+          "packages/modules/skills/builtin/<key>: SKILL.md (inputs, context, 10.3 precedence, numbered procedure, output contract, never-list, conflicts surfaced as findings), manifest.json (valid SkillManifestV1: task kinds, JSON-schema input/output, requiredContext, allowedTools ⊆ TOOL_NAMES_RELEASE_1, budgets within limits), references, two evaluation cases with expected properties and rubric. loadBuiltinSkills() validates all eight; seedBuiltinSkills registers them as platform skills v1 in draft (publishing needs a passing evaluation; nothing auto-publishes). skills.integration.test.ts."
+        ],
+        [
+          "4.18",
+          "Built-in skill: performance-review",
+          "production",
+          "10.4",
+          "complete",
+          "packages/modules/skills/builtin/<key>: SKILL.md (inputs, context, 10.3 precedence, numbered procedure, output contract, never-list, conflicts surfaced as findings), manifest.json (valid SkillManifestV1: task kinds, JSON-schema input/output, requiredContext, allowedTools ⊆ TOOL_NAMES_RELEASE_1, budgets within limits), references, two evaluation cases with expected properties and rubric. loadBuiltinSkills() validates all eight; seedBuiltinSkills registers them as platform skills v1 in draft (publishing needs a passing evaluation; nothing auto-publishes). skills.integration.test.ts."
+        ],
+        [
+          "4.19",
+          "Built-in skill: experiment-design",
+          "production",
+          "10.4",
+          "complete",
+          "packages/modules/skills/builtin/<key>: SKILL.md (inputs, context, 10.3 precedence, numbered procedure, output contract, never-list, conflicts surfaced as findings), manifest.json (valid SkillManifestV1: task kinds, JSON-schema input/output, requiredContext, allowedTools ⊆ TOOL_NAMES_RELEASE_1, budgets within limits), references, two evaluation cases with expected properties and rubric. loadBuiltinSkills() validates all eight; seedBuiltinSkills registers them as platform skills v1 in draft (publishing needs a passing evaluation; nothing auto-publishes). skills.integration.test.ts."
+        ],
         [
           "4.20",
           "Evaluation harness: deterministic checks + rubric grading by a separate model call; variance over ≥ 3 runs",
           "production",
           "19.6",
-          "open",
-          ""
+          "in_progress",
+          "packages/ai/src/evaluation: runEvaluation runs each case ≥ 3 times, records the six deterministic checks (schema_valid, only_eligible_assets, claims_reference_facts, no_prohibited_terms, protected_elements_untouched, budget_respected) and rubric mean/variance per dimension from a separate grader call; a rubric score never rescues a deterministic failure (unit-tested); the runner is registered with skillsService.registerEvaluationRunner. Ran against the FakeModelAdapter only — a real-model run is blocked on ANTHROPIC_API_KEY_REF."
         ],
         [
           "4.21",
           "Injection fixtures (guidelines, OCR text, captions, comments, web pages)",
           "critical",
           "18",
-          "open",
-          ""
+          "complete",
+          "tooling/test-fixtures/injection: guideline text, OCR text, caption, comment and web-page fixtures that instruct the model to publish, call unlisted tools, raise autonomy or exfiltrate credentials. injection.integration.test.ts drives the real runtime and dispatcher against MySQL with a fake model that obeys them: unlisted tools denied before policy or schema, widened arguments invalid, foreign ids denied, run mode never rises above the computed mode, no revision, render job or publication event exists, every denial audited, fixture text never reaches the audit trail (6 tests)."
         ],
         [
           "4.22",
@@ -1132,7 +1195,7 @@
           "production",
           "21.1, 21.2",
           "open",
-          ""
+          "Agent runs UI (runs, steps, costs, exceptions) is not built yet; the API surface (agents.runs.get/steps) returns actions, redacted inputs, outputs and costs without private reasoning."
         ]
       ]
     },

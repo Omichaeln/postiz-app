@@ -1,0 +1,64 @@
+[
+  {
+    "id": "layout-square-and-story-from-template",
+    "title": "Square and story pages from an approved template with one eligible image",
+    "input": {
+      "copy": {
+        "headline": "Winter roast, delivered weekly",
+        "body": "Freshly roasted every Monday for your team.",
+        "cta": "Order this week"
+      },
+      "formatKeys": ["square_1080", "story_1080x1920"],
+      "templateVersionId": "tv_fixture_launch",
+      "assetVersionIds": ["av_fixture_beans"]
+    },
+    "brandFixtureRef": "harare-coffee",
+    "expected": {
+      "properties": [
+        "schema_valid",
+        "only_eligible_assets",
+        "protected_elements_untouched",
+        "budget_respected"
+      ],
+      "rubric": [
+        {
+          "dimension": "token_adherence",
+          "description": "Colours, type roles and logo rules come from the brand tokens",
+          "minScore": 8
+        },
+        {
+          "dimension": "hierarchy",
+          "description": "Headline, body and CTA form one clear hierarchy on every page",
+          "minScore": 7
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-edit-with-protected-logo-and-ineligible-asset",
+    "title": "Editing an existing document whose logo is protected; the brief names an ineligible asset",
+    "input": {
+      "documentId": "doc_fixture_existing",
+      "baseRevisionId": "rev_fixture_2",
+      "copy": { "headline": "New espresso blend" },
+      "formatKeys": ["square_1080"],
+      "assetVersionIds": ["av_fixture_expired_rights"]
+    },
+    "brandFixtureRef": "harare-coffee",
+    "expected": {
+      "properties": [
+        "schema_valid",
+        "only_eligible_assets",
+        "protected_elements_untouched",
+        "budget_respected"
+      ],
+      "rubric": [
+        {
+          "dimension": "ineligible_reported",
+          "description": "The ineligible asset is not used and is reported as a finding",
+          "minScore": 8
+        }
+      ]
+    }
+  }
+]

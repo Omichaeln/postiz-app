@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "key": "brand-onboarding",
+  "title": "Brand onboarding",
+  "description": "Turns guideline documents, website captures and logo files into a draft brand version and proposed facts, each traceable to evidence. Output is a proposal for a brand manager; nothing is approved or published by this skill.",
+  "taskKinds": ["brand_onboarding"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "sourceAssetIds": { "type": "array", "items": { "type": "string" }, "maxItems": 50 },
+      "websiteUrls": { "type": "array", "items": { "type": "string", "format": "uri" }, "maxItems": 10 },
+      "notes": { "type": "string", "maxLength": 4000 }
+    },
+    "required": ["sourceAssetIds", "websiteUrls"],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "draftBrandVersion": {
+        "type": "object",
+        "properties": {
+          "voice": { "type": "object" },
+          "tokens": { "type": "object" },
+          "logoRules": { "type": "array", "items": { "type": "object", "required": ["assetId", "variant"] } },
+          "patterns": { "type": "array" },
+          "channelGuidance": { "type": "array" }
+        },
+        "required": ["voice", "tokens", "logoRules", "patterns", "channelGuidance"]
+      },
+      "proposedFacts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "kind": { "enum": ["product", "claim", "offer", "contact", "price", "statistic", "legal"] },
+            "statement": { "type": "string", "maxLength": 4000 },
+            "evidence": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": { "type": "string" },
+                  "ref": { "type": "string" },
+                  "note": { "type": "string" }
+                },
+                "required": ["kind", "ref"]
+              }
+            },
+            "confidence": { "enum": ["high", "medium", "low"] }
+          },
+          "required": ["kind", "statement", "evidence", "confidence"]
+        }
+      },
+      "findings": { "$ref": "#/$defs/findings" }
+    },
+    "required": ["draftBrandVersion", "proposedFacts", "findings"],
+    "$defs": {
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "severity": { "enum": ["blocking", "warning", "note"] },
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "evidenceRef": { "type": "string" }
+          },
+          "required": ["severity", "code", "message"]
+        }
+      }
+    }
+  },
+  "requiredContext": ["eligible_assets"],
+  "allowedTools": ["brand.getSnapshot", "assets.searchEligible", "facts.list"],
+  "budgets": {
+    "maxSteps": 24,
+    "maxTokens": 120000,
+    "maxCostMicros": 2000000,
+    "maxVariants": 1,
+    "deadlineSeconds": 900
+  },
+  "modelCompatibility": ["anthropic:*"],
+  "instructionsPath": "SKILL.md"
+}

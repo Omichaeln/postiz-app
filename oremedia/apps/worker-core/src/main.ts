@@ -1,50 +1,22 @@
-import { hostname } from 'node:os';
-import { startTelemetry, stopTelemetry } from '@oremedia/observability';
-import { configureDatabase, closeDatabase } from '@oremedia/db';
-import { composeModules } from './composition';
-import { runDispatchLoop } from './dispatch-loop';
-import { TemporalWorkflowStarter, connectTemporal, temporalConfigFromEnv } from './temporal';
+/**
+ * Process entry for worker-core. The configuration gate runs before any dependency is loaded (this file imports
+ * only Node built-ins), so a misconfigured container fails fast with the missing variable named, never with a
+ * module-resolution error from deep inside a dependency. The worker itself is ./worker.ts.
+ */
+const REQUIRED = ['DATABASE_URL', 'TEMPORAL_ADDRESS'] as const;
 
-const log = startTelemetry({ service: 'oremedia-worker-core', version: process.env['OREMEDIA_VERSION'] });
-const url = process.env['DATABASE_URL'];
-if (!url) {
-  log.error({}, 'DATABASE_URL is required');
+const missing = REQUIRED.filter((name) => !process.env[name]);
+if (missing.length) {
+  for (const name of missing)
+    console.error(
+      JSON.stringify({
+        level: 50,
+        service: 'oremedia-worker-core',
+        msg: `${name} is required`,
+        time: Date.now(),
+      }),
+    );
   process.exit(2);
 }
-let temporalConfig;
-try {
-  temporalConfig = temporalConfigFromEnv();
-} catch (err) {
-  log.error(
-    { errorMessage: err instanceof Error ? err.message : String(err) },
-    'temporal configuration invalid',
-  );
-  process.exit(2);
-}
-configureDatabase({ url, connectionLimit: Number(process.env['DATABASE_POOL'] ?? 5) });
-composeModules();
 
-const client = await connectTemporal(temporalConfig);
-const controller = new AbortController();
-const workerId = `${hostname()}:${process.pid}`;
-log.info({ status: workerId }, 'worker-core dispatching outbox');
-
-// Spec 4.4: the core / agents / publish-{provider} Temporal workers register here when their workflows exist
-// (Phases 4 and 5). Until then this process is the outbox dispatcher only.
-const loop = runDispatchLoop({
-  workerId,
-  starter: new TemporalWorkflowStarter(client),
-  intervalMs: Number(process.env['OUTBOX_POLL_INTERVAL_MS'] ?? 1000),
-  signal: controller.signal,
-});
-
-const shutdown = async () => {
-  controller.abort();
-  await loop;
-  await client.connection.close();
-  await closeDatabase();
-  await stopTelemetry();
-  process.exit(0);
-};
-process.on('SIGTERM', () => void shutdown());
-process.on('SIGINT', () => void shutdown());
+await import(new URL('./worker.js', import.meta.url).href);

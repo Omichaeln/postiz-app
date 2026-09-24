@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "key": "campaign-planning",
+  "title": "Campaign planning",
+  "description": "Produces a brief and a content calendar from an objective, an audience, approved offer facts, dates, channels, the playbook and recent insights. The plan is accepted by its owner; this skill never schedules or publishes.",
+  "taskKinds": ["campaign_planning"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "objective": { "type": "string", "maxLength": 1000 },
+      "audience": { "type": "string", "maxLength": 1000 },
+      "offerFactIds": { "type": "array", "items": { "type": "string" }, "maxItems": 20 },
+      "startDate": { "type": "string", "format": "date" },
+      "endDate": { "type": "string", "format": "date" },
+      "channels": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 10 },
+      "notes": { "type": "string", "maxLength": 4000 }
+    },
+    "required": ["objective", "audience", "offerFactIds", "startDate", "endDate", "channels"],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "brief": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "objective": { "type": "string" },
+          "audience": { "type": "string" },
+          "keyMessages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": { "type": "string" },
+                "factIds": { "type": "array", "items": { "type": "string" } }
+              },
+              "required": ["text", "factIds"]
+            }
+          },
+          "mandatoryFactIds": { "type": "array", "items": { "type": "string" } },
+          "prohibited": { "type": "array", "items": { "type": "string" } },
+          "successMetricKey": { "type": "string" }
+        },
+        "required": [
+          "title",
+          "objective",
+          "audience",
+          "keyMessages",
+          "mandatoryFactIds",
+          "prohibited",
+          "successMetricKey"
+        ]
+      },
+      "calendar": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "date": { "type": "string", "format": "date" },
+            "channelKey": { "type": "string" },
+            "theme": { "type": "string" },
+            "formatKey": { "type": "string" },
+            "factIds": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["date", "channelKey", "theme", "formatKey", "factIds"]
+        }
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "severity": { "enum": ["blocking", "warning", "note"] },
+            "code": { "type": "string" },
+            "message": { "type": "string" }
+          },
+          "required": ["severity", "code", "message"]
+        }
+      }
+    },
+    "required": ["brief", "calendar", "findings"]
+  },
+  "requiredContext": ["brand_snapshot", "approved_facts", "metrics", "playbook"],
+  "allowedTools": [
+    "brand.getSnapshot",
+    "facts.list",
+    "metrics.query",
+    "voice.clusters",
+    "content.createBrief"
+  ],
+  "budgets": {
+    "maxSteps": 20,
+    "maxTokens": 90000,
+    "maxCostMicros": 1500000,
+    "maxVariants": 1,
+    "deadlineSeconds": 600
+  },
+  "modelCompatibility": ["anthropic:*"],
+  "instructionsPath": "SKILL.md"
+}
