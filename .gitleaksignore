@@ -1,0 +1,2 @@
+# gitleaks false positive: the word "LinkedIn" followed by an API field name in a runbook, not a credential.
+7a1779f7a87a19b5d33ef4d1e66691f954b632c8:oremedia/docs/runbooks/certify-a-channel.md:linkedin-client-secret:66

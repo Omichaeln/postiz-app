@@ -63,7 +63,7 @@ Release 1 adapters (spec 14.8; decision D-04 still open): `linkedin_page`, `inst
 
 ## Known unverified points to close during certification
 
-- LinkedIn: `organizationAcls` projection and role filter; refresh tokens only for approved partner apps; Posts API
+- LinkedIn Page: the organisation ACL projection and role filter; refresh tokens only for approved partner apps; Posts API
   `q=author` scan ordering and page size; `x-restli-id` on 201; alt text limit 4086; per-member/app throttles.
 - Instagram: `alt_text` on containers; creating the CAROUSEL parent before children finish; `views` replacing
   `impressions`; 25 posts / 24 h publishing cap (`content_publishing_limit`, not enforced by the limiter); whether
