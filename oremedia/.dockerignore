@@ -1,0 +1,9 @@
+# Build context for infra/railway/Dockerfile*: sources only; installs and outputs are produced inside the image.
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+**/*.log
+.git
+docs
+infra/temporal-data

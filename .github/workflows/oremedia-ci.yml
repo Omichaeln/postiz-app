@@ -23,12 +23,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Gitleaks scans the pull request's commit range, which needs the base commit present
       - uses: pnpm/action-setup@v4
         with:
           version: 10.6.1
       - uses: actions/setup-node@v4
         with:
-          node-version: '22.12.0'
+          node-version: '22.22.2'
           cache: pnpm
           cache-dependency-path: oremedia/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -54,7 +56,7 @@ jobs:
           version: 10.6.1
       - uses: actions/setup-node@v4
         with:
-          node-version: '22.12.0'
+          node-version: '22.22.2'
           cache: pnpm
           cache-dependency-path: oremedia/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -86,7 +88,7 @@ jobs:
           version: 10.6.1
       - uses: actions/setup-node@v4
         with:
-          node-version: '22.12.0'
+          node-version: '22.22.2'
           cache: pnpm
           cache-dependency-path: oremedia/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -104,7 +106,7 @@ jobs:
           version: 10.6.1
       - uses: actions/setup-node@v4
         with:
-          node-version: '22.12.0'
+          node-version: '22.22.2'
           cache: pnpm
           cache-dependency-path: oremedia/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -123,7 +125,7 @@ jobs:
           version: 10.6.1
       - uses: actions/setup-node@v4
         with:
-          node-version: '22.12.0'
+          node-version: '22.22.2'
           cache: pnpm
           cache-dependency-path: oremedia/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -136,6 +138,6 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
           trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --format sarif --output trivy.sarif oremedia-api:ci
       - uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && hashFiles('oremedia/trivy.sarif') != ''
         with:
           sarif_file: oremedia/trivy.sarif

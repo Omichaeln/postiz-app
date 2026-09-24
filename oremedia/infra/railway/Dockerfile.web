@@ -1,8 +1,9 @@
 # apps/web: static SPA build served by Caddy (immutable assets, SPA fallback, security headers).
 # syntax=docker/dockerfile:1.7
-FROM node:22.12.0-bookworm-slim AS build
+FROM node:22.22.2-bookworm-slim AS build
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true
-RUN corepack enable && corepack prepare pnpm@10.6.1 --activate
+# pnpm is installed from the registry (npm verifies integrity); corepack in this Node image carries a rotated-out signing key.
+RUN npm install -g pnpm@10.6.1 && npm cache clean --force
 WORKDIR /src
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc turbo.json tsconfig.base.json tsconfig.json ./
 COPY apps ./apps
