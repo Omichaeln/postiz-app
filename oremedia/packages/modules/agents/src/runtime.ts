@@ -189,8 +189,8 @@ export function createAgentRunRuntime(opts: AgentRuntimeOptions): AgentRunRuntim
   /** Whether the transcript's last assistant turn issued this tool call (so its result has a place to go). */
   function hasToolUse(messages: ModelMessage[], toolUseId: string): boolean {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const m = messages[i]!;
-      if (m.role === 'assistant') return m.content.some((c) => c.type === 'tool_use' && c.id === toolUseId);
+      const m = messages[i];
+      if (m?.role === 'assistant') return m.content.some((c) => c.type === 'tool_use' && c.id === toolUseId);
     }
     return false;
   }

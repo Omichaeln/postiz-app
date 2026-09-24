@@ -42,6 +42,10 @@ export class UserDirectory extends PlatformRepository {
   async createTenant(values: typeof tenants.$inferInsert, tx?: Tx) {
     await this.conn(tx).insert(tenants).values(values);
   }
+  /** Bootstrap only: the owner membership of a tenant being created, before any tenant context exists. */
+  async createMembership(values: typeof memberships.$inferInsert, tx?: Tx) {
+    await this.conn(tx).insert(memberships).values(values);
+  }
   /** Memberships for one user across tenants: the portfolio projection (spec 5.1). */
   async membershipsForUser(userId: string, tx?: Tx) {
     return this.conn(tx)

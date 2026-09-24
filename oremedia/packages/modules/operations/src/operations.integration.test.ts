@@ -7,7 +7,7 @@ import { tenants } from '@oremedia/db/schema/access';
 import { brands } from '@oremedia/db/schema/brand';
 import { auditEvents, outboxEvents, idempotencyKeys, killSwitches } from '@oremedia/db/schema/operations';
 import { newId } from '@oremedia/domain/ids';
-import { idempotent } from './idempotent';
+import { idempotent, IN_PROGRESS_LEASE_MS } from './idempotent';
 import { outbox } from './outbox';
 import { audit } from './audit';
 import { killSwitch } from './kill-switch';
@@ -132,6 +132,65 @@ describe('operations module against MySQL 8', () => {
       expect(await runInTenant(ctx(tenantA), () => idempotent(mctx('k5', 'h1'), async () => 'dup'))).toBe(
         'done',
       );
+    });
+
+    it('an in_progress marker is a short lease; an abandoned one is taken over, a live one still conflicts', async () => {
+      const row = (key: string) =>
+        tdb.db
+          .select()
+          .from(idempotencyKeys)
+          .where(eq(idempotencyKeys.key, key))
+          .then((r) => r[0]!);
+      // While the command runs, the marker expires within the lease, not the record's TTL.
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      const running = runInTenant(ctx(tenantA), () =>
+        idempotent(mctx('k6', 'h1'), async () => {
+          await gate;
+          return 'first';
+        }),
+      );
+      await new Promise((r) => setTimeout(r, 100));
+      expect((await row('k6')).expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(IN_PROGRESS_LEASE_MS);
+      release();
+      expect(await running).toBe('first');
+      expect((await row('k6')).expiresAt.getTime() - Date.now()).toBeGreaterThan(23 * 3600 * 1000);
+
+      // A marker whose lease has expired (crash between marker and command) is taken over by the same request.
+      await tdb.db.insert(idempotencyKeys).values({
+        tenantId: tenantA,
+        principalId: 'usr_1',
+        key: 'k7',
+        path: 'test.create',
+        requestHash: 'h1',
+        state: 'in_progress',
+        expiresAt: new Date(Date.now() - 1000),
+      });
+      expect(await runInTenant(ctx(tenantA), () => idempotent(mctx('k7', 'h1'), async () => 'retry'))).toBe(
+        'retry',
+      );
+      expect((await row('k7')).state).toBe('completed');
+      expect(await runInTenant(ctx(tenantA), () => idempotent(mctx('k7', 'h1'), async () => 'again'))).toBe(
+        'retry',
+      );
+
+      // A live marker still means "in progress".
+      await tdb.db.insert(idempotencyKeys).values({
+        tenantId: tenantA,
+        principalId: 'usr_1',
+        key: 'k8',
+        path: 'test.create',
+        requestHash: 'h1',
+        state: 'in_progress',
+        expiresAt: new Date(Date.now() + IN_PROGRESS_LEASE_MS),
+      });
+      await expect(
+        runInTenant(ctx(tenantA), () => idempotent(mctx('k8', 'h1'), async () => 'dup')),
+      ).rejects.toBeInstanceOf(IdempotencyInProgressError);
+      // A different request under a live key is still a reuse, whatever the state.
+      await expect(
+        runInTenant(ctx(tenantA), () => idempotent(mctx('k8', 'h2'), async () => 'dup')),
+      ).rejects.toBeInstanceOf(IdempotencyKeyReusedError);
     });
   });
 

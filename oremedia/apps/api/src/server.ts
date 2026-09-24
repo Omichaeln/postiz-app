@@ -1,9 +1,23 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import { logger, errorFields, count, record, METRIC } from '@oremedia/observability';
-import { toErrorEnvelope } from '@oremedia/contracts/errors';
+import { NotFoundError, toErrorEnvelope } from '@oremedia/contracts/errors';
 import { appRouter } from './router';
 import { createContext } from './context';
+
+/**
+ * Log fields for an unhandled (INTERNAL) error. Driver messages embed user data (ER_DUP_ENTRY quotes the
+ * duplicate value, e.g. an invited email), so quoted substrings are elided; code, name and errno stay.
+ */
+export function internalErrorFields(err: unknown): Record<string, unknown> {
+  const fields = errorFields(err);
+  const errno = (err as { errno?: unknown } | undefined)?.errno;
+  return {
+    ...fields,
+    ...(typeof errno === 'number' ? { errno } : {}),
+    errorMessage: String(fields['errorMessage'] ?? '').replace(/'[^']*'|"[^"]*"/g, '…'),
+  };
+}
 
 export interface ServerOptions {
   webOrigin?: string;
@@ -63,10 +77,10 @@ export function createServer(opts: ServerOptions = {}): Express {
     express.json({ limit: '2mb' }),
     createExpressMiddleware({
       router: appRouter,
-      createContext: ({ req }) => createContext(req.headers),
+      createContext: ({ req }) => createContext(req.headers, req.ip), // trust proxy 1: the client's address
       onError: ({ error, path }) => {
         if (error.code === 'INTERNAL_SERVER_ERROR')
-          log.error({ path, ...errorFields(error.cause ?? error) }, 'unhandled error');
+          log.error({ path, ...internalErrorFields(error.cause ?? error) }, 'unhandled error');
       },
       maxBodySize: 2 * 1024 * 1024,
     }),
@@ -78,7 +92,7 @@ export function createServer(opts: ServerOptions = {}): Express {
       .status(404)
       .json(
         toErrorEnvelope(
-          new (class extends Error {})('not found'),
+          new NotFoundError('Route', req.path.slice(0, 200)),
           (req.headers['x-correlation-id'] as string | undefined) ?? 'unknown',
         ),
       );

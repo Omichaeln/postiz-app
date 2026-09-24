@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingHttpHeaders } from 'node:http';
-import { authenticate, type Principal } from '@oremedia/module-access';
+import { authenticate, hashForAudit, type Principal } from '@oremedia/module-access';
 import { withLogContext } from '@oremedia/observability';
 
 export interface RequestContext {
@@ -12,6 +12,9 @@ export interface RequestContext {
   csrf: { cookie: string | undefined; header: string | undefined };
   /** Set only when authentication came from a cookie rather than a bearer header. */
   cookieSession: boolean;
+  /** Spec 5.6: review decisions record the origin as salted hashes, never the raw IP or user agent. */
+  ipHash: string | null;
+  userAgentHash: string | null;
 }
 
 export const SESSION_COOKIE = 'oremedia_session';
@@ -34,9 +37,22 @@ function firstHeader(h: string | string[] | undefined): string | undefined {
   return Array.isArray(h) ? h[0] : h;
 }
 
+/** A client-supplied correlation id is echoed into logs and audit rows, so only a safe charset is accepted. */
+const CORRELATION_ID = /^[A-Za-z0-9._:-]{1,64}$/;
+
+/** Salt for origin hashes (AUDIT_HASH_SALT); absent, hashes are still one-way but not keyed. */
+const originSalt = () => process.env['AUDIT_HASH_SALT'] ?? 'oremedia';
+
 /** Builds the request context from raw headers; the same function serves HTTP and in-process test callers. */
-export async function createContext(headers: IncomingHttpHeaders): Promise<RequestContext> {
-  const correlationId = firstHeader(headers['x-correlation-id'])?.slice(0, 64) ?? randomUUID();
+export async function createContext(
+  headers: IncomingHttpHeaders,
+  remoteAddress?: string,
+): Promise<RequestContext> {
+  const requestedCorrelationId = firstHeader(headers['x-correlation-id']);
+  const correlationId =
+    requestedCorrelationId && CORRELATION_ID.test(requestedCorrelationId)
+      ? requestedCorrelationId
+      : randomUUID();
   const cookies = parseCookies(firstHeader(headers['cookie']));
   const auth = firstHeader(headers['authorization']);
   let bearer: string | undefined;
@@ -54,5 +70,7 @@ export async function createContext(headers: IncomingHttpHeaders): Promise<Reque
     headers,
     csrf: { cookie: cookies[CSRF_COOKIE], header: firstHeader(headers['x-oremedia-csrf']) },
     cookieSession,
+    ipHash: remoteAddress ? hashForAudit(remoteAddress, originSalt()) : null,
+    userAgentHash: headers['user-agent'] ? hashForAudit(String(headers['user-agent']), originSalt()) : null,
   };
 }

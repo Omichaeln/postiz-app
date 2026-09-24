@@ -11,7 +11,14 @@ import {
 import { PolicyDeniedError } from '@oremedia/contracts/errors';
 import { accessService } from '@oremedia/module-access';
 import { idempotent } from '@oremedia/module-operations';
-import { authedProcedure, router, tenantMutation, tenantQuery, type MutationCtx } from '../trpc';
+import {
+  authedMutation,
+  authedProcedure,
+  router,
+  tenantMutation,
+  tenantQuery,
+  type MutationCtx,
+} from '../trpc';
 
 const mutationCtx = (ctx: MutationCtx, ttlHours?: number) => ({
   idempotency: ctx.idempotency,
@@ -29,18 +36,16 @@ export const accessRouter = router({
     return accessService.listCompanies(ctx.principal.userId, ctx.correlationId);
   }),
 
-  switchCompany: authedProcedure
-    .input(z.object({ tenantId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      if (ctx.principal.kind !== 'user') throw new PolicyDeniedError('user_session_required');
-      await accessService.switchCompany(
-        ctx.principal.sessionId,
-        ctx.principal.userId,
-        input.tenantId,
-        ctx.correlationId,
-      );
-      return { tenantId: input.tenantId };
-    }),
+  switchCompany: authedMutation.input(z.object({ tenantId: z.string() })).mutation(async ({ ctx, input }) => {
+    if (ctx.principal.kind !== 'user') throw new PolicyDeniedError('user_session_required');
+    await accessService.switchCompany(
+      ctx.principal.sessionId,
+      ctx.principal.userId,
+      input.tenantId,
+      ctx.correlationId,
+    );
+    return { tenantId: input.tenantId };
+  }),
 
   members: router({
     invite: tenantMutation

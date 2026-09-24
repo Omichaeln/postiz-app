@@ -69,14 +69,17 @@ export const accessService = {
     await runAsPlatform('tenant-bootstrap', correlationId, () =>
       withTransaction(async (tx) => {
         await directory.createTenant({ id: tenantId, name: parsed.name, slug: parsed.slug }, tx);
-        await tx.insert((await import('@oremedia/db/schema/access')).memberships).values({
-          id: membershipId,
-          tenantId,
-          userId: ownerUserId,
-          role: 'owner',
-          status: 'active',
-          allBrands: true,
-        });
+        await directory.createMembership(
+          {
+            id: membershipId,
+            tenantId,
+            userId: ownerUserId,
+            role: 'owner',
+            status: 'active',
+            allBrands: true,
+          },
+          tx,
+        );
       }),
     );
     return { tenantId, membershipId };

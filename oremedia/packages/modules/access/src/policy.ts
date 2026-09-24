@@ -2,11 +2,12 @@ import { PolicyDeniedError } from '@oremedia/contracts/errors';
 import type {
   Action,
   Decision,
+  EntitlementSet,
   PolicyContext,
   PolicyResource,
   ResolvedActor,
 } from '@oremedia/contracts/policy';
-import { authorize } from '@oremedia/domain/policy';
+import { ENTITLEMENT_GATED_ACTIONS, authorize } from '@oremedia/domain/policy';
 import { count, METRIC } from '@oremedia/observability';
 import { audit } from '@oremedia/module-operations';
 import { entitlements } from '@oremedia/module-billing';
@@ -19,9 +20,13 @@ export interface PolicyOptions {
   now?: Date;
 }
 
+/** Never consulted: `authorize` reads entitlements only for ENTITLEMENT_GATED_ACTIONS (spec 5.5 step 6). */
+const NO_ENTITLEMENTS: EntitlementSet = { limits: {}, features: {}, usage: {} };
+
 /**
- * The single authorisation entry point used by routers, activities and the tool dispatcher. Loads entitlements,
- * runs the pure decision, records the audit event (allowed or denied) and throws FORBIDDEN on denial.
+ * The single authorisation entry point used by routers, activities and the tool dispatcher. Loads entitlements
+ * for the gated actions only (a subscription join plus usage counts is too much for every read), runs the pure
+ * decision, records the audit event (allowed or denied) and throws FORBIDDEN on denial.
  */
 export async function decide(
   actor: ResolvedActor,
@@ -30,7 +35,9 @@ export async function decide(
   opts: PolicyOptions = {},
   tx?: Tx,
 ): Promise<Decision> {
-  const ent = await entitlements.resolve(actor.tenantId, tx);
+  const ent = ENTITLEMENT_GATED_ACTIONS.has(action)
+    ? await entitlements.resolve(actor.tenantId, tx)
+    : NO_ENTITLEMENTS;
   const decision = authorize({
     actor,
     action,

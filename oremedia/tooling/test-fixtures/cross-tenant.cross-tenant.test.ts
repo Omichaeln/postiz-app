@@ -5,7 +5,8 @@ import { CROSS_TENANT_INPUTS, callPath, seedTwoTenants, type SeededTenant } from
 
 /**
  * Spec 19.3: every tRPC procedure is called as tenant A's owner with tenant B's ids. The outcome must be
- * NOT_FOUND, FORBIDDEN or VALIDATION_FAILED (or, for filter queries, no data), and nothing may land in tenant B.
+ * NOT_FOUND (FORBIDDEN only where the fixture says the id is not secret) or VALIDATION_FAILED (or, for filter
+ * queries, no data), and nothing may land in tenant B.
  */
 describe('cross-tenant harness', () => {
   let tdb: TestDatabase;
@@ -46,7 +47,9 @@ describe('cross-tenant harness', () => {
         expect(items, `${path} returned data for foreign ids`).toEqual([]);
       } else {
         expect(res.error, `${path} returned data: ${JSON.stringify(res.data)}`).toBeDefined();
-        expect(['NOT_FOUND', 'FORBIDDEN', 'VALIDATION_FAILED']).toContain(res.error?.code);
+        // Spec 5.3: a foreign id is NOT_FOUND so existence is not leaked; a fixture opts into FORBIDDEN only
+        // where the id is not secret. Input validation may reject the shape before any lookup.
+        expect([fixture.expectCode ?? 'NOT_FOUND', 'VALIDATION_FAILED']).toContain(res.error?.code);
         // Spec 7.2: the envelope's code is also the transport code (404/403/400), never INTERNAL_SERVER_ERROR.
         expect(res.trpcCode, `${path} surfaced ${res.error?.code} as ${res.trpcCode}`).not.toBe(
           'INTERNAL_SERVER_ERROR',

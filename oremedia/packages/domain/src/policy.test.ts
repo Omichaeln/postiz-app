@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Action, EntitlementSet, PolicyContext, ResolvedActor } from '@oremedia/contracts/policy';
-import { authorize } from './policy';
+import { ENTITLEMENT_GATED_ACTIONS, authorize } from './policy';
 import { DEFAULT_ROLE_GRANTS, AGENT_NEVER } from './role-grants';
 
 const T = 'ten_A';
@@ -353,5 +353,88 @@ describe('authorize: ordered checks (spec 5.5)', () => {
     expect(DEFAULT_ROLE_GRANTS['billing.manage']).toEqual(['owner', 'admin']);
     expect(DEFAULT_ROLE_GRANTS['inbox.respond']).toEqual(['owner', 'admin', 'brand_manager', 'community']);
     expect(DEFAULT_ROLE_GRANTS['experiment.manage']).toEqual(['owner', 'admin', 'brand_manager', 'analyst']);
+    // skill.read follows brand.read: every role reads the registry; authoring and publishing stay narrower.
+    expect(DEFAULT_ROLE_GRANTS['skill.read']).toEqual(DEFAULT_ROLE_GRANTS['brand.read']);
+    expect(DEFAULT_ROLE_GRANTS['skill.author']).toEqual(['owner', 'admin', 'brand_manager']);
+  });
+  it('skill.read: a reader role, an agent with the grant (assist) and a read-only support session may read; without the grant an agent may not', () => {
+    expect(
+      authorize({
+        actor: user({ role: 'analyst' }),
+        action: 'skill.read',
+        resource: { type: 'skill', tenantId: T, brandId: B },
+        context: ctx(),
+      }).allowed,
+    ).toBe(true);
+    expect(
+      authorize({
+        actor: user({ role: 'creator' }),
+        action: 'skill.read',
+        resource: { type: 'skill', tenantId: T, brandId: 'brd_other' },
+        context: ctx(),
+      }).reason,
+    ).toBe('brand_not_granted');
+    expect(
+      authorize({
+        actor: agent({ grants: [{ action: 'skill.read', brandIds: 'all' }] }),
+        action: 'skill.read',
+        resource: { type: 'skill', tenantId: T, brandId: B },
+        context: ctx({ autonomyMode: 'assist' }),
+      }).allowed,
+    ).toBe(true);
+    expect(
+      authorize({
+        actor: agent(),
+        action: 'skill.read',
+        resource: { type: 'skill', tenantId: T },
+        context: ctx({ autonomyMode: 'assist' }),
+      }).reason,
+    ).toBe('grant_missing');
+    expect(
+      authorize({
+        actor: {
+          kind: 'platform_operator',
+          id: 'usr_op',
+          tenantId: T,
+          supportSessionId: 'ss_1',
+          mode: 'read_only',
+          expired: false,
+        },
+        action: 'skill.read',
+        resource: { type: 'skill', tenantId: T },
+        context: ctx(),
+      }).allowed,
+    ).toBe(true);
+  });
+});
+
+describe('entitlement gates (step 6)', () => {
+  it('names exactly the actions whose decision reads entitlements', () => {
+    expect([...ENTITLEMENT_GATED_ACTIONS].sort()).toEqual([
+      'agent.start_run',
+      'channel.connect',
+      'experiment.manage',
+      'mandate.manage',
+      'membership.manage',
+    ]);
+  });
+  it('a non-gated action decides without any entitlement data; a gated one needs it', () => {
+    const none = { limits: {}, features: {}, usage: {} };
+    expect(
+      authorize({
+        actor: user({ role: 'owner', allBrands: true }),
+        action: 'brand.read',
+        resource: { type: 'brand', tenantId: T, brandId: B },
+        context: ctx({ entitlements: none }),
+      }).allowed,
+    ).toBe(true);
+    expect(
+      authorize({
+        actor: user({ role: 'owner', allBrands: true }),
+        action: 'membership.manage',
+        resource: { type: 'tenant', tenantId: T },
+        context: ctx({ entitlements: none }),
+      }),
+    ).toEqual({ allowed: false, reason: 'entitlement_exceeded' });
   });
 });

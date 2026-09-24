@@ -49,12 +49,18 @@ const ENTITLEMENT_GATES: Partial<Record<Action, EntitlementGate>> = {
   'mandate.manage': { kind: 'feature', feature: 'managed_autopublish' },
 };
 
+/** The actions whose decision consults entitlements; callers resolve entitlements only for these. */
+export const ENTITLEMENT_GATED_ACTIONS: ReadonlySet<Action> = new Set(
+  Object.keys(ENTITLEMENT_GATES) as Action[],
+);
+
 /** Minimum autonomy mode an agent needs for an action (step 7). */
 const AUTONOMY_FOR_ACTION: Partial<Record<Action, AutonomyMode>> = {
   'brand.read': 'assist',
   'asset.read': 'assist',
   'creative.read': 'assist',
   'insight.read': 'assist',
+  'skill.read': 'assist',
   'content.plan': 'create',
   'content.edit': 'create',
   'creative.edit': 'create',

@@ -42,6 +42,7 @@ export const LOG_FIELD_ALLOWLIST: ReadonlySet<string> = new Set([
   'errorCode',
   'errorName',
   'errorMessage',
+  'errno',
   'queue',
   'taskQueue',
   'phase',

@@ -1,6 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, lt } from 'drizzle-orm';
 import { IdempotencyInProgressError, IdempotencyKeyReusedError } from '@oremedia/contracts/errors';
-import { requireTenant, withTransaction, TenantScopedRepository, type Tx } from '@oremedia/db';
+import { affectedRows, requireTenant, withTransaction, TenantScopedRepository, type Tx } from '@oremedia/db';
 import { idempotencyKeys } from '@oremedia/db/schema/operations';
 
 export interface MutationContext {
@@ -11,6 +11,11 @@ export interface MutationContext {
 }
 
 const IN_PROGRESS_RETRY_MS = 2000;
+/**
+ * An in_progress marker is a short lease, not a record: a crash between the marker and the command must not
+ * block honest retries for the record's TTL. Completion replaces the lease with the real TTL.
+ */
+export const IN_PROGRESS_LEASE_MS = 60_000;
 
 class IdempotencyRepository extends TenantScopedRepository<typeof idempotencyKeys & { id: never }> {
   constructor() {
@@ -38,10 +43,27 @@ class IdempotencyRepository extends TenantScopedRepository<typeof idempotencyKey
       .insert(idempotencyKeys)
       .values({ tenantId, principalId, key, path, requestHash, state: 'in_progress', expiresAt });
   }
-  async complete(principalId: string, key: string, responseBody: unknown, tx: Tx) {
+  /** Takes over an abandoned (expired) in_progress marker; false when another retry got there first. */
+  async takeOverExpired(principalId: string, key: string, expiresAt: Date, tx?: Tx) {
+    const res = await this.conn(tx)
+      .update(idempotencyKeys)
+      .set({ expiresAt })
+      .where(
+        this.scope(
+          and(
+            eq(idempotencyKeys.principalId, principalId),
+            eq(idempotencyKeys.key, key),
+            eq(idempotencyKeys.state, 'in_progress'),
+            lt(idempotencyKeys.expiresAt, new Date()),
+          ),
+        ),
+      );
+    return affectedRows(res) === 1;
+  }
+  async complete(principalId: string, key: string, responseBody: unknown, expiresAt: Date, tx: Tx) {
     await this.conn(tx)
       .update(idempotencyKeys)
-      .set({ state: 'completed', responseStatus: 200, responseBody: responseBody as never })
+      .set({ state: 'completed', responseStatus: 200, responseBody: responseBody as never, expiresAt })
       .where(this.scope(and(eq(idempotencyKeys.principalId, principalId), eq(idempotencyKeys.key, key))));
   }
   async remove(principalId: string, key: string, tx?: Tx) {
@@ -70,18 +92,26 @@ function isLockWaitError(err: unknown): boolean {
  * Spec 7.1 / 7.3. Sequence:
  *  1. lookup: completed + same hash → replay; different hash or path → IDEMPOTENCY_KEY_REUSED; in_progress → 409 retryAfterMs;
  *  2. the in_progress marker commits in its own short transaction so a concurrent duplicate sees it (or loses the
- *     primary-key race → 409);
+ *     primary-key race → 409); it carries a short lease (IN_PROGRESS_LEASE_MS), and a retry that finds an expired
+ *     in_progress marker with the same request takes the lease over instead of getting 409 for the record's TTL;
  *  3. the command runs in one transaction with the completion of the marker: the domain writes, the audit event,
- *     the outbox event and the stored response commit together, or none of them do;
+ *     the outbox event and the stored response (with the real TTL) commit together, or none of them do;
  *  4. a failed command removes the marker so an honest retry can run.
  */
 export async function idempotent<T>(ctx: MutationContext, command: (tx: Tx) => Promise<T>): Promise<T> {
   const { key, path, requestHash } = ctx.idempotency;
   const principalId = ctx.actor.id;
   const prior = await repo.lookup(principalId, key);
+  let leased = false;
   if (prior) {
     if (prior.expiresAt.getTime() < Date.now()) {
-      await repo.remove(principalId, key);
+      if (prior.state === 'in_progress' && prior.requestHash === requestHash && prior.path === path) {
+        // Abandoned marker (crash between marker and command): take it over under the same key and hash.
+        leased = await repo.takeOverExpired(principalId, key, new Date(Date.now() + IN_PROGRESS_LEASE_MS));
+        if (!leased) throw new IdempotencyInProgressError(IN_PROGRESS_RETRY_MS);
+      } else {
+        await repo.remove(principalId, key);
+      }
     } else if (prior.requestHash !== requestHash || prior.path !== path) {
       throw new IdempotencyKeyReusedError();
     } else if (prior.state === 'in_progress') {
@@ -92,7 +122,10 @@ export async function idempotent<T>(ctx: MutationContext, command: (tx: Tx) => P
   }
   const expiresAt = new Date(Date.now() + (ctx.ttlHours ?? 24) * 3600 * 1000);
   try {
-    await withTransaction((tx) => repo.insertInProgress(principalId, key, path, requestHash, expiresAt, tx));
+    if (!leased) {
+      const lease = new Date(Date.now() + IN_PROGRESS_LEASE_MS);
+      await withTransaction((tx) => repo.insertInProgress(principalId, key, path, requestHash, lease, tx));
+    }
   } catch (err) {
     if (isDuplicateKeyError(err) || isLockWaitError(err)) {
       const again = await repo.lookup(principalId, key);
@@ -107,7 +140,7 @@ export async function idempotent<T>(ctx: MutationContext, command: (tx: Tx) => P
   try {
     return await withTransaction(async (tx) => {
       const result = await command(tx);
-      await repo.complete(principalId, key, result, tx);
+      await repo.complete(principalId, key, result, expiresAt, tx);
       return result;
     });
   } catch (err) {

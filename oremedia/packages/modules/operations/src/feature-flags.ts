@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import type { FeatureFlagKey } from '@oremedia/contracts/operations';
 import { FeatureFlagKey as FeatureFlagKeySchema } from '@oremedia/contracts/operations';
-import { PlatformRepository, runAsPlatform, type Tx } from '@oremedia/db';
+import { PlatformRepository, currentTenant, runAsPlatform, type Tx } from '@oremedia/db';
 import { featureFlags } from '@oremedia/db/schema/operations';
 
 /**
@@ -95,6 +95,9 @@ class FlagRepository extends PlatformRepository {
 
 const repo = new FlagRepository();
 
+/** Flags may be read inside a request (correlate with it) or by a worker outside any tenant context. */
+const correlationId = () => currentTenant()?.correlationId ?? 'flags';
+
 export function evaluateFlag(
   row: { enabledDefault: boolean; targeting: { tenantIds?: string[]; percentage?: number } } | null,
   def: FlagDefinition,
@@ -116,11 +119,11 @@ export const featureFlag = {
     FeatureFlagKeySchema.parse(key);
     const def = FLAG_DEFINITIONS.find((d) => d.key === key);
     if (!def) return false;
-    const row = await runAsPlatform('feature-flags', 'flags', () => repo.get(key, tx));
+    const row = await runAsPlatform('feature-flags', correlationId(), () => repo.get(key, tx));
     return evaluateFlag(row, def, tenantId);
   },
   async snapshot(tenantId: string, tx?: Tx): Promise<Record<FeatureFlagKey, boolean>> {
-    const rows = await runAsPlatform('feature-flags', 'flags', () => repo.all(tx));
+    const rows = await runAsPlatform('feature-flags', correlationId(), () => repo.all(tx));
     const byKey = new Map(rows.map((r) => [r.key, r]));
     const out = {} as Record<FeatureFlagKey, boolean>;
     for (const def of FLAG_DEFINITIONS)

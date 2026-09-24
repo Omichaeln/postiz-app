@@ -123,34 +123,57 @@ let limiter: RateLimiter | null = null;
 export function configureRateLimiter(redis?: ConstructorParameters<typeof RedisRateLimiterStore>[0]): void {
   limiter = new RateLimiter(redis ? new RedisRateLimiterStore(redis) : new MemoryRateLimiterStore());
 }
+/** The principal's own id, for procedures that run before a tenant is resolved (portfolio, switchCompany). */
+function principalId(principal: NonNullable<RequestContext['principal']>): string {
+  switch (principal.kind) {
+    case 'user':
+      return principal.userId;
+    case 'api_client':
+      return principal.apiClientId;
+    case 'external_reviewer':
+      return principal.linkId;
+    case 'platform_operator':
+      return principal.operatorId;
+  }
+}
+/** Tenant procedures are limited per tenant and per principal; authed-only procedures per principal. */
 const rateLimited = t.middleware(async ({ ctx, path, next }) => {
-  const tenant = (ctx as RequestContext & { tenant?: ResolvedTenant }).tenant;
-  if (!tenant)
-    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'rate limiting requires tenant context' });
+  if (!ctx.principal) throw new TRPCError({ code: 'UNAUTHORIZED' });
   if (!limiter) configureRateLimiter();
-  await (limiter as RateLimiter).consume(tenant.context.tenantId, tenant.actorRef.id, path); // throws TOO_MANY_REQUESTS with retry-after
+  const tenant = (ctx as RequestContext & { tenant?: ResolvedTenant }).tenant;
+  const scope = tenant ? tenant.context.tenantId : `principal:${principalId(ctx.principal)}`;
+  const actorId = tenant ? tenant.actorRef.id : principalId(ctx.principal);
+  await (limiter as RateLimiter).consume(scope, actorId, path); // throws TOO_MANY_REQUESTS with retry-after
   return next();
 });
 
-/** Mutations additionally require an idempotency key header and, for cookie sessions, a CSRF token. */
+/** Spec 18: every mutation made with a cookie session presents the CSRF double-submit token; bearer callers are exempt. */
+const csrfGuarded = t.middleware(async ({ ctx, next }) => {
+  if (ctx.cookieSession && (!ctx.csrf.header || ctx.csrf.header !== ctx.csrf.cookie))
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'CSRF token missing or invalid' });
+  return next();
+});
+
+/** Tenant mutations additionally require an idempotency key header. */
 const idempotencyKey = t.middleware(async ({ ctx, path, getRawInput, next }) => {
   const header = ctx.headers['idempotency-key'];
   const key = Array.isArray(header) ? header[0] : header;
   if (!key || key.length > 120)
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'IDEMPOTENCY_KEY_REQUIRED' });
-  if (ctx.cookieSession && (!ctx.csrf.header || ctx.csrf.header !== ctx.csrf.cookie))
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'CSRF token missing or invalid' });
   const requestHash = hashRequest(path, await getRawInput());
   return next({ ctx: { ...ctx, idempotency: { key, path, requestHash } } });
 });
 
 export const publicProcedure = t.procedure.use(domainErrors);
-export const authedProcedure = t.procedure.use(domainErrors).use(authed);
+export const authedProcedure = t.procedure.use(domainErrors).use(authed).use(rateLimited);
+/** Session-level mutations (no tenant yet, e.g. switchCompany): rate-limited per principal and CSRF-guarded. */
+export const authedMutation = authedProcedure.use(csrfGuarded);
 export const tenantQuery = t.procedure.use(domainErrors).use(tenantScoped).use(rateLimited);
 export const tenantMutation = t.procedure
   .use(domainErrors)
   .use(tenantScoped)
   .use(rateLimited)
+  .use(csrfGuarded)
   .use(idempotencyKey);
 export const router = t.router;
 export const mergeRouters = t.mergeRouters;

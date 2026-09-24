@@ -1,9 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingHttpHeaders } from 'node:http';
 import { TRPCError } from '@trpc/server';
-import { eq, sql } from 'drizzle-orm';
-import { appRouter, composeModules, createContext, envelopeFor } from '@oremedia/api';
+import { eq, getTableColumns, getTableName, sql } from 'drizzle-orm';
+import { MySqlTable, type MySqlColumn } from 'drizzle-orm/mysql-core';
+import {
+  CSRF_COOKIE,
+  SESSION_COOKIE,
+  appRouter,
+  composeModules,
+  createContext,
+  envelopeFor,
+} from '@oremedia/api';
 import { runInTenant, type Db } from '@oremedia/db';
+import * as schema from '@oremedia/db/schema';
 import {
   apiClients,
   brandGrants,
@@ -14,11 +23,24 @@ import {
   users,
 } from '@oremedia/db/schema/access';
 import { brands } from '@oremedia/db/schema/brand';
-import { auditEvents, deletionRequests, killSwitches, outboxEvents } from '@oremedia/db/schema/operations';
 import { newId } from '@oremedia/domain/ids';
 import { hashToken, newOpaqueToken } from '@oremedia/module-access';
 import type { ErrorEnvelope } from '@oremedia/contracts/errors';
 import { SEED_EXTENSIONS } from './cross-tenant-inputs';
+
+/**
+ * Every table in the schema that carries a tenant_id column (the same detection as
+ * tooling/scripts/check-schema-tenancy.ts), so the "no writes landed in tenant B" snapshot covers a table the day
+ * it is added rather than a hand-kept list.
+ */
+const TENANT_TABLES: Array<[name: string, table: MySqlTable, tenantCol: MySqlColumn]> = Object.values(
+  schema as Record<string, unknown>,
+)
+  .filter((v): v is MySqlTable => v instanceof MySqlTable)
+  .flatMap((table) => {
+    const tenantCol = Object.values(getTableColumns(table)).find((c) => c.name === 'tenant_id');
+    return tenantCol ? [[getTableName(table), table, tenantCol] as [string, MySqlTable, MySqlColumn]] : [];
+  });
 
 export interface SeededTenant {
   tenantId: string;
@@ -148,23 +170,17 @@ async function seedTenant(db: Db, label: string): Promise<SeededTenant> {
   for (const ext of SEED_EXTENSIONS)
     Object.assign(extraIds, await ext(db, { tenantId, brandIds, ownerUserId }));
   const snapshot = async () => {
-    const counts = await Promise.all(
-      [
-        memberships,
-        brandGrants,
-        servicePrincipals,
-        apiClients,
-        brands,
-        auditEvents,
-        outboxEvents,
-        killSwitches,
-        deletionRequests,
-      ].map((t) =>
-        db
-          .select({ c: sql<number>`count(*)` })
-          .from(t)
-          .where(eq(t.tenantId, tenantId))
-          .then((r) => Number(r[0]?.c ?? 0)),
+    // Row count per tenant-scoped table, keyed by table name (in schema order, so the JSON is stable and a diff
+    // names the table that received a write).
+    const counts = Object.fromEntries(
+      await Promise.all(
+        TENANT_TABLES.map(([name, table, tenantCol]) =>
+          db
+            .select({ c: sql<number>`count(*)` })
+            .from(table)
+            .where(eq(tenantCol, tenantId))
+            .then((r) => [name, Number(r[0]?.c ?? 0)] as const),
+        ),
       ),
     );
     const m = await db.select().from(memberships).where(eq(memberships.tenantId, tenantId));
@@ -208,18 +224,32 @@ export interface CallOptions {
   tenantId?: string;
   idempotencyKey?: string;
   correlationId?: string;
+  /**
+   * Present the credential as a browser cookie session instead of a bearer header. `csrf` is the double-submit
+   * header value; the cookie always carries the token, so omitting `csrf` models a request without the header.
+   */
+  cookieSession?: { csrf?: string };
 }
 
-/** In-process caller with the same context builder as HTTP (headers → context). */
-export async function callerFor(opts: CallOptions) {
+export const CSRF_TOKEN = 'csrf-test-token';
+
+/** The request context an HTTP request with these options would get (headers → context). */
+export async function contextFor(opts: CallOptions) {
   const headers: IncomingHttpHeaders = {
-    authorization: `Bearer ${opts.bearer}`,
     'idempotency-key': opts.idempotencyKey ?? randomUUID(),
     'x-correlation-id': opts.correlationId ?? `test-${randomUUID()}`,
   };
+  if (opts.cookieSession) {
+    headers['cookie'] = `${SESSION_COOKIE}=${opts.bearer}; ${CSRF_COOKIE}=${CSRF_TOKEN}`;
+    if (opts.cookieSession.csrf) headers['x-oremedia-csrf'] = opts.cookieSession.csrf;
+  } else headers['authorization'] = `Bearer ${opts.bearer}`;
   if (opts.tenantId) headers['x-oremedia-tenant'] = opts.tenantId;
-  const ctx = await createContext(headers);
-  return appRouter.createCaller(ctx);
+  return createContext(headers);
+}
+
+/** In-process caller with the same context builder as HTTP. */
+export async function callerFor(opts: CallOptions) {
+  return appRouter.createCaller(await contextFor(opts));
 }
 
 /** Calls a procedure by dotted path with the given input; returns either the data or the error envelope. */
@@ -228,15 +258,15 @@ export async function callPath(
   path: string,
   input: unknown,
 ): Promise<{ data?: unknown; error?: ErrorEnvelope; trpcCode?: string }> {
-  const caller = await callerFor(opts);
+  const ctx = await contextFor(opts);
+  const caller = appRouter.createCaller(ctx);
   const fn = path.split('.').reduce<unknown>((acc, seg) => (acc as Record<string, unknown>)[seg], caller) as (
     i: unknown,
   ) => Promise<unknown>;
   try {
     return { data: await fn(input) };
   } catch (err) {
-    if (err instanceof TRPCError)
-      return { error: envelopeFor(err, opts.correlationId ?? 'test'), trpcCode: err.code };
+    if (err instanceof TRPCError) return { error: envelopeFor(err, ctx.correlationId), trpcCode: err.code };
     throw err;
   }
 }

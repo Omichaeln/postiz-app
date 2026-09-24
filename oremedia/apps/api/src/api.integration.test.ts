@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import type { AddressInfo } from 'node:net';
 import { createTestDatabase, type TestDatabase } from '@oremedia/db/testing';
 // Relative import: a workspace dependency here would create an api ↔ test-fixtures cycle (test-fixtures imports the router).
-import { callPath, seedTwoTenants, type SeededTenant } from '../../../tooling/test-fixtures/src';
+import { CSRF_TOKEN, callPath, seedTwoTenants, type SeededTenant } from '../../../tooling/test-fixtures/src';
+import { createServer } from './server';
 import { configureRateLimiter } from './trpc';
 
 describe('API request path (spec 4.3, 7.1–7.3)', () => {
@@ -137,6 +139,71 @@ describe('API request path (spec 4.3, 7.1–7.3)', () => {
     );
     expect((rotated.data as { key: string }).key).not.toBe(key);
     expect((await callPath({ bearer: key }, 'brand.list', undefined)).error?.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('cookie sessions must present the CSRF double-submit token on every mutation (spec 18)', async () => {
+    const noHeader = await callPath(
+      { bearer: tenantA.ownerToken, cookieSession: {} },
+      'access.switchCompany',
+      { tenantId: tenantA.tenantId },
+    );
+    expect(noHeader.error?.code).toBe('FORBIDDEN');
+    expect(noHeader.trpcCode).toBe('FORBIDDEN');
+    const wrongHeader = await callPath(
+      { bearer: tenantA.ownerToken, cookieSession: { csrf: 'not-the-cookie' } },
+      'access.switchCompany',
+      { tenantId: tenantA.tenantId },
+    );
+    expect(wrongHeader.error?.code).toBe('FORBIDDEN');
+    const ok = await callPath(
+      { bearer: tenantA.ownerToken, cookieSession: { csrf: CSRF_TOKEN } },
+      'access.switchCompany',
+      { tenantId: tenantA.tenantId },
+    );
+    expect(ok.error).toBeUndefined();
+    expect(ok.data).toEqual({ tenantId: tenantA.tenantId });
+    // The same guard sits in front of tenant mutations (the idempotency path), unchanged.
+    const tenantMutation = await callPath(
+      { bearer: tenantA.ownerToken, tenantId: tenantA.tenantId, cookieSession: {} },
+      'brand.create',
+      { name: 'CSRF brand', timezone: 'UTC', defaultLocale: 'en' },
+    );
+    expect(tenantMutation.error?.code).toBe('FORBIDDEN');
+    // Bearer callers are exempt: the token cannot be replayed cross-site.
+    const query = await callPath({ bearer: tenantA.ownerToken }, 'access.listCompanies', undefined);
+    expect(query.error).toBeUndefined();
+  });
+
+  it('a client-chosen correlation id is kept only when it is safe to log; otherwise one is minted', async () => {
+    const kept = await callPath(
+      { bearer: tenantA.ownerToken, tenantId: tenantA.tenantId, correlationId: 'req_1.a:b-c' },
+      'brand.get',
+      { brandId: tenantB.brandIds[0] },
+    );
+    expect(kept.error?.correlationId).toBe('req_1.a:b-c');
+    const minted = await callPath(
+      { bearer: tenantA.ownerToken, tenantId: tenantA.tenantId, correlationId: 'bad id\n{"x":1}' },
+      'brand.get',
+      { brandId: tenantB.brandIds[0] },
+    );
+    expect(minted.error?.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('a request outside tRPC gets a NOT_FOUND envelope with HTTP 404', async () => {
+    const app = createServer();
+    const server = app.listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const res = await fetch(`http://127.0.0.1:${port}/nope`, { headers: { 'x-correlation-id': 'c404' } });
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({
+        code: 'NOT_FOUND',
+        message: 'Route not found',
+        correlationId: 'c404',
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    }
   });
 
   it('rate limiting returns RATE_LIMITED with retry-after', async () => {
