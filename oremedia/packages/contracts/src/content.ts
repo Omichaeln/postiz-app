@@ -66,3 +66,70 @@ export const CreativeAttributesV1 = z.object({
   distribution: z.string().max(40).optional(),
 });
 export type CreativeAttributesV1 = z.infer<typeof CreativeAttributesV1>;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Phase 5 content module (spec 7.5 `content` router, 6.3 content tables). Appended only; nothing above changes.
+// ---------------------------------------------------------------------------------------------------------------
+import { PageRequest } from './pagination';
+
+export const CampaignList = z.object({ brandId: z.string(), page: PageRequest });
+export const CampaignGet = z.object({ campaignId: z.string() });
+
+export const BriefList = z.object({
+  brandId: z.string(),
+  campaignId: z.string().optional(),
+  page: PageRequest,
+});
+export const BriefGet = z.object({ briefId: z.string() });
+export const BriefAccept = z.object({ briefId: z.string(), expectedVersion: z.number().int() });
+
+/**
+ * A package is born with content revision 1: the master copy (spec 6.3 content_revisions.copy) and the creative
+ * documents it publishes with. The revision pins those documents' *current* creative revisions and the brand's
+ * published version and active policy version at creation time.
+ */
+export const ContentPackageCreate = z.object({
+  brandId: z.string(),
+  briefId: z.string().optional(),
+  title: z.string().min(1).max(200),
+  copy: CopyDocumentV1,
+  creativeDocumentIds: z.array(z.string()).max(20).default([]),
+});
+/** A revision is never edited: revising creates content revision n+1 and supersedes the current one (spec 13.1). */
+export const ContentPackageRevise = z.object({
+  contentPackageId: z.string(),
+  expectedVersion: z.number().int(),
+  copy: CopyDocumentV1,
+  creativeDocumentIds: z.array(z.string()).max(20).default([]),
+  summary: z.string().max(500).optional(),
+});
+export const ContentPackageGet = z.object({ contentPackageId: z.string() });
+export const ContentRevisionGet = z.object({ revisionId: z.string() });
+
+/** One variant per (content revision, channel connection); existing targets are returned, never duplicated. */
+export const ChannelVariantGenerate = z.object({
+  contentRevisionId: z.string(),
+  channelConnectionIds: z.array(z.string()).min(1).max(20),
+});
+export const ChannelVariantGet = z.object({ variantId: z.string() });
+
+export const CalendarRange = z.object({
+  brandId: z.string(),
+  from: z.string().datetime(),
+  to: z.string().datetime(),
+});
+
+/** What a calendar shows for a publication; supplied by the publishing module through the content module's calendar source hook. */
+export interface CalendarPublication {
+  publicationId: string;
+  contentPackageId: string;
+  contentRevisionId: string;
+  channelVariantId: string;
+  channelConnectionId: string;
+  scheduledFor: string;
+  state: string;
+}
+
+/** A content revision's brand-review class (spec 13.4 mandate_content_class, 8.1 requireReviewForContentClasses). */
+export const ContentClass = z.enum(['general', 'offer']);
+export type ContentClass = z.infer<typeof ContentClass>;

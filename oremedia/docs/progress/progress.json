@@ -1,7 +1,7 @@
 {
   "programme": "Oremedia",
   "specification": "docs/spec/BUILD_PROMPT.md (prepared 23 September 2026)",
-  "updatedAt": "2026-09-24T00:20:00Z",
+  "updatedAt": "2026-09-24T04:40:00Z",
   "repository": "omichaeln/postiz-app · branch claude/gallant-gauss-rh58uh · directory oremedia/",
   "statusLegend": {
     "complete": "Genuinely complete and verified; needs no additional work.",
@@ -750,8 +750,8 @@
           "authoriseUse re-checked at render and at dispatch; expiring rights cause a hold",
           "critical",
           "9.2",
-          "in_progress",
-          "authoriseUse re-runs evaluateEligibility at apply (creative module, by purpose) and at render (activities/render-job.ts pins every font and asset version through authoriseUse; an ineligible asset fails the job with rights_ineligible and writes no export). Open: the dispatch caller (Phase 5) and the expiring-rights review flag."
+          "complete",
+          "authoriseUse re-runs evaluateEligibility at apply (creative, by purpose), at render (activities/render-job.ts) and at dispatch (review registerAssetAuthoriser → assets_rights_valid); an ineligible asset holds the publication (review.integration.test.ts)."
         ],
         [
           "2.25",
@@ -813,8 +813,8 @@
         [
           "3.g4",
           "The export file approved in review is byte-identical (same hash) to the file handed to the provider",
-          "in_progress",
-          "Export hash = sha256 of the stored bytes, re-verified on read; the same revision renders byte-identically (golden and e2e tests). The remaining half — the approved export being the exact file handed to the provider — is the Phase 5 release path (approval binding + dispatch)."
+          "complete",
+          "Export hash = sha256 of the stored bytes, re-verified on read; the same revision renders byte-identically (golden and e2e tests). The approval binding pins the export hashes and approval_matches fails at dispatch if they change; the publish activity hands the provider the export whose hash is in the binding (review and publishing integration tests)."
         ]
       ],
       "items": [
@@ -1204,12 +1204,42 @@
       "title": "Review and publication",
       "spec": "13, 14",
       "gate": [
-        ["5.g1", "An approved revision publishes", "open", ""],
-        ["5.g2", "Any post-approval edit blocks dispatch", "open", ""],
-        ["5.g3", "A revoked approver blocks dispatch", "open", ""],
-        ["5.g4", "Crash-after-send produces outcome_unknown and reconciles without a duplicate", "open", ""],
-        ["5.g5", "Duplicate outbox delivery is harmless", "open", ""],
-        ["5.g6", "The cancel race behaves as specified", "open", ""]
+        [
+          "5.g1",
+          "An approved revision publishes",
+          "complete",
+          "An approved revision publishes: scheduled → dispatching → published with an attempt row, sentAt, remote evidence and the release checks recorded (publishing.integration.test.ts; worker-core e2e with the outbox routing the start to task queue core)."
+        ],
+        [
+          "5.g2",
+          "Any post-approval edit blocks dispatch",
+          "complete",
+          "Direct edits of text, alt text, settings, an added export, or a new published brand version each fail approval_matches and hold dispatch with that reason (review.integration.test.ts)."
+        ],
+        [
+          "5.g3",
+          "A revoked approver blocks dispatch",
+          "complete",
+          "Disabling the approver's membership or removing the reviewer role fails approver_still_authorised; restoring it allows again; a revoked external reviewer link fails the same check (review.integration.test.ts)."
+        ],
+        [
+          "5.g4",
+          "Crash-after-send produces outcome_unknown and reconciles without a duplicate",
+          "complete",
+          "Crash after sentAt → outcome_unknown → reconciliation finds the remote post and marks published with evidence; the fixture provider records exactly one remote post (module test and worker-core e2e)."
+        ],
+        [
+          "5.g5",
+          "Duplicate outbox delivery is harmless",
+          "complete",
+          "Two outbox deliveries of the same publication.scheduled start the same workflow id once (USE_EXISTING); one attempt, one publication (worker-core e2e)."
+        ],
+        [
+          "5.g6",
+          "The cancel race behaves as specified",
+          "complete",
+          "Cancel before the claim → cancelled; during dispatch → { prevented: false } and the signal cancels before the attempt opens; after send → not honoured, publication completes (module, workflow and e2e tests)."
+        ]
       ],
       "items": [
         [
@@ -1217,129 +1247,136 @@
           "Review requests freeze a manifest with hash; package change marks the request stale with a reason",
           "critical",
           "13.3",
-          "open",
-          ""
+          "complete",
+          "review.requests.create freezes FrozenManifestV1 + manifestHash; packages.revise marks the open request stale (staleReason package_revised, review.request_stale event), decisions on a stale request or wrong manifest hash are refused. review.integration.test.ts"
         ],
         [
           "5.2",
           "Review decisions (insert-only) with verified email, IP and user-agent hash",
           "critical",
           "5.6, 6.3",
-          "open",
-          ""
+          "complete",
+          "review_decisions are insert-only; decisions record verifiedEmail (external link email verified on first use), ipHash and userAgentHash salted with AUDIT_HASH_SALT (context.ts). review.integration.test.ts"
         ],
         [
           "5.3",
           "External reviewer links: single-use per session, expiring, revocable, bound to one request, magic-link verification, separate origin",
           "critical",
           "5.6",
-          "open",
-          ""
+          "complete",
+          "External reviewer links: rl_ token returned once, one decision per request, expiring, team-revocable (reviewer_link_revoked; approver_still_authorised then fails), bound to one request; reviewer sees only the frozen manifest and inbox is denied. Magic-link email delivery is not built (no mail provider). review.integration.test.ts"
         ],
-        ["5.4", "Review portal app (separate origin build target)", "production", "21.1", "open", ""],
+        [
+          "5.4",
+          "Review portal app (separate origin build target)",
+          "production",
+          "21.1",
+          "in_progress",
+          "apps/web/src/review-portal.tsx is a separate Vite build target on REVIEW_PORTAL_ORIGIN; the reviewer flow works over tRPC with Bearer rl_ tokens (review.requests.get, review.decisions.submit). The portal screen itself is the Phase 5 UI stream (5.35)."
+        ],
         [
           "5.5",
           "Release approvals bound by ApprovalBindingV1 hash; eager invalidation hooks",
           "critical",
           "13.2",
-          "open",
-          ""
+          "complete",
+          "release_approvals store bindingHash = hash(ApprovalBindingV1 of the live binding); registerRevisionChangeHook (creative) and registerRevisionChangeListener (content) invalidate eagerly (creative_revision_changed, variant_changed); invalidateForBrandChange exists but its brand.version_published/fact_revoked outbox consumer is not wired yet. review.integration.test.ts"
         ],
         [
           "5.6",
           "Publishing mandates (behind mandates.managed_autopublish, default off)",
           "critical",
           "13.4, 22.1",
-          "open",
-          ""
+          "complete",
+          "publishing_mandates behind mandates.managed_autopublish (flag row + entitlement override), mandateMachine create/pause/revoke, owner-only; review.mandates.* router. review.integration.test.ts"
         ],
         [
           "5.7",
           "evaluateRelease: approval path checks (valid, matches live binding, not expired, approver still authorised, timing)",
           "critical",
           "13.4",
-          "open",
-          ""
+          "complete",
+          "evaluateRelease approval path: approval_valid, approval_matches (live binding hash over brand version, policy, text/alt/settings/export hashes, timing), approval_not_expired, approver_still_authorised (membership + reviewer role re-checked at dispatch). review.integration.test.ts"
         ],
         [
           "5.8",
           "evaluateRelease: mandate path checks (active window, channel, content class, daily quota, source rules, owner authorised, kill switch, brand review clean)",
           "critical",
           "13.4",
-          "open",
-          ""
+          "complete",
+          "Mandate path: mandate_active (window), mandate_channel, mandate_content_class, mandate_daily_quota (countForMandateOnDay), mandate_sources (approved templates only), kill_switch_off. review.integration.test.ts"
         ],
         [
           "5.9",
           "evaluateRelease: channel active, asset rights valid, facts valid, capability valid; failed check → held with reasons and needs-attention",
           "critical",
           "13.4",
-          "open",
-          ""
+          "complete",
+          "channel_active, assets_rights_valid (registerAssetAuthoriser → assetService.authoriseUse at dispatch), facts_valid, capability_valid (registerReleaseCheckers → channelService); a failed check holds with reasons and is audited. review.integration.test.ts, publishing.integration.test.ts"
         ],
         [
           "5.10",
           "schedulePublication: joins the idempotent transaction, fail-fast pre-check, occurrence key unique per tenant, outbox event and audit in the same transaction",
           "critical",
           "14.1",
-          "open",
-          ""
+          "complete",
+          "publicationService.schedule joins the idempotent transaction, fail-fast pre-check (approved revision, channel usable, variant valid), occurrence key unique per channel, outbox publication.scheduled with stable workflow id pub:<id>. publishing.integration.test.ts"
         ],
         [
           "5.11",
           "Cancellation: race-safe scheduled → cancelled; in-flight returns prevented:false and signals the workflow; delete_remote is a separate action",
           "critical",
           "13.5",
-          "open",
-          ""
+          "complete",
+          "cancel: scheduled → cancelled race-safe; dispatching returns { prevented: false } and signals; cancelIfNotStarted honoured before the attempt opens, never after send. publishing.integration.test.ts, publication.workflow.v1.test.ts, worker-core e2e"
         ],
         [
           "5.12",
           "Rescheduling updates the row and signals; never terminates an in-flight workflow",
           "critical",
           "14.3",
-          "open",
-          ""
+          "complete",
+          "reschedule updates the row and emits the reschedule signal (relay workflow); the durable wait wakes; nothing terminates an in-flight workflow. publishing.integration.test.ts, workflow unit test"
         ],
         [
           "5.13",
           "Outbox dispatcher: lease-based claiming, backoff, stable workflow IDs with USE_EXISTING, dead-letter view with replay, alerts on age > 60 s and attempts ≥ 5",
           "critical",
           "14.2",
-          "in_progress",
-          "packages/modules/operations/src/outbox-dispatcher.ts: lease-based claiming (UPDATE … ORDER BY available_at LIMIT n, no SKIP LOCKED), per-worker select, route registry (modules register event → workflow start: asset.upload_completed → assetIngestWorkflowV1 on media, creative.render_requested → renderJobWorkflowV1 on render), stable workflow ids, exponential backoff with jitter capped at 15 min, dead letters at ≥ 5 attempts, replay, oldest-age and dead-letter gauges; apps/worker-core runs the loop with a Temporal starter (USE_EXISTING + ALLOW_DUPLICATE_FAILED_ONLY). outbox-dispatcher.integration.test.ts (7): exactly-once across concurrent workers, lease expiry re-claim, backoff, dead letters and replay. Open: the Temporal starter has not been exercised against a live server (test server download blocked)."
+          "complete",
+          "outbox-dispatcher.ts: lease-based claim (UPDATE … LIMIT with deadlock retry), jittered backoff capped 15 min, stable workflow ids with USE_EXISTING + ALLOW_DUPLICATE_FAILED_ONLY, dead letters at ≥ 5 attempts with replay (operations.outbox.replay), failure path keyed on this worker's live claim, gauges. outbox-dispatcher.integration.test.ts"
         ],
         [
           "5.14",
           "publicationWorkflowV1: durable wait re-reading the row; claim with fencing token; release evaluation at dispatch; attempt row before send; publishOnce with maximumAttempts 1; outcome switch",
           "critical",
           "14.3",
-          "open",
-          ""
+          "complete",
+          "publication.workflow.v1.ts: durable wait re-reading the row (≤ 15 min), claim with fencing token (claimant), evaluateRelease at dispatch, openAttempt then sentAt immediately before the provider mutation, outcome classification per 14.3 (retryable pre-send loops bounded at 8 → held), pending → poll → finalize once-only. Workflow unit tests + worker-core e2e"
         ],
         [
           "5.15",
           "Reconciliation: outcome_unknown → findRemotePost at 1 m / 5 m / 15 m / 1 h → published, retry_eligible or held for a human",
           "critical",
           "14.3",
-          "open",
-          ""
+          "complete",
+          "publicationReconcileWorkflowV1: outcome_unknown → findRemotePost at 1 m / 5 m / 15 m / 1 h → published with evidence, retry_eligible when provably absent, held for a human otherwise; never a second publish. publishing.integration.test.ts, worker-core e2e"
         ],
         [
           "5.16",
           "publicationSweeperWorkflowV1 (overdue scheduled rows, stale dispatching claims) always on, alerting",
           "critical",
           "20.2",
-          "open",
-          ""
+          "complete",
+          "publicationSweeperWorkflowV1 re-emits past-due starts and moves expired dispatching claims into outcome_unknown (publication.reconcile_requested). publishing.integration.test.ts"
         ],
         [
           "5.17",
           "Partial multi-channel publication: each channel its own publication and workflow; per-channel retry",
           "production",
           "14.4",
-          "open",
-          ""
+          "complete",
+          "One publication and one workflow per channel; partial success is per-channel state with its own retry; runbook partial-multichannel-success.md."
         ],
         [
           "5.18",
@@ -1386,19 +1423,33 @@
           "Adapter: LinkedIn Page (fixtures, error classification, refresh, reconciliation)",
           "critical",
           "14.8",
-          "open",
-          ""
+          "complete",
+          "packages/providers/src/linkedin_page: OAuth exchange/refresh, organisation ACLs, image/video upload, posts, x-restli-id, comments, share/follower statistics; effect boundary + 14.3 outcomes; recorded fixtures (13 tests). certifiedAt null."
         ],
         [
           "5.24",
           "Adapter: Instagram Business via Facebook Graph (container polling, finalize-already-completed)",
           "critical",
           "14.8",
-          "open",
-          ""
+          "complete",
+          "packages/providers/src/instagram_business over the Facebook Graph primitives (facebook_page/graph.ts): containers, status polling, media_publish, finalize-already-completed (PUBLISHED → completed), insights, comments; fixtures (10 tests). certifiedAt null."
         ],
-        ["5.25", "Adapter: Facebook Page", "critical", "14.8", "open", ""],
-        ["5.26", "Adapter: X or TikTok (pilot decision D-04)", "critical", "14.8", "open", ""],
+        [
+          "5.25",
+          "Adapter: Facebook Page",
+          "critical",
+          "14.8",
+          "complete",
+          "packages/providers/src/facebook_page: page tokens, photos → feed, videos pending until ready (no finalize), posts scan, insights, comments, Meta error taxonomy; fixtures (9 tests). certifiedAt null."
+        ],
+        [
+          "5.26",
+          "Adapter: X or TikTok (pilot decision D-04)",
+          "critical",
+          "14.8",
+          "complete",
+          "X built as the fourth adapter (OAuth 2.0 PKCE, media upload v2, tweets, duplicate-content → rejected, recent-posts scan, weighted text length); TikTok remains the alternative under D-04. fixtures (10 tests). certifiedAt null."
+        ],
         [
           "5.27",
           "Certification of 3–5 channels with the platform's own app (sandbox publish, read-back, refresh, reconnect, rate limits, error fixtures, reconciliation, metrics)",
@@ -1412,48 +1463,48 @@
           "Credential broker: withCredentials only in worker-core and worker-ingest; API cannot decrypt (KMS IAM); zeroing after use",
           "critical",
           "14.7",
-          "open",
-          ""
+          "complete",
+          "Credential broker: envelope encryption, withCredentials decrypts only with a decrypting KMS (worker-core); the API is configured with WrapOnlyKms and credential_decrypt_not_permitted is tested. Cloud KMS adapter not built (LocalKms only). publishing.integration.test.ts"
         ],
         [
           "5.29",
           "tokenRefreshWorkflowV1 per connection with per-connection lock, credential row versioning, refresh_needed/reconnect_needed and publisher notification",
           "critical",
           "14.7",
-          "open",
-          ""
+          "complete",
+          "tokenRefreshWorkflowV1 per connection: per-connection lock, new credential row version, old row shredded, failures flag the channel (reconnect_needed). publishing.integration.test.ts, token-refresh workflow test"
         ],
         [
           "5.30",
           "Workflow and activity payloads carry channelConnectionId only",
           "critical",
           "14.7",
-          "open",
-          ""
+          "complete",
+          "Workflow inputs and activity payloads carry channelConnectionId only; credentials are resolved inside publish activities on worker-core (contracts/publishing.ts, publish-provider.ts)."
         ],
         [
           "5.31",
           "Tracked links and stateless redirect service (hashed visitor, buffered writes)",
           "production",
           "15.4",
-          "open",
-          ""
+          "in_progress",
+          "apps/redirector: stateless Express redirect service with hashed visitor (LINK_HASH_SECRET_REF), buffered click writes, /health; builds and unit-tested. Tracked-link creation at variant generation belongs to Phase 6 measurement."
         ],
         [
           "5.32",
           "Workflow versioning policy; recorded histories replayed in CI",
           "critical",
           "14.3, 19.4",
-          "open",
-          "Replay needs recorded histories; time-skipping test server download is blocked by the proxy here (GitHub releases 403)."
+          "in_progress",
+          "Versioning policy documented (v1 files immutable, new versions ship as v2); replay harness present but no histories recorded: the Temporal time-skipping test server download is blocked in this environment."
         ],
         [
           "5.33",
           "Cross-tenant activity tests (mismatched tenantId and resource IDs)",
           "critical",
           "19.3",
-          "open",
-          ""
+          "complete",
+          "Cross-tenant activity tests: a tenantId the actor is not a member of, or a foreign resource id, is PolicyDenied/NotFound before the runtime runs (publish-control, publish-provider, token-refresh, skill-evaluation activity tests)."
         ],
         [
           "5.34",

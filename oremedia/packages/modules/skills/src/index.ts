@@ -32,4 +32,10 @@ export {
   type BuiltinSkill,
   type BuiltinSkillKey,
 } from './builtin';
+export {
+  registerSkillOutboxRoutes,
+  skillEvaluationWorkflowId,
+  SKILL_EVALUATION_TASK_QUEUE,
+  SKILL_EVALUATION_WORKFLOW_TYPE,
+} from './outbox-routes';
 export type { ResolvedSkill, EvaluationCase, EvaluationReport } from '@oremedia/contracts/skills';

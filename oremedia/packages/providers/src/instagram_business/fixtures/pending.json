@@ -1,0 +1,199 @@
+{
+  "provider": "instagram_business",
+  "scenarios": {
+    "check_in_progress": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ctn_1",
+            "query": { "fields": "status_code,status" }
+          },
+          "response": {
+            "status": 200,
+            "json": { "status_code": "IN_PROGRESS", "status": "In Progress", "id": "ctn_1" }
+          }
+        }
+      ]
+    },
+    "check_finished": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ctn_1" },
+          "response": {
+            "status": 200,
+            "json": {
+              "status_code": "FINISHED",
+              "status": "Finished: Media has been uploaded and it is ready to be published.",
+              "id": "ctn_1"
+            }
+          }
+        }
+      ]
+    },
+    "check_error": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ctn_1" },
+          "response": {
+            "status": 200,
+            "json": { "status_code": "ERROR", "status": "Error: Media download failed", "id": "ctn_1" }
+          }
+        }
+      ]
+    },
+    "check_expired": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ctn_1" },
+          "response": {
+            "status": 200,
+            "json": { "status_code": "EXPIRED", "status": "Expired", "id": "ctn_1" }
+          }
+        }
+      ]
+    },
+    "finalize_completed": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ctn_1" },
+          "response": { "status": 200, "json": { "status_code": "FINISHED", "id": "ctn_1" } }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ig_900/media_publish",
+            "bodyIncludes": ["\"creation_id\":\"ctn_1\""]
+          },
+          "response": { "status": 200, "json": { "id": "media_555" } }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/media_555",
+            "query": { "fields": "permalink" }
+          },
+          "response": {
+            "status": 200,
+            "json": { "permalink": "https://www.instagram.com/p/AbCdEf/", "id": "media_555" }
+          }
+        }
+      ]
+    },
+    "finalize_already_published": {
+      "description": "The container reports PUBLISHED before media_publish: the earlier finalise went through; find the media by caption, never publish again.",
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ctn_1" },
+          "response": { "status": 200, "json": { "status_code": "PUBLISHED", "id": "ctn_1" } }
+        },
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ig_900/media" },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                {
+                  "id": "media_555",
+                  "caption": "Hello from Oremedia #launch",
+                  "timestamp": "2026-09-24T00:02:00+0000",
+                  "permalink": "https://www.instagram.com/p/AbCdEf/"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "check_after_finalize": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ctn_1" },
+          "repeat": true,
+          "response": { "status": 200, "json": { "status_code": "PUBLISHED", "id": "ctn_1" } }
+        },
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ig_900/media" },
+          "repeat": true,
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                {
+                  "id": "media_555",
+                  "caption": "Hello from Oremedia #launch",
+                  "timestamp": "2026-09-24T00:02:00+0000",
+                  "permalink": "https://www.instagram.com/p/AbCdEf/"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "finalize_not_ready_subcode": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ctn_1" },
+          "response": { "status": 200, "json": { "status_code": "FINISHED", "id": "ctn_1" } }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ig_900/media_publish"
+          },
+          "response": {
+            "status": 400,
+            "json": {
+              "error": {
+                "message": "Media ID is not available",
+                "type": "OAuthException",
+                "code": 9007,
+                "error_subcode": 2207027
+              }
+            }
+          }
+        }
+      ]
+    },
+    "finalize_5xx": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ctn_1" },
+          "response": { "status": 200, "json": { "status_code": "FINISHED", "id": "ctn_1" } }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ig_900/media_publish"
+          },
+          "response": {
+            "status": 500,
+            "json": { "error": { "message": "An unknown error occurred", "code": 1 } }
+          }
+        }
+      ]
+    },
+    "finalize_hang": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ctn_1" },
+          "response": { "status": 200, "json": { "status_code": "FINISHED", "id": "ctn_1" } }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ig_900/media_publish"
+          },
+          "behaviour": "hang"
+        }
+      ]
+    }
+  }
+}

@@ -4,6 +4,7 @@ import { configureDatabase, closeDatabase } from '@oremedia/db';
 import { composeModules } from './composition';
 import { TemporalWorkflowSignaller, startAgentsWorker } from './agents-worker';
 import { runDispatchLoop } from './dispatch-loop';
+import { TemporalWorkflowProbe, ensureSweeperRunning, startPublishingWorkers } from './publishing-worker';
 import { TemporalWorkflowStarter, connectTemporal, temporalConfigFromEnv } from './temporal';
 
 const log = startTelemetry({ service: 'oremedia-worker-core', version: process.env['OREMEDIA_VERSION'] });
@@ -25,7 +26,10 @@ try {
 configureDatabase({ url, connectionLimit: Number(process.env['DATABASE_POOL'] ?? 5) });
 
 const client = await connectTemporal(temporalConfig);
-composeModules({ signaller: new TemporalWorkflowSignaller(client) });
+composeModules({
+  signaller: new TemporalWorkflowSignaller(client),
+  workflowProbe: new TemporalWorkflowProbe(client),
+});
 const controller = new AbortController();
 const workerId = `${hostname()}:${process.pid}`;
 log.info({ status: workerId }, 'worker-core dispatching outbox');
@@ -43,6 +47,20 @@ try {
   process.exit(2);
 }
 const agentsRun = agentsWorker.run();
+// Spec 4.4 / 14: task queue `core` plus one `publish-<provider>` queue per certified provider; the sweeper is
+// always on (spec 14.2 safety net).
+let publishingWorkers;
+try {
+  publishingWorkers = await startPublishingWorkers(temporalConfig);
+  await ensureSweeperRunning(client);
+} catch (err) {
+  log.error(
+    { errorMessage: err instanceof Error ? err.message : String(err) },
+    'publishing workers could not start',
+  );
+  process.exit(2);
+}
+const publishingRun = publishingWorkers.run();
 const loop = runDispatchLoop({
   workerId,
   starter: new TemporalWorkflowStarter(client),
@@ -53,8 +71,10 @@ const loop = runDispatchLoop({
 const shutdown = async () => {
   controller.abort();
   agentsWorker.shutdown();
-  await Promise.all([loop, agentsRun]);
+  publishingWorkers.shutdown();
+  await Promise.all([loop, agentsRun, publishingRun]);
   await agentsWorker.close();
+  await publishingWorkers.close();
   await client.connection.close();
   await closeDatabase();
   await stopTelemetry();

@@ -25,6 +25,7 @@ export const Action = z.enum([
   'mandate.manage',
   'agent.start_run',
   'agent.cancel_run',
+  'skill.read',
   'skill.author',
   'skill.publish',
   'insight.read',

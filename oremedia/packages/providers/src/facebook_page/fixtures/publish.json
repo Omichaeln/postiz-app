@@ -1,0 +1,196 @@
+{
+  "provider": "facebook_page",
+  "scenarios": {
+    "text_success": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/p_100/feed",
+            "bodyIncludes": ["\"message\":\"Hello from Oremedia #launch\"", "\"published\":true"]
+          },
+          "response": { "status": 200, "json": { "id": "p_100_5001" } }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/p_100_5001",
+            "query": { "fields": "permalink_url" }
+          },
+          "response": {
+            "status": 200,
+            "json": { "permalink_url": "https://www.facebook.com/p_100/posts/5001", "id": "p_100_5001" }
+          }
+        }
+      ]
+    },
+    "photos_success": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/p_100/photos",
+            "bodyIncludes": [
+              "\"url\":\"https://media.oremedia.test/release/img1.jpg\"",
+              "\"published\":false",
+              "\"alt_text_custom\":\"A launch banner\""
+            ]
+          },
+          "response": { "status": 200, "json": { "id": "ph_1" } }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/p_100/photos",
+            "bodyIncludes": ["img2.jpg"]
+          },
+          "response": { "status": 200, "json": { "id": "ph_2" } }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/p_100/feed",
+            "bodyIncludes": ["\"attached_media\":[{\"media_fbid\":\"ph_1\"},{\"media_fbid\":\"ph_2\"}]"]
+          },
+          "response": { "status": 200, "json": { "id": "p_100_5002" } }
+        },
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/p_100_5002" },
+          "response": { "status": 500, "body": "permalink unavailable" }
+        }
+      ]
+    },
+    "video_pending": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/p_100/videos",
+            "bodyIncludes": [
+              "\"file_url\":\"https://media.oremedia.test/release/clip.mp4\"",
+              "\"description\":\"Hello from Oremedia #launch\""
+            ]
+          },
+          "response": { "status": 200, "json": { "id": "vid_77" } }
+        }
+      ]
+    },
+    "rejected_validation": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/p_100/feed" },
+          "response": {
+            "status": 400,
+            "json": {
+              "error": {
+                "message": "(#100) Invalid parameter",
+                "type": "OAuthException",
+                "code": 100,
+                "error_subcode": 1349125,
+                "fbtrace_id": "B2"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "rate_limited": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/p_100/feed" },
+          "response": {
+            "status": 400,
+            "headers": {
+              "x-business-use-case-usage": "{\"p_100\":[{\"type\":\"pages\",\"call_count\":100,\"total_cputime\":100,\"total_time\":100,\"estimated_time_to_regain_access\":2}]}"
+            },
+            "json": {
+              "error": {
+                "message": "(#32) Page request limit reached",
+                "type": "OAuthException",
+                "code": 32,
+                "fbtrace_id": "C3"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "expired_token": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/p_100/feed" },
+          "response": {
+            "status": 400,
+            "json": {
+              "error": {
+                "message": "Error validating access token: Session has expired",
+                "type": "OAuthException",
+                "code": 190,
+                "error_subcode": 463,
+                "fbtrace_id": "D4"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "revoked_token": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/p_100/feed" },
+          "response": {
+            "status": 400,
+            "json": {
+              "error": {
+                "message": "(#200) Requires pages_manage_posts permission",
+                "type": "OAuthException",
+                "code": 200,
+                "fbtrace_id": "E5"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "server_error_after_send": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/p_100/feed" },
+          "response": {
+            "status": 500,
+            "json": {
+              "error": {
+                "message": "An unknown error occurred",
+                "type": "OAuthException",
+                "code": 1,
+                "fbtrace_id": "F6"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "timeout_after_send": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/p_100/feed" },
+          "behaviour": "hang"
+        }
+      ]
+    },
+    "photo_upload_5xx": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/p_100/photos" },
+          "response": { "status": 503, "body": "Service Unavailable" }
+        }
+      ]
+    }
+  }
+}

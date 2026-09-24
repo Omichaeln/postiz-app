@@ -97,6 +97,18 @@ export class RenderedExportRepository extends BrandScopedRepository<typeof rende
   async create(values: Omit<typeof renderedExports.$inferInsert, 'tenantId'>, tx: Tx) {
     await this.insertBrandScoped(values, tx);
   }
+  /**
+   * Every export of a revision, in id order. Export rows exist only once a job is `ready` (markReady inserts them),
+   * so this is the revision's ready output; the content module picks channel variant exports from it (spec 14.1).
+   */
+  async listForRevision(brandId: string, revisionId: string, tx?: Tx) {
+    return this.conn(tx)
+      .select()
+      .from(renderedExports)
+      .where(this.brandScope(brandId, eq(renderedExports.revisionId, revisionId)))
+      .orderBy(asc(renderedExports.id))
+      .limit(ID_LIST_MAX);
+  }
   /** Exports by id (render_jobs.export_ids), in id order; bounded by the id-list maximum (spec 7.4). */
   async listByIds(brandId: string, ids: readonly string[], tx?: Tx) {
     if (ids.length === 0) return [];

@@ -115,6 +115,8 @@ export interface AccountGrant {
   grantedScopes: string[];
   credentials: DecryptedCredentials;
   tokenExpiresAt?: string;
+  /** Other accounts (pages, organisations) the same grant can address; names only, never tokens. */
+  alternatives?: Array<{ remoteAccountId: string; displayName: string }>;
 }
 
 export type RefreshResult =

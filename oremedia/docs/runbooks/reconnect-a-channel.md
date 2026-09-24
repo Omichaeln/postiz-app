@@ -1,13 +1,13 @@
 # Runbook: reconnect a channel
 
-**Symptom:** `channel_connections.status` is `refresh_needed` or `reconnect_needed`; metric `oremedia.channels.reconnect_needed` > 0; publishers were notified; publications for the channel are `held` with reason `channel_active`.
-**Owner:** publisher of the brand (customer) with platform support. **Exercised:** not yet (Phase 5 dependency).
+**Symptom:** `channel_connections.status` is `refresh_needed` or `reconnect_needed`; metrics `oremedia.channels.token_refresh_failures` / `oremedia.channels.reconnect_needed` > 0; outbox event `channel.reconnect_needed` (the publisher notification hook); publications for the channel are `held` with reason `channel_active` after dispatch re-evaluation, or `held` with reason `channel_active` immediately after a disconnect.
+**Owner:** publisher of the brand (customer) with platform support. **Exercised:** locally by `publishing.integration.test.ts` ("refreshCredentials writes a new credential row version …", "disconnect destroys the credential …" incl. the reconnect of the same remote account). Production procedure not yet exercised.
 
-1. Confirm the state: `publishing.channels.list` for the brand shows the connection and its status; the audit trail shows the last `tokenRefreshWorkflowV1` failure reason.
-2. If `refresh_needed`: trigger `publishing.channels.refresh` (idempotent; takes the per-connection lock). If the refresh succeeds the status returns to `active` and held publications stay held until a person re-releases them (they were held for a reason; review timing).
-3. If `reconnect_needed`: the publisher runs `publishing.channels.connect.start` for the same provider and remote account. The new grant writes a **new** `credential_refs` row; the old row is destroyed within 24 hours (spec 17.5).
-4. Missing scopes: the connect flow reports `missingScopes` against the capability's `requiredScopes`; the channel is not usable until they are granted.
-5. Re-release each held publication from the calendar (`held → scheduled`), which re-runs the release policy at dispatch.
-6. Verify: a test post is not required; the next scheduled publication reaches `published` and `outcome_unknown` count does not grow.
+1. Confirm the state: `publishing.channels.list { brandId }` shows the connection with `status`, `missingScopes`, `tokenExpiresAt` and `usable`. The audit trail carries `channel.token_refresh` events with `decision: denied` and the failure reason (`transient` / `reconnect_required`).
+2. If `refresh_needed`: the connection's `tokenRefreshWorkflowV1` (workflow id `token-refresh:<channelConnectionId>`, task queue `core`) retried the refresh three times, spaced 2 / 10 / 30 min, under the per-connection lock; it has ended. Re-running the refresh means re-connecting (step 3) — there is no separate `channels.refresh` procedure (not in the router map; report if wanted). A successful refresh writes a **new** `credential_refs` row and crypto-shreds the old one (`rotated_at` + `destroyed_at`, key material overwritten).
+3. If `reconnect_needed`: the publisher runs `publishing.channels.connect.start { brandId, providerKey, redirectUri }` and, after consent, `publishing.channels.connect.complete { state, code }` for the same provider and remote account. The connect flow finds the existing connection by `(providerKey, remoteAccountId)`, writes a new credential row, destroys the old one immediately (spec 17.5's 24 h bound), returns the status to `active` and emits `channel.connected`, which starts a fresh `tokenRefreshWorkflowV1` (USE_EXISTING joins one still running).
+4. Missing scopes: `connect.complete` reports `missingScopes` against the capability's `requiredScopes`; `usable` stays false and the release check `channel_active` fails until they are granted.
+5. Re-release each held publication: `publishing.publications.reschedule { publicationId, expectedVersion, scheduledFor }` (held → scheduled), which re-runs the release policy fail-fast and again at dispatch.
+6. Verify: the next scheduled publication reaches `published` and `oremedia.publish.outcome_unknown` does not grow.
 
-Escalate to platform if the provider app itself is suspended (all connections of that provider fail at once).
+Escalate to platform if the provider app itself is suspended (all connections of that provider fail at once; the `publish-<providerKey>` queue can be paused by stopping that worker without touching the others).

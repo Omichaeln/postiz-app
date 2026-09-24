@@ -1,0 +1,227 @@
+{
+  "provider": "x",
+  "scenarios": {
+    "text_success": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "host": "api.x.com",
+            "path": "/2/tweets",
+            "bodyIncludes": ["\"text\":\"Hello from Oremedia #launch\""]
+          },
+          "response": {
+            "status": 201,
+            "json": { "data": { "id": "1900000000000000001", "text": "Hello from Oremedia #launch" } }
+          }
+        }
+      ]
+    },
+    "image_success": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "media.oremedia.test", "path": "/release/img1.jpg" },
+          "response": { "status": 200, "body": "JPEGBYTES-0123456789" }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "api.x.com",
+            "path": "/2/media/upload/initialize",
+            "bodyIncludes": [
+              "\"media_type\":\"image/jpeg\"",
+              "\"total_bytes\":20",
+              "\"media_category\":\"tweet_image\""
+            ]
+          },
+          "response": {
+            "status": 200,
+            "json": { "data": { "id": "m_1", "media_key": "3_m_1", "expires_after_secs": 86400 } }
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "api.x.com",
+            "path": "/2/media/upload/m_1/append",
+            "bodyIncludes": ["name=\"segment_index\"", "JPEGBYTES-0123456789"]
+          },
+          "response": { "status": 204 }
+        },
+        {
+          "request": { "method": "POST", "host": "api.x.com", "path": "/2/media/upload/m_1/finalize" },
+          "response": { "status": 200, "json": { "data": { "id": "m_1", "media_key": "3_m_1" } } }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "api.x.com",
+            "path": "/2/media/metadata",
+            "bodyIncludes": ["\"alt_text\":{\"text\":\"A launch banner\"}"]
+          },
+          "response": { "status": 200, "json": { "data": { "id": "m_1" } } }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "api.x.com",
+            "path": "/2/tweets",
+            "bodyIncludes": ["\"media\":{\"media_ids\":[\"m_1\"]}"]
+          },
+          "response": { "status": 201, "json": { "data": { "id": "1900000000000000002" } } }
+        }
+      ]
+    },
+    "video_pending": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "media.oremedia.test", "path": "/release/clip.mp4" },
+          "response": { "status": 200, "body": "MP4BYTES" }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "api.x.com",
+            "path": "/2/media/upload/initialize",
+            "bodyIncludes": ["\"media_category\":\"tweet_video\""]
+          },
+          "response": { "status": 200, "json": { "data": { "id": "m_v", "expires_after_secs": 86400 } } }
+        },
+        {
+          "request": { "method": "POST", "host": "api.x.com", "path": "/2/media/upload/m_v/append" },
+          "response": { "status": 204 }
+        },
+        {
+          "request": { "method": "POST", "host": "api.x.com", "path": "/2/media/upload/m_v/finalize" },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": { "id": "m_v", "processing_info": { "state": "pending", "check_after_secs": 4 } }
+            }
+          }
+        }
+      ]
+    },
+    "rejected_validation": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.x.com", "path": "/2/tweets" },
+          "response": {
+            "status": 400,
+            "json": {
+              "errors": [
+                {
+                  "parameters": { "text": [""] },
+                  "message": "The `text` query parameter value [] is not valid"
+                }
+              ],
+              "title": "Invalid Request",
+              "detail": "One or more parameters to your request was invalid.",
+              "type": "https://api.twitter.com/2/problems/invalid-request"
+            }
+          }
+        }
+      ]
+    },
+    "duplicate": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.x.com", "path": "/2/tweets" },
+          "response": {
+            "status": 403,
+            "json": {
+              "detail": "You are not allowed to create a Tweet with duplicate content.",
+              "type": "about:blank",
+              "title": "Forbidden",
+              "status": 403
+            }
+          }
+        }
+      ]
+    },
+    "rate_limited": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.x.com", "path": "/2/tweets" },
+          "response": {
+            "status": 429,
+            "headers": {
+              "x-rate-limit-limit": "100",
+              "x-rate-limit-remaining": "0",
+              "x-rate-limit-reset": "RESET_EPOCH"
+            },
+            "json": {
+              "title": "Too Many Requests",
+              "detail": "Too Many Requests",
+              "type": "about:blank",
+              "status": 429
+            }
+          }
+        }
+      ]
+    },
+    "expired_token": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.x.com", "path": "/2/tweets" },
+          "response": {
+            "status": 401,
+            "json": {
+              "title": "Unauthorized",
+              "type": "about:blank",
+              "status": 401,
+              "detail": "Unauthorized"
+            }
+          }
+        }
+      ]
+    },
+    "suspended": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.x.com", "path": "/2/tweets" },
+          "response": {
+            "status": 403,
+            "json": {
+              "title": "Forbidden",
+              "type": "https://api.twitter.com/2/problems/user-suspended",
+              "detail": "Your account is suspended and is not permitted to access this feature."
+            }
+          }
+        }
+      ]
+    },
+    "server_error_after_send": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.x.com", "path": "/2/tweets" },
+          "response": {
+            "status": 503,
+            "json": { "title": "Service Unavailable", "detail": "Service Unavailable" }
+          }
+        }
+      ]
+    },
+    "timeout_after_send": {
+      "exchanges": [
+        { "request": { "method": "POST", "host": "api.x.com", "path": "/2/tweets" }, "behaviour": "hang" }
+      ]
+    },
+    "upload_init_429": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "media.oremedia.test", "path": "/release/img1.jpg" },
+          "response": { "status": 200, "body": "JPEGBYTES" }
+        },
+        {
+          "request": { "method": "POST", "host": "api.x.com", "path": "/2/media/upload/initialize" },
+          "response": {
+            "status": 429,
+            "headers": { "x-rate-limit-reset": "RESET_EPOCH" },
+            "json": { "title": "Too Many Requests" }
+          }
+        }
+      ]
+    }
+  }
+}

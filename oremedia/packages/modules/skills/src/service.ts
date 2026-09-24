@@ -5,6 +5,9 @@ import {
   EvaluationCase,
   EvaluationReport,
   SkillBindingSet,
+  SkillEvaluationFail,
+  SkillEvaluationRecord,
+  SkillEvaluationRun,
   SkillExport,
   SkillGet,
   SkillImport,
@@ -15,6 +18,7 @@ import {
   SkillVersionPublish,
   type ResolvedSkill,
   type SkillScope,
+  type SkillVersionState,
   type TaskKind,
 } from '@oremedia/contracts/skills';
 import { requireTenant, runAsPlatform, type Tx } from '@oremedia/db';
@@ -24,6 +28,7 @@ import { IllegalTransitionError, type StateMachine } from '@oremedia/domain/stat
 import { skillVersionMachine } from '@oremedia/domain/state-machines/skill-version';
 import { policy } from '@oremedia/module-access';
 import { audit, outbox } from '@oremedia/module-operations';
+import { logger } from '@oremedia/observability';
 import { z as zod } from 'zod';
 import {
   buildContent,
@@ -67,17 +72,17 @@ const brands = (): BrandChecker => {
   return brandChecker;
 };
 
-/** Spec 19.6: the evaluation harness lives in the agent runtime; it registers the runner that grades a pinned version. */
-export type EvaluationRunner = (
-  input: {
-    skillVersionId: string;
-    manifest: SkillManifestV1;
-    instructions: string;
-    cases: EvaluationCase[];
-    runs: number;
-  },
-  tx?: Tx,
-) => Promise<EvaluationReport>;
+/**
+ * Spec 19.6: the evaluation harness lives in the agent runtime; it registers the runner that grades a pinned version.
+ * The runner is called by the worker (versions.runEvaluation) with no transaction open: model calls never hold a lock.
+ */
+export type EvaluationRunner = (input: {
+  skillVersionId: string;
+  manifest: SkillManifestV1;
+  instructions: string;
+  cases: EvaluationCase[];
+  runs: number;
+}) => Promise<EvaluationReport>;
 let evaluationRunner: EvaluationRunner | null = null;
 export const registerEvaluationRunner = (fn: EvaluationRunner): void => {
   evaluationRunner = fn;
@@ -406,10 +411,18 @@ export const skillsService = {
   /** Skills visible to the actor: platform built-ins, the tenant's own and the brand skills of brands they may see. */
   async list(actor: ResolvedActor, input: z.infer<typeof SkillList>, tx?: Tx) {
     const parsed = SkillList.parse(input);
+    const { tenantId } = requireTenant();
     if (parsed.brandId) {
       assertBrandVisible(parsed.brandId);
       await brands().assertExist([parsed.brandId], tx);
     }
+    await policy.assert(
+      actor,
+      'skill.read',
+      { type: 'skill', tenantId, ...(parsed.brandId ? { brandId: parsed.brandId } : {}) },
+      {},
+      tx,
+    );
     const page = await skillsRepo.list({ scope: parsed.scope, brandId: parsed.brandId }, parsed.page, tx);
     return { items: page.items.map(toSkillDto), nextCursor: page.nextCursor };
   },
@@ -418,6 +431,8 @@ export const skillsService = {
   async get(actor: ResolvedActor, input: z.infer<typeof SkillGet>, tx?: Tx) {
     const parsed = SkillGet.parse(input);
     const skill = await skillsRepo.getById(parsed.skillId, tx);
+    if (skill.brandId) assertBrandVisible(skill.brandId);
+    await policy.assert(actor, 'skill.read', skillResource(skill), {}, tx);
     const versions = await versionsRepo.listForSkill(skill.id, tx);
     const versionIds = versions.map((v) => v.id);
     const bindings = await bindingsRepo.listVisibleForVersions(versionIds, tx);
@@ -451,8 +466,9 @@ export const skillsService = {
     },
 
     /**
-     * Spec 10.2 / 19.6: draft → sandbox_evaluation → in_review (passed) or back to draft (failed). The registered
-     * runner receives the pinned content; its report is scored deterministically and stored as an insert-only result.
+     * Spec 10.2 / 19.6: draft → sandbox_evaluation. The evaluation itself is sandbox work: the command only picks or
+     * creates the suite, moves the version and emits skill.evaluation_requested; the worker runs the suite
+     * (runEvaluation) with no transaction open and records the report (recordEvaluation), as renders do.
      */
     async evaluate(actor: ResolvedActor, input: z.infer<typeof SkillVersionEvaluate>, tx: Tx) {
       const parsed = SkillVersionEvaluate.parse(input);
@@ -465,16 +481,13 @@ export const skillsService = {
         tx,
       );
       assertMayEditScope(actor, skill.scope);
-      const toSandbox = transition(skillVersionMachine, version.state, 'start_evaluation', 'skillVersionId');
-      const content = contentOf(version);
+      const toState = transition(skillVersionMachine, version.state, 'start_evaluation', 'skillVersionId');
       const writer = writerFor(skill.scope);
       return inScope(skill.scope, async () => {
         let suiteId: string;
-        let cases: EvaluationCase[];
         if (parsed.cases) {
           suiteId = newId('evaluationSuite');
-          cases = parsed.cases;
-          await writer.createSuite({ id: suiteId, skillVersionId: version.id, cases }, tx);
+          await writer.createSuite({ id: suiteId, skillVersionId: version.id, cases: parsed.cases }, tx);
         } else {
           const suite = await suitesRepo.findLatestForVersion(version.id, tx);
           if (!suite)
@@ -483,40 +496,119 @@ export const skillsService = {
               'This version has no evaluation cases',
             );
           suiteId = suite.id;
-          cases = EvaluationCase.array().parse(suite.cases);
         }
-        await writer.updateVersion(version.id, parsed.expectedVersion, { state: toSandbox }, tx);
-        const report = EvaluationReport.parse(
-          await runner()(
-            {
-              skillVersionId: version.id,
-              manifest: content.manifest,
-              instructions: content.instructions,
-              cases,
-              runs: parsed.runs,
-            },
-            tx,
-          ),
+        await writer.updateVersion(version.id, parsed.expectedVersion, { state: toState }, tx);
+        await audit.record(
+          actorRef(actor),
+          'skill.version.evaluate',
+          { type: 'skill_version', id: version.id },
+          'allowed',
+          tx,
+          {
+            fromState: version.state,
+            toState,
+            reason: 'requested',
+            ...(skill.brandId ? { brandId: skill.brandId } : {}),
+          },
         );
-        if (report.skillVersionId !== version.id)
-          throw new ValidationFailedError([
-            { path: 'report.skillVersionId', issue: 'evaluation_report_mismatch' },
-          ]);
-        const outcome = scoreReport(cases, report);
-        const toState = transition(
-          skillVersionMachine,
-          toSandbox,
-          outcome.passed ? 'evaluation_passed' : 'evaluation_failed',
-          'skillVersionId',
+        await outbox.add(
+          'skill.evaluation_requested',
+          { type: 'skill_version', id: version.id, version: parsed.expectedVersion + 1 },
+          {
+            skillVersionId: version.id,
+            skillId: skill.id,
+            suiteId,
+            runs: parsed.runs,
+            actorKind: actor.kind,
+            actorId: actor.id,
+          },
+          tx,
+          skill.brandId ? { brandId: skill.brandId } : undefined,
         );
+        return { skillVersionId: version.id, suiteId, state: toState, version: parsed.expectedVersion + 1 };
+      });
+    },
+
+    /**
+     * Evaluation worker, step 1: the registered runner grades the pinned content against the suite. No transaction
+     * is open while the model is called. The report is null (nothing to run) when the version has already left
+     * the sandbox, so a re-delivered event burns no model budget.
+     */
+    async runEvaluation(
+      input: z.infer<typeof SkillEvaluationRun>,
+    ): Promise<{ skillVersionId: string; state: SkillVersionState; report: EvaluationReport | null }> {
+      const parsed = SkillEvaluationRun.parse(input);
+      const { version } = await loadVersion(parsed.skillVersionId);
+      const suite = await suitesRepo.getById(parsed.suiteId);
+      if (suite.skillVersionId !== version.id) throw new NotFoundError('EvaluationSuite', parsed.suiteId);
+      if (version.state !== 'sandbox_evaluation') {
+        logger()
+          .child('skills')
+          .info({ skillVersionId: version.id, state: version.state }, 'evaluation not run');
+        return { skillVersionId: version.id, state: version.state, report: null };
+      }
+      const content = contentOf(version);
+      const report = EvaluationReport.parse(
+        await runner()({
+          skillVersionId: version.id,
+          manifest: content.manifest,
+          instructions: content.instructions,
+          cases: EvaluationCase.array().parse(suite.cases),
+          runs: parsed.runs,
+        }),
+      );
+      if (report.skillVersionId !== version.id)
+        throw new ValidationFailedError([
+          { path: 'report.skillVersionId', issue: 'evaluation_report_mismatch' },
+        ]);
+      return { skillVersionId: version.id, state: version.state, report };
+    },
+
+    /**
+     * Evaluation worker, step 2 (one short transaction): sandbox_evaluation → in_review (passed) or back to draft
+     * (failed). The report is scored deterministically and stored as an insert-only result. A version that already
+     * left the sandbox (recorded by an earlier attempt, or moved meanwhile) is left alone: a retried activity is a no-op.
+     */
+    async recordEvaluation(input: z.infer<typeof SkillEvaluationRecord>, tx: Tx) {
+      const parsed = SkillEvaluationRecord.parse(input);
+      const { version, skill } = await loadVersion(parsed.skillVersionId, tx);
+      const suite = await suitesRepo.getById(parsed.suiteId, tx);
+      if (suite.skillVersionId !== version.id) throw new NotFoundError('EvaluationSuite', parsed.suiteId);
+      if (version.state !== 'sandbox_evaluation') {
+        logger()
+          .child('skills')
+          .info({ skillVersionId: version.id, state: version.state }, 'evaluation not recorded');
+        return {
+          outcome: 'skipped' as const,
+          skillVersionId: version.id,
+          state: version.state,
+          version: version.version,
+        };
+      }
+      if (parsed.report.skillVersionId !== version.id)
+        throw new ValidationFailedError([
+          { path: 'report.skillVersionId', issue: 'evaluation_report_mismatch' },
+        ]);
+      const cases = EvaluationCase.array().parse(suite.cases);
+      const outcome = scoreReport(cases, parsed.report);
+      const toState = transition(
+        skillVersionMachine,
+        version.state,
+        outcome.passed ? 'evaluation_passed' : 'evaluation_failed',
+        'skillVersionId',
+      );
+      const writer = writerFor(skill.scope);
+      return inScope(skill.scope, async () => {
         const resultId = newId('evaluationResult');
         await writer.createResult(
           {
             id: resultId,
-            suiteId,
+            suiteId: suite.id,
             skillVersionId: version.id,
-            modelVersion: report.gradedBy ? `${report.gradedBy.provider}:${report.gradedBy.model}` : 'none',
-            runs: report.runs,
+            modelVersion: parsed.report.gradedBy
+              ? `${parsed.report.gradedBy.provider}:${parsed.report.gradedBy.model}`
+              : 'none',
+            runs: parsed.report.runs,
             scores: outcome.scores,
             variance: outcome.variance,
             deterministicChecks: outcome.deterministicChecks,
@@ -524,9 +616,9 @@ export const skillsService = {
           },
           tx,
         );
-        await writer.updateVersion(version.id, parsed.expectedVersion + 1, { state: toState }, tx);
+        await writer.updateVersion(version.id, version.version, { state: toState }, tx);
         await audit.record(
-          actorRef(actor),
+          requireTenant().actor,
           'skill.version.evaluate',
           { type: 'skill_version', id: version.id },
           'allowed',
@@ -540,17 +632,91 @@ export const skillsService = {
         );
         await outbox.add(
           'skill.version_evaluated',
-          { type: 'skill_version', id: version.id, version: parsed.expectedVersion + 2 },
-          { skillVersionId: version.id, skillId: skill.id, resultId, passed: outcome.passed, toState },
+          { type: 'skill_version', id: version.id, version: version.version + 1 },
+          {
+            skillVersionId: version.id,
+            skillId: skill.id,
+            suiteId: suite.id,
+            resultId,
+            passed: outcome.passed,
+            toState,
+          },
           tx,
           skill.brandId ? { brandId: skill.brandId } : undefined,
         );
         return {
+          outcome: 'recorded' as const,
           skillVersionId: version.id,
+          suiteId: suite.id,
           resultId,
           passed: outcome.passed,
           state: toState,
-          version: parsed.expectedVersion + 2,
+          version: version.version + 1,
+        };
+      });
+    },
+
+    /**
+     * Evaluation worker, failure path (as renders' markFailed): the run could not complete (model outage after
+     * retries, a lost permission), so sandbox_evaluation → draft with no result row; the reason is audited and
+     * published. A version that already left the sandbox is left alone (a re-delivered fail is a no-op).
+     */
+    async failEvaluation(input: z.infer<typeof SkillEvaluationFail>, tx: Tx) {
+      const parsed = SkillEvaluationFail.parse(input);
+      const { version, skill } = await loadVersion(parsed.skillVersionId, tx);
+      const suite = await suitesRepo.getById(parsed.suiteId, tx);
+      if (suite.skillVersionId !== version.id) throw new NotFoundError('EvaluationSuite', parsed.suiteId);
+      if (version.state !== 'sandbox_evaluation') {
+        logger()
+          .child('skills')
+          .info({ skillVersionId: version.id, state: version.state }, 'evaluation not failed');
+        return {
+          outcome: 'skipped' as const,
+          skillVersionId: version.id,
+          state: version.state,
+          version: version.version,
+        };
+      }
+      const toState = transition(skillVersionMachine, version.state, 'evaluation_failed', 'skillVersionId');
+      const error = parsed.reason.slice(0, 500);
+      const writer = writerFor(skill.scope);
+      return inScope(skill.scope, async () => {
+        await writer.updateVersion(version.id, version.version, { state: toState }, tx);
+        await audit.record(
+          requireTenant().actor,
+          'skill.version.evaluate',
+          { type: 'skill_version', id: version.id },
+          'allowed',
+          tx,
+          {
+            fromState: version.state,
+            toState,
+            reason: 'failed',
+            error,
+            ...(skill.brandId ? { brandId: skill.brandId } : {}),
+          },
+        );
+        await outbox.add(
+          'skill.version_evaluated',
+          { type: 'skill_version', id: version.id, version: version.version + 1 },
+          {
+            skillVersionId: version.id,
+            skillId: skill.id,
+            suiteId: suite.id,
+            resultId: null,
+            passed: false,
+            toState,
+            error,
+          },
+          tx,
+          skill.brandId ? { brandId: skill.brandId } : undefined,
+        );
+        return {
+          outcome: 'failed' as const,
+          skillVersionId: version.id,
+          suiteId: suite.id,
+          state: toState,
+          version: version.version + 1,
         };
       });
     },
@@ -762,6 +928,14 @@ export const skillsService = {
   async export(actor: ResolvedActor, input: z.infer<typeof SkillExport>, tx?: Tx) {
     const parsed = SkillExport.parse(input);
     const { version, skill } = await loadVersion(parsed.skillVersionId, tx);
+    if (skill.brandId) assertBrandVisible(skill.brandId);
+    await policy.assert(
+      actor,
+      'skill.read',
+      skillResource(skill, { type: 'skill_version', id: version.id, state: version.state }),
+      {},
+      tx,
+    );
     return {
       skillVersionId: version.id,
       skillId: skill.id,

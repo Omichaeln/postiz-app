@@ -20,3 +20,5 @@ export {
   TemplateVersionRepository,
 } from './repositories';
 export { registerCreativeOutboxRoutes, RENDER_TASK_QUEUE } from './outbox-routes';
+/** Spec 13.4 brand_review_clean: the review module re-runs the studio's deterministic brand validation on pinned revisions. */
+export { validateAgainstBrand } from '@oremedia/editor/validate';

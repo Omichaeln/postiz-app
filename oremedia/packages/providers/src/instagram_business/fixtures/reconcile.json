@@ -1,0 +1,51 @@
+{
+  "provider": "instagram_business",
+  "scenarios": {
+    "found": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ig_900/media",
+            "query": { "limit": "50" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                {
+                  "id": "media_556",
+                  "caption": "Hello from Oremedia #launch",
+                  "timestamp": "2026-09-24T00:01:00+0000",
+                  "permalink": "https://www.instagram.com/p/XyZ/"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "absent": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ig_900/media" },
+          "response": { "status": 200, "json": { "data": [] } }
+        }
+      ]
+    },
+    "cannot_determine": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/ig_900/media" },
+          "response": {
+            "status": 400,
+            "json": {
+              "error": { "message": "(#10) Application does not have permission for this action", "code": 10 }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

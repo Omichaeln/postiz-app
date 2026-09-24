@@ -222,6 +222,7 @@
                             "mandate.manage",
                             "agent.start_run",
                             "agent.cancel_run",
+                            "skill.read",
                             "skill.author",
                             "skill.publish",
                             "insight.read",
@@ -1747,6 +1748,509 @@
         }
       }
     },
+    "/trpc/content.briefs.accept": {
+      "post": {
+        "operationId": "content.briefs.accept",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "briefId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["briefId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.briefs.create": {
+      "post": {
+        "operationId": "content.briefs.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "campaignId": {
+                    "type": "string"
+                  },
+                  "audience": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "offerFactIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "channelConnectionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "constraints": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["brandId", "audience", "message"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.briefs.get": {
+      "get": {
+        "operationId": "content.briefs.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "briefId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["briefId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.briefs.list": {
+      "get": {
+        "operationId": "content.briefs.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "campaignId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["brandId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.calendar.range": {
+      "get": {
+        "operationId": "content.calendar.range",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": ["brandId", "from", "to"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.campaigns.create": {
+      "post": {
+        "operationId": "content.campaigns.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "objectiveId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "startsAt": {
+                    "type": "string"
+                  },
+                  "endsAt": {
+                    "type": "string"
+                  }
+                },
+                "required": ["brandId", "name", "startsAt", "endsAt"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.campaigns.get": {
+      "get": {
+        "operationId": "content.campaigns.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "campaignId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["campaignId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.campaigns.list": {
+      "get": {
+        "operationId": "content.campaigns.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["brandId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.packages.create": {
+      "post": {
+        "operationId": "content.packages.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "briefId": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "copy": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "master": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "factRefs": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": ["text"]
+                      },
+                      "rationale": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["schemaVersion", "master"]
+                  },
+                  "creativeDocumentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["brandId", "title", "copy"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.packages.get": {
+      "get": {
+        "operationId": "content.packages.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentPackageId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["contentPackageId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.packages.revise": {
+      "post": {
+        "operationId": "content.packages.revise",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentPackageId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "copy": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "master": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "factRefs": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": ["text"]
+                      },
+                      "rationale": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["schemaVersion", "master"]
+                  },
+                  "creativeDocumentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "summary": {
+                    "type": "string"
+                  }
+                },
+                "required": ["contentPackageId", "expectedVersion", "copy"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.revisions.get": {
+      "get": {
+        "operationId": "content.revisions.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "revisionId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["revisionId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.variants.generate": {
+      "post": {
+        "operationId": "content.variants.generate",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentRevisionId": {
+                    "type": "string"
+                  },
+                  "channelConnectionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["contentRevisionId", "channelConnectionIds"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.variants.get": {
+      "get": {
+        "operationId": "content.variants.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "variantId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["variantId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/content.variants.update": {
+      "post": {
+        "operationId": "content.variants.update",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channelVariantId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "altTexts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "settings": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "exportIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "channelVariantId",
+                  "expectedVersion",
+                  "text",
+                  "altTexts",
+                  "settings",
+                  "exportIds"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/trpc/creative.comments.add": {
       "post": {
         "operationId": "creative.comments.add",
@@ -3177,6 +3681,699 @@
         }
       }
     },
+    "/trpc/publishing.channels.connect.complete": {
+      "post": {
+        "operationId": "publishing.channels.connect.complete",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": ["state", "code"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.channels.connect.start": {
+      "post": {
+        "operationId": "publishing.channels.connect.start",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "providerKey": {
+                    "type": "string"
+                  },
+                  "redirectUri": {
+                    "type": "string"
+                  }
+                },
+                "required": ["brandId", "providerKey", "redirectUri"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.channels.disconnect": {
+      "post": {
+        "operationId": "publishing.channels.disconnect",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channelConnectionId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["channelConnectionId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.channels.list": {
+      "get": {
+        "operationId": "publishing.channels.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["brandId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.publications.cancel": {
+      "post": {
+        "operationId": "publishing.publications.cancel",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicationId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["publicationId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.publications.deleteRemote": {
+      "post": {
+        "operationId": "publishing.publications.deleteRemote",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicationId": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["publicationId", "reason"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.publications.evidence": {
+      "get": {
+        "operationId": "publishing.publications.evidence",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicationId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["publicationId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.publications.get": {
+      "get": {
+        "operationId": "publishing.publications.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicationId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["publicationId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.publications.list": {
+      "get": {
+        "operationId": "publishing.publications.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "scheduled",
+                      "dispatching",
+                      "processing",
+                      "published",
+                      "failed",
+                      "outcome_unknown",
+                      "retry_eligible",
+                      "cancelled",
+                      "held"
+                    ]
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["brandId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.publications.reconcile": {
+      "post": {
+        "operationId": "publishing.publications.reconcile",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicationId": {
+                    "type": "string"
+                  },
+                  "resolution": {
+                    "type": "string",
+                    "enum": ["confirm_published", "confirm_absent", "cancel"]
+                  },
+                  "remotePostId": {
+                    "type": "string"
+                  },
+                  "remoteUrl": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": ["publicationId", "resolution"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.publications.reschedule": {
+      "post": {
+        "operationId": "publishing.publications.reschedule",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicationId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "scheduledFor": {
+                    "type": "string"
+                  }
+                },
+                "required": ["publicationId", "expectedVersion", "scheduledFor"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.publications.schedule": {
+      "post": {
+        "operationId": "publishing.publications.schedule",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channelVariantId": {
+                    "type": "string"
+                  },
+                  "scheduledFor": {
+                    "type": "string"
+                  },
+                  "authority": {
+                    "type": "string",
+                    "enum": ["approval", "mandate"]
+                  },
+                  "approvalId": {
+                    "type": "string"
+                  },
+                  "mandateId": {
+                    "type": "string"
+                  },
+                  "occurrence": {
+                    "type": "string"
+                  }
+                },
+                "required": ["channelVariantId", "scheduledFor", "authority"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/review.approvals.get": {
+      "get": {
+        "operationId": "review.approvals.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "approvalId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["approvalId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/review.decisions.submit": {
+      "post": {
+        "operationId": "review.decisions.submit",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reviewRequestId": {
+                    "type": "string"
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": ["approve", "request_changes", "reject"]
+                  },
+                  "comment": {
+                    "type": "string"
+                  },
+                  "expectedManifestHash": {
+                    "type": "string"
+                  },
+                  "validUntil": {
+                    "type": "string"
+                  }
+                },
+                "required": ["reviewRequestId", "decision", "expectedManifestHash"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/review.externalLinks.create": {
+      "post": {
+        "operationId": "review.externalLinks.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reviewRequestId": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  }
+                },
+                "required": ["reviewRequestId", "email", "expiresAt"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/review.externalLinks.revoke": {
+      "post": {
+        "operationId": "review.externalLinks.revoke",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "linkId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["linkId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/review.inbox.list": {
+      "get": {
+        "operationId": "review.inbox.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/review.mandates.create": {
+      "post": {
+        "operationId": "review.mandates.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "servicePrincipalId": {
+                    "type": "string"
+                  },
+                  "channelConnectionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "allowedContentClasses": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "sourceRules": {
+                    "type": "object",
+                    "properties": {
+                      "onlyApprovedFacts": {
+                        "type": "boolean"
+                      },
+                      "onlyApprovedTemplates": {
+                        "type": "boolean"
+                      },
+                      "onlyApprovedAssets": {
+                        "type": "boolean"
+                      },
+                      "requireBrandReviewClean": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": []
+                  },
+                  "maxPostsPerDay": {
+                    "type": "number"
+                  },
+                  "windowStart": {
+                    "type": "string"
+                  },
+                  "windowEnd": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "servicePrincipalId",
+                  "channelConnectionIds",
+                  "allowedContentClasses",
+                  "sourceRules",
+                  "maxPostsPerDay",
+                  "windowStart",
+                  "windowEnd"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/review.mandates.get": {
+      "get": {
+        "operationId": "review.mandates.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mandateId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["mandateId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/review.mandates.pause": {
+      "post": {
+        "operationId": "review.mandates.pause",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mandateId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["mandateId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/review.mandates.revoke": {
+      "post": {
+        "operationId": "review.mandates.revoke",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mandateId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["mandateId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/review.requests.create": {
+      "post": {
+        "operationId": "review.requests.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentRevisionId": {
+                    "type": "string"
+                  },
+                  "assigneeUserIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "dueAt": {
+                    "type": "string"
+                  },
+                  "timing": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "const": "exact"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["kind", "at"]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "const": "window"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["kind", "from", "to"]
+                      }
+                    ]
+                  }
+                },
+                "required": ["contentRevisionId", "timing"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/review.requests.get": {
+      "get": {
+        "operationId": "review.requests.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reviewRequestId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["reviewRequestId"]
+              }
+            }
+          }
+        }
+      }
+    },
     "/trpc/skills.bindings.set": {
       "post": {
         "operationId": "skills.bindings.set",
@@ -3781,6 +4978,7 @@
                       "mandate.manage",
                       "agent.start_run",
                       "agent.cancel_run",
+                      "skill.read",
                       "skill.author",
                       "skill.publish",
                       "insight.read",
@@ -4967,6 +6165,367 @@
             }
           },
           "required": ["brandId", "versionId", "expectedVersion", "document"]
+        }
+      },
+      "content.briefs.accept": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "briefId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": ["briefId", "expectedVersion"]
+        }
+      },
+      "content.briefs.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "campaignId": {
+              "type": "string"
+            },
+            "audience": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "offerFactIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "channelConnectionIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "constraints": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["brandId", "audience", "message"]
+        }
+      },
+      "content.briefs.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "briefId": {
+              "type": "string"
+            }
+          },
+          "required": ["briefId"]
+        }
+      },
+      "content.briefs.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "campaignId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["brandId", "page"]
+        }
+      },
+      "content.calendar.range": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          },
+          "required": ["brandId", "from", "to"]
+        }
+      },
+      "content.campaigns.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "objectiveId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "startsAt": {
+              "type": "string"
+            },
+            "endsAt": {
+              "type": "string"
+            }
+          },
+          "required": ["brandId", "name", "startsAt", "endsAt"]
+        }
+      },
+      "content.campaigns.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "campaignId": {
+              "type": "string"
+            }
+          },
+          "required": ["campaignId"]
+        }
+      },
+      "content.campaigns.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["brandId", "page"]
+        }
+      },
+      "content.packages.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "briefId": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "copy": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "const": 1
+                },
+                "master": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "factRefs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["text"]
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "required": ["schemaVersion", "master"]
+            },
+            "creativeDocumentIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["brandId", "title", "copy"]
+        }
+      },
+      "content.packages.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "contentPackageId": {
+              "type": "string"
+            }
+          },
+          "required": ["contentPackageId"]
+        }
+      },
+      "content.packages.revise": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "contentPackageId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "copy": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "const": 1
+                },
+                "master": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "factRefs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["text"]
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "required": ["schemaVersion", "master"]
+            },
+            "creativeDocumentIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": ["contentPackageId", "expectedVersion", "copy"]
+        }
+      },
+      "content.revisions.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "revisionId": {
+              "type": "string"
+            }
+          },
+          "required": ["revisionId"]
+        }
+      },
+      "content.variants.generate": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "contentRevisionId": {
+              "type": "string"
+            },
+            "channelConnectionIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["contentRevisionId", "channelConnectionIds"]
+        }
+      },
+      "content.variants.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "variantId": {
+              "type": "string"
+            }
+          },
+          "required": ["variantId"]
+        }
+      },
+      "content.variants.update": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "channelVariantId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "text": {
+              "type": "string"
+            },
+            "altTexts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "settings": {
+              "type": "object",
+              "additionalProperties": {}
+            },
+            "exportIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["channelVariantId", "expectedVersion", "text", "altTexts", "settings", "exportIds"]
         }
       },
       "creative.comments.add": {
@@ -6204,6 +7763,492 @@
             }
           },
           "required": ["eventId"]
+        }
+      },
+      "publishing.channels.connect.complete": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string"
+            },
+            "code": {
+              "type": "string"
+            }
+          },
+          "required": ["state", "code"]
+        }
+      },
+      "publishing.channels.connect.start": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "providerKey": {
+              "type": "string"
+            },
+            "redirectUri": {
+              "type": "string"
+            }
+          },
+          "required": ["brandId", "providerKey", "redirectUri"]
+        }
+      },
+      "publishing.channels.disconnect": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "channelConnectionId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": ["channelConnectionId", "expectedVersion"]
+        }
+      },
+      "publishing.channels.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            }
+          },
+          "required": ["brandId"]
+        }
+      },
+      "publishing.publications.cancel": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": ["publicationId", "expectedVersion"]
+        }
+      },
+      "publishing.publications.deleteRemote": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": ["publicationId", "reason"]
+        }
+      },
+      "publishing.publications.evidence": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string"
+            }
+          },
+          "required": ["publicationId"]
+        }
+      },
+      "publishing.publications.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string"
+            }
+          },
+          "required": ["publicationId"]
+        }
+      },
+      "publishing.publications.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "scheduled",
+                "dispatching",
+                "processing",
+                "published",
+                "failed",
+                "outcome_unknown",
+                "retry_eligible",
+                "cancelled",
+                "held"
+              ]
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["brandId", "page"]
+        }
+      },
+      "publishing.publications.reconcile": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string"
+            },
+            "resolution": {
+              "type": "string",
+              "enum": ["confirm_published", "confirm_absent", "cancel"]
+            },
+            "remotePostId": {
+              "type": "string"
+            },
+            "remoteUrl": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": ["publicationId", "resolution"]
+        }
+      },
+      "publishing.publications.reschedule": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "scheduledFor": {
+              "type": "string"
+            }
+          },
+          "required": ["publicationId", "expectedVersion", "scheduledFor"]
+        }
+      },
+      "publishing.publications.schedule": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "channelVariantId": {
+              "type": "string"
+            },
+            "scheduledFor": {
+              "type": "string"
+            },
+            "authority": {
+              "type": "string",
+              "enum": ["approval", "mandate"]
+            },
+            "approvalId": {
+              "type": "string"
+            },
+            "mandateId": {
+              "type": "string"
+            },
+            "occurrence": {
+              "type": "string"
+            }
+          },
+          "required": ["channelVariantId", "scheduledFor", "authority"]
+        }
+      },
+      "review.approvals.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "approvalId": {
+              "type": "string"
+            }
+          },
+          "required": ["approvalId"]
+        }
+      },
+      "review.decisions.submit": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "reviewRequestId": {
+              "type": "string"
+            },
+            "decision": {
+              "type": "string",
+              "enum": ["approve", "request_changes", "reject"]
+            },
+            "comment": {
+              "type": "string"
+            },
+            "expectedManifestHash": {
+              "type": "string"
+            },
+            "validUntil": {
+              "type": "string"
+            }
+          },
+          "required": ["reviewRequestId", "decision", "expectedManifestHash"]
+        }
+      },
+      "review.externalLinks.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "reviewRequestId": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "expiresAt": {
+              "type": "string"
+            }
+          },
+          "required": ["reviewRequestId", "email", "expiresAt"]
+        }
+      },
+      "review.externalLinks.revoke": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "linkId": {
+              "type": "string"
+            }
+          },
+          "required": ["linkId"]
+        }
+      },
+      "review.inbox.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["page"]
+        }
+      },
+      "review.mandates.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "servicePrincipalId": {
+              "type": "string"
+            },
+            "channelConnectionIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowedContentClasses": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "sourceRules": {
+              "type": "object",
+              "properties": {
+                "onlyApprovedFacts": {
+                  "type": "boolean"
+                },
+                "onlyApprovedTemplates": {
+                  "type": "boolean"
+                },
+                "onlyApprovedAssets": {
+                  "type": "boolean"
+                },
+                "requireBrandReviewClean": {
+                  "type": "boolean"
+                }
+              },
+              "required": []
+            },
+            "maxPostsPerDay": {
+              "type": "number"
+            },
+            "windowStart": {
+              "type": "string"
+            },
+            "windowEnd": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "brandId",
+            "servicePrincipalId",
+            "channelConnectionIds",
+            "allowedContentClasses",
+            "sourceRules",
+            "maxPostsPerDay",
+            "windowStart",
+            "windowEnd"
+          ]
+        }
+      },
+      "review.mandates.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "mandateId": {
+              "type": "string"
+            }
+          },
+          "required": ["mandateId"]
+        }
+      },
+      "review.mandates.pause": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "mandateId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": ["mandateId", "expectedVersion"]
+        }
+      },
+      "review.mandates.revoke": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "mandateId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": ["mandateId", "expectedVersion"]
+        }
+      },
+      "review.requests.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "contentRevisionId": {
+              "type": "string"
+            },
+            "assigneeUserIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "dueAt": {
+              "type": "string"
+            },
+            "timing": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "exact"
+                    },
+                    "at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "at"]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "window"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "from", "to"]
+                }
+              ]
+            }
+          },
+          "required": ["contentRevisionId", "timing"]
+        }
+      },
+      "review.requests.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "reviewRequestId": {
+              "type": "string"
+            }
+          },
+          "required": ["reviewRequestId"]
         }
       },
       "skills.bindings.set": {

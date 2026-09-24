@@ -11,3 +11,6 @@ export * from './policy-version';
 export * from './asset';
 export * from './template-version';
 export * from './skill-version';
+export * from './mandate';
+export * from './brief';
+export * from './content-package';

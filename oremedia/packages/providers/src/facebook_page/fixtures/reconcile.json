@@ -1,0 +1,64 @@
+{
+  "provider": "facebook_page",
+  "scenarios": {
+    "found": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/p_100/posts",
+            "query": { "limit": "50" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                {
+                  "id": "p_100_5009",
+                  "message": "Hello from Oremedia #launch",
+                  "created_time": "2026-09-24T00:01:30+0000",
+                  "permalink_url": "https://www.facebook.com/p_100/posts/5009"
+                }
+              ],
+              "paging": { "cursors": { "after": "x" } }
+            }
+          }
+        }
+      ]
+    },
+    "absent": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/p_100/posts" },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                { "id": "p_100_4000", "message": "Unrelated", "created_time": "2026-09-24T00:02:00+0000" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "cannot_determine": {
+      "description": "Three full pages with a next link and no match: the scan budget is exhausted before the window is covered.",
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/p_100/posts" },
+          "repeat": true,
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                { "id": "p_100_4001", "message": "Unrelated", "created_time": "2026-09-24T00:02:00+0000" }
+              ],
+              "paging": { "next": "https://graph.facebook.com/v25.0/p_100/posts?after=zzz" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

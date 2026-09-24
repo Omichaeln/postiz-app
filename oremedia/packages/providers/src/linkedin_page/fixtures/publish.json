@@ -1,0 +1,161 @@
+{
+  "provider": "linkedin_page",
+  "scenarios": {
+    "text_success": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "bodyIncludes": [
+              "\"author\":\"urn:li:organization:2001\"",
+              "\"commentary\":\"Hello from Oremedia #launch\"",
+              "\"lifecycleState\":\"PUBLISHED\""
+            ]
+          },
+          "response": { "status": 201, "headers": { "x-restli-id": "urn:li:share:7001" }, "body": "" }
+        }
+      ]
+    },
+    "rejected_validation": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.linkedin.com", "path": "/rest/posts" },
+          "response": {
+            "status": 422,
+            "json": {
+              "errorDetails": {
+                "inputErrors": [
+                  {
+                    "description": "Invalid value for commentary",
+                    "input": { "inputPath": { "fieldPath": "commentary" } },
+                    "code": "INVALID_VALUE"
+                  }
+                ]
+              },
+              "message": "Invalid input",
+              "status": 422
+            }
+          }
+        }
+      ]
+    },
+    "rate_limited": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.linkedin.com", "path": "/rest/posts" },
+          "response": {
+            "status": 429,
+            "headers": { "retry-after": "30" },
+            "json": {
+              "message": "Resource level throttle limit for calls to this resource is reached.",
+              "status": 429,
+              "serviceErrorCode": 0
+            }
+          }
+        }
+      ]
+    },
+    "expired_token": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.linkedin.com", "path": "/rest/posts" },
+          "response": {
+            "status": 401,
+            "json": { "serviceErrorCode": 65600, "message": "Empty oauth2 access token", "status": 401 }
+          }
+        }
+      ]
+    },
+    "revoked_token": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.linkedin.com", "path": "/rest/posts" },
+          "response": {
+            "status": 401,
+            "json": {
+              "serviceErrorCode": 65601,
+              "message": "The token used in the request has been revoked by the user",
+              "status": 401
+            }
+          }
+        }
+      ]
+    },
+    "server_error_after_send": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.linkedin.com", "path": "/rest/posts" },
+          "response": { "status": 500, "body": "Internal Server Error" }
+        }
+      ]
+    },
+    "timeout_after_send": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.linkedin.com", "path": "/rest/posts" },
+          "behaviour": "hang"
+        }
+      ]
+    },
+    "image_pending": {
+      "description": "Fetch bytes from the signed release URL, register the upload, PUT the bytes, hand back pending while LinkedIn processes the image.",
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "media.oremedia.test", "path": "/release/img1.jpg" },
+          "response": {
+            "status": 200,
+            "headers": { "content-type": "image/jpeg" },
+            "body": "JPEGBYTES-0123456789"
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "api.linkedin.com",
+            "path": "/rest/images",
+            "query": { "action": "initializeUpload" },
+            "bodyIncludes": ["\"owner\":\"urn:li:organization:2001\""]
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "value": {
+                "uploadUrlExpiresAt": 1790000000000,
+                "uploadUrl": "https://www.linkedin.com/dms-uploads/C4D/abc?ck=1",
+                "image": "urn:li:image:C4D_1"
+              }
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "PUT",
+            "host": "www.linkedin.com",
+            "path": "/dms-uploads/C4D/abc",
+            "bodyIncludes": ["JPEGBYTES-0123456789"]
+          },
+          "response": { "status": 201, "body": "" }
+        }
+      ]
+    },
+    "image_upload_5xx": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "media.oremedia.test", "path": "/release/img1.jpg" },
+          "response": { "status": 200, "body": "JPEGBYTES" }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "api.linkedin.com",
+            "path": "/rest/images",
+            "query": { "action": "initializeUpload" }
+          },
+          "response": { "status": 503, "body": "Service Unavailable" }
+        }
+      ]
+    }
+  }
+}

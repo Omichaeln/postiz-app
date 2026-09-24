@@ -1,0 +1,74 @@
+{
+  "provider": "x",
+  "scenarios": {
+    "found_with_tco": {
+      "description": "X rewrote the link to t.co; entities.urls restores the original text so the fingerprint matches.",
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.x.com",
+            "path": "/2/users/u_42/tweets",
+            "query": { "max_results": "100", "exclude": "retweets" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                {
+                  "id": "1900000000000000010",
+                  "text": "Read more at https://t.co/abc123 today",
+                  "created_at": "2026-09-24T00:00:30.000Z",
+                  "entities": {
+                    "urls": [
+                      {
+                        "start": 13,
+                        "end": 36,
+                        "url": "https://t.co/abc123",
+                        "expanded_url": "https://oremedia.example/launch",
+                        "display_url": "oremedia.example/launch"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "meta": { "result_count": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "absent": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "api.x.com", "path": "/2/users/u_42/tweets" },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                {
+                  "id": "1900000000000000011",
+                  "text": "Something else",
+                  "created_at": "2026-09-24T00:00:30.000Z"
+                }
+              ],
+              "meta": { "result_count": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "cannot_determine": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "api.x.com", "path": "/2/users/u_42/tweets" },
+          "response": {
+            "status": 429,
+            "headers": { "x-rate-limit-reset": "1790300000" },
+            "json": { "title": "Too Many Requests" }
+          }
+        }
+      ]
+    }
+  }
+}

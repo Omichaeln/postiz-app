@@ -1,6 +1,10 @@
 import type { ProviderCapabilityV1 } from '@oremedia/contracts/providers';
 import { CapabilityUnsupportedError } from '@oremedia/contracts/errors';
 import type { ProviderAdapter } from './contract';
+import { linkedInPageAdapter } from './linkedin_page/adapter';
+import { instagramBusinessAdapter } from './instagram_business/adapter';
+import { facebookPageAdapter } from './facebook_page/adapter';
+import { xAdapter } from './x/adapter';
 
 /**
  * Spec 14.6 / 20.2: a registry keyed by provider key. Only certified adapters (capability.certifiedAt set) can be
@@ -44,4 +48,12 @@ export class ProviderRegistry {
   }
 }
 
-export const providerRegistry = new ProviderRegistry();
+/**
+ * Release 1 adapters (spec 14.8; D-04 open: X built as the fourth channel). All four carry `certifiedAt: null`, so
+ * `get()` refuses them for tenants until certification with the platform's own app (docs/runbooks/certify-a-channel.md).
+ */
+export const providerRegistry = new ProviderRegistry()
+  .register(linkedInPageAdapter)
+  .register(instagramBusinessAdapter)
+  .register(facebookPageAdapter)
+  .register(xAdapter);

@@ -35,6 +35,7 @@ const METADATA_ALLOWLIST = new Set([
   'expectedVersion',
   'path',
   'ticketRef',
+  'error', // a failure's truncated detail (never a payload or credential)
 ]);
 
 class AuditRepository extends TenantScopedRepository<typeof auditEvents> {

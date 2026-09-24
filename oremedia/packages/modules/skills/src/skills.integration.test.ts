@@ -98,6 +98,37 @@ const run = <T>(
 ) => runInTenant(ctx(tenantId, brandIds), () => withTransaction(fn));
 const runAsOperator = <T>(tenantId: string, fn: (tx: Tx) => Promise<T>) =>
   runInTenant(operatorCtx(tenantId), () => withTransaction(fn));
+/**
+ * versions.evaluate then what the worker does for skill.evaluation_requested (skillEvaluationWorkflowV1's one
+ * activity): run the suite with no transaction open, record the report in one short transaction.
+ */
+const evaluateAndRecord = async (
+  context: TenantContext,
+  actor: ResolvedActor,
+  input: z.infer<typeof SkillVersionEvaluate>,
+) => {
+  const requested = await runInTenant(context, () =>
+    withTransaction((tx) => skillsService.versions.evaluate(actor, input, tx)),
+  );
+  const run = await runInTenant(context, () =>
+    skillsService.versions.runEvaluation({
+      skillVersionId: requested.skillVersionId,
+      suiteId: requested.suiteId,
+      runs: input.runs,
+    }),
+  );
+  const { report } = run;
+  if (!report) throw new Error(`nothing to run: version is ${run.state}`);
+  const recorded = await runInTenant(context, () =>
+    withTransaction((tx) =>
+      skillsService.versions.recordEvaluation(
+        { skillVersionId: requested.skillVersionId, suiteId: requested.suiteId, report },
+        tx,
+      ),
+    ),
+  );
+  return { requested, recorded };
+};
 
 const manifest = (key: string, over: Partial<SkillManifestV1> = {}): SkillManifestV1 => ({
   schemaVersion: 1,
@@ -360,16 +391,16 @@ describe('skills module (spec 10) against MySQL 8', () => {
     });
 
     it('a platform operator (escalated support session) evaluates and publishes a built-in; every tenant then resolves it', async () => {
-      const evaluated = await runAsOperator(tenantA, (tx) =>
-        skillsService.versions.evaluate(
-          operator(tenantA),
-          evaluateInput({ skillVersionId: copywritingBuiltinV1, expectedVersion: 0 }),
-          tx,
-        ),
+      const { requested, recorded } = await evaluateAndRecord(
+        operatorCtx(tenantA),
+        operator(tenantA),
+        evaluateInput({ skillVersionId: copywritingBuiltinV1, expectedVersion: 0 }),
       );
-      expect(evaluated).toMatchObject({ passed: true, state: 'in_review', version: 2 });
+      expect(requested).toMatchObject({ state: 'sandbox_evaluation', version: 1 });
+      expect(recorded).toMatchObject({ outcome: 'recorded', passed: true, state: 'in_review', version: 2 });
+      if (recorded.outcome !== 'recorded') throw new Error('not recorded');
       const result = (
-        await tdb.db.select().from(evaluationResults).where(eq(evaluationResults.id, evaluated.resultId))
+        await tdb.db.select().from(evaluationResults).where(eq(evaluationResults.id, recorded.resultId))
       )[0]!;
       expect(result.tenantId).toBeNull();
       const published = await runAsOperator(tenantA, (tx) =>
@@ -442,25 +473,64 @@ describe('skills module (spec 10) against MySQL 8', () => {
       expect((await skillRow(skillId)).activeVersionId).toBeNull();
     });
 
-    it('a draft cannot be published; evaluate calls the runner with the pinned content and stores the report', async () => {
+    it('a draft cannot be published; evaluate only moves the version to the sandbox and asks the worker (outbox), which runs the pinned content and records the report', async () => {
       await expect(
         run(tenantA, (tx) =>
           skillsService.versions.publish(ADM, publishInput({ skillVersionId: v1, expectedVersion: 0 }), tx),
         ),
       ).rejects.toBeInstanceOf(ValidationFailedError);
       runnerCalls.length = 0;
-      const evaluated = await run(tenantA, (tx) =>
+      const requested = await run(tenantA, (tx) =>
         skillsService.versions.evaluate(
           A,
           evaluateInput({ skillVersionId: v1, expectedVersion: 0, runs: 3 }),
           tx,
         ),
       );
-      expect(evaluated).toMatchObject({ skillVersionId: v1, passed: true, state: 'in_review', version: 2 });
+      expect(requested).toMatchObject({ skillVersionId: v1, state: 'sandbox_evaluation', version: 1 });
+      expect(requested).not.toHaveProperty('resultId');
+      expect(runnerCalls.length).toBe(0); // nothing calls the model inside the command's transaction
+      expect((await versionRow(v1)).state).toBe('sandbox_evaluation');
+      const requestedEvents = (await eventsOf('skill.evaluation_requested')).filter(
+        (e) => e.aggregateId === v1,
+      );
+      expect(requestedEvents.length).toBe(1);
+      expect(requestedEvents[0]!.payload).toEqual({
+        skillVersionId: v1,
+        skillId,
+        suiteId: requested.suiteId,
+        runs: 3,
+        actorKind: 'user',
+        actorId: USER,
+      });
+      const requestAudit = await tdb.db
+        .select()
+        .from(auditEvents)
+        .where(and(eq(auditEvents.tenantId, tenantA), eq(auditEvents.action, 'skill.version.evaluate')));
+      expect(requestAudit.find((a) => a.resourceId === v1)?.metadata).toMatchObject({ reason: 'requested' });
+      // The worker: the runner receives the pinned content with no transaction open, then one short write.
+      const ran = await runInTenant(ctx(tenantA), () =>
+        skillsService.versions.runEvaluation({ skillVersionId: v1, suiteId: requested.suiteId, runs: 3 }),
+      );
+      expect(ran.state).toBe('sandbox_evaluation');
       expect(runnerCalls.length).toBe(1);
       expect(runnerCalls[0]).toMatchObject({ skillVersionId: v1, instructions: INSTRUCTIONS, runs: 3 });
       expect(runnerCalls[0]!.manifest).toEqual(manifest('tenant-copy'));
       expect(runnerCalls[0]!.cases).toEqual(cases);
+      const evaluated = await run(tenantA, (tx) =>
+        skillsService.versions.recordEvaluation(
+          { skillVersionId: v1, suiteId: requested.suiteId, report: ran.report! },
+          tx,
+        ),
+      );
+      expect(evaluated).toMatchObject({
+        outcome: 'recorded',
+        skillVersionId: v1,
+        passed: true,
+        state: 'in_review',
+        version: 2,
+      });
+      if (evaluated.outcome !== 'recorded') throw new Error('not recorded');
       const result = (
         await tdb.db.select().from(evaluationResults).where(eq(evaluationResults.id, evaluated.resultId))
       )[0]!;
@@ -477,7 +547,133 @@ describe('skills module (spec 10) against MySQL 8', () => {
       expect((await versionRow(v1)).state).toBe('in_review');
       const events = (await eventsOf('skill.version_evaluated')).filter((e) => e.aggregateId === v1);
       expect(events.length).toBe(1);
-      expect(events[0]!.payload).toMatchObject({ skillVersionId: v1, passed: true, toState: 'in_review' });
+      expect(events[0]!.payload).toMatchObject({
+        skillVersionId: v1,
+        suiteId: requested.suiteId,
+        resultId: evaluated.resultId,
+        passed: true,
+        toState: 'in_review',
+      });
+    });
+
+    it('a second recordEvaluation for the same suite (retried activity, re-delivered event) is a no-op', async () => {
+      const suite = (
+        await tdb.db.select().from(evaluationSuites).where(eq(evaluationSuites.skillVersionId, v1))
+      )[0]!;
+      const resultsBefore = await tdb.db
+        .select()
+        .from(evaluationResults)
+        .where(eq(evaluationResults.skillVersionId, v1));
+      const eventsBefore = (await eventsOf('skill.version_evaluated')).filter((e) => e.aggregateId === v1);
+      const report = {
+        skillVersionId: v1,
+        runs: 3,
+        cases: [],
+        passed: true,
+        gradedBy: null,
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+      };
+      const again = await run(tenantA, (tx) =>
+        skillsService.versions.recordEvaluation({ skillVersionId: v1, suiteId: suite.id, report }, tx),
+      );
+      expect(again).toEqual({ outcome: 'skipped', skillVersionId: v1, state: 'in_review', version: 2 });
+      // Nothing to run either: the worker never calls the model for a version that left the sandbox.
+      runnerCalls.length = 0;
+      const ran = await runInTenant(ctx(tenantA), () =>
+        skillsService.versions.runEvaluation({ skillVersionId: v1, suiteId: suite.id, runs: 3 }),
+      );
+      expect(ran).toEqual({ skillVersionId: v1, state: 'in_review', report: null });
+      expect(runnerCalls.length).toBe(0);
+      expect(
+        await tdb.db.select().from(evaluationResults).where(eq(evaluationResults.skillVersionId, v1)),
+      ).toEqual(resultsBefore);
+      expect((await eventsOf('skill.version_evaluated')).filter((e) => e.aggregateId === v1)).toEqual(
+        eventsBefore,
+      );
+      expect((await versionRow(v1)).state).toBe('in_review');
+      // A suite of another version is not this version's suite.
+      await expect(
+        run(tenantA, (tx) =>
+          skillsService.versions.recordEvaluation(
+            { skillVersionId: v1, suiteId: newId('evaluationSuite'), report },
+            tx,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('failEvaluation (the worker could not complete the run) returns the version to draft with no result row; a second call is a no-op', async () => {
+      const created = await run(tenantA, (tx) =>
+        skillsService.versions.create(
+          A,
+          createInput({ manifest: manifest('fail-path'), instructions: INSTRUCTIONS, cases }),
+          tx,
+        ),
+      );
+      const requested = await run(tenantA, (tx) =>
+        skillsService.versions.evaluate(
+          A,
+          evaluateInput({ skillVersionId: created.skillVersionId, expectedVersion: 0 }),
+          tx,
+        ),
+      );
+      expect((await versionRow(created.skillVersionId)).state).toBe('sandbox_evaluation');
+      const failed = await run(tenantA, (tx) =>
+        skillsService.versions.failEvaluation(
+          { skillVersionId: created.skillVersionId, suiteId: requested.suiteId, reason: 'model unavailable' },
+          tx,
+        ),
+      );
+      expect(failed).toEqual({
+        outcome: 'failed',
+        skillVersionId: created.skillVersionId,
+        suiteId: requested.suiteId,
+        state: 'draft',
+        version: 2,
+      });
+      expect((await versionRow(created.skillVersionId)).state).toBe('draft');
+      expect(
+        await tdb.db
+          .select()
+          .from(evaluationResults)
+          .where(eq(evaluationResults.skillVersionId, created.skillVersionId)),
+      ).toEqual([]);
+      const events = (await eventsOf('skill.version_evaluated')).filter(
+        (e) => e.aggregateId === created.skillVersionId,
+      );
+      expect(events.length).toBe(1);
+      expect(events[0]!.payload).toMatchObject({
+        suiteId: requested.suiteId,
+        resultId: null,
+        passed: false,
+        toState: 'draft',
+        error: 'model unavailable',
+      });
+      const again = await run(tenantA, (tx) =>
+        skillsService.versions.failEvaluation(
+          { skillVersionId: created.skillVersionId, suiteId: requested.suiteId, reason: 'again' },
+          tx,
+        ),
+      );
+      expect(again).toEqual({
+        outcome: 'skipped',
+        skillVersionId: created.skillVersionId,
+        state: 'draft',
+        version: 2,
+      });
+      expect(
+        (await eventsOf('skill.version_evaluated')).filter((e) => e.aggregateId === created.skillVersionId)
+          .length,
+      ).toBe(1);
+      // The draft can be evaluated again (the same suite is reused).
+      const retried = await evaluateAndRecord(
+        ctx(tenantA),
+        A,
+        evaluateInput({ skillVersionId: created.skillVersionId, expectedVersion: 2 }),
+      );
+      expect(retried.requested.suiteId).toBe(requested.suiteId);
+      expect(retried.recorded).toMatchObject({ outcome: 'recorded', passed: true, state: 'in_review' });
     });
 
     it('agents never publish (propose_only); a brand manager lacks skill.publish; an admin publishes and the skill activates the version', async () => {
@@ -534,10 +730,12 @@ describe('skills module (spec 10) against MySQL 8', () => {
       v2 = created.skillVersionId;
       expect(created.number).toBe(2);
       runnerMode = 'fail';
-      const failed = await run(tenantA, (tx) =>
-        skillsService.versions.evaluate(A, evaluateInput({ skillVersionId: v2, expectedVersion: 0 }), tx),
+      const failed = await evaluateAndRecord(
+        ctx(tenantA),
+        A,
+        evaluateInput({ skillVersionId: v2, expectedVersion: 0 }),
       );
-      expect(failed).toMatchObject({ passed: false, state: 'draft', version: 2 });
+      expect(failed.recorded).toMatchObject({ passed: false, state: 'draft', version: 2 });
       expect((await versionRow(v2)).state).toBe('draft');
       await expect(
         run(tenantA, (tx) =>
@@ -545,10 +743,12 @@ describe('skills module (spec 10) against MySQL 8', () => {
         ),
       ).rejects.toBeInstanceOf(ValidationFailedError);
       runnerMode = 'pass';
-      const passed = await run(tenantA, (tx) =>
-        skillsService.versions.evaluate(A, evaluateInput({ skillVersionId: v2, expectedVersion: 2 }), tx),
+      const passed = await evaluateAndRecord(
+        ctx(tenantA),
+        A,
+        evaluateInput({ skillVersionId: v2, expectedVersion: 2 }),
       );
-      expect(passed).toMatchObject({ passed: true, state: 'in_review', version: 4 });
+      expect(passed.recorded).toMatchObject({ passed: true, state: 'in_review', version: 4 });
       // A later failing result for this exact version blocks publishing even though the state is in_review.
       const injected = newId('evaluationResult');
       const suite = (
@@ -749,12 +949,10 @@ describe('skills module (spec 10) against MySQL 8', () => {
       copywritingBuiltinV2 = created.skillVersionId;
       expect(created.number).toBe(2);
       expect((await versionRow(copywritingBuiltinV2)).tenantId).toBeNull();
-      await runAsOperator(tenantA, (tx) =>
-        skillsService.versions.evaluate(
-          operator(tenantA),
-          evaluateInput({ skillVersionId: copywritingBuiltinV2, expectedVersion: 0 }),
-          tx,
-        ),
+      await evaluateAndRecord(
+        operatorCtx(tenantA),
+        operator(tenantA),
+        evaluateInput({ skillVersionId: copywritingBuiltinV2, expectedVersion: 0 }),
       );
       await runAsOperator(tenantA, (tx) =>
         skillsService.versions.publish(
@@ -998,6 +1196,59 @@ describe('skills module (spec 10) against MySQL 8', () => {
       await expect(
         runInTenant(ctx(tenantA), () => skillsService.list(A, { brandId: brandB, page: { limit: 50 } })),
       ).rejects.toBeInstanceOf(NotFoundError);
+      // Reads are policy decisions (skill.read): an agent without the grant is refused, a granted one reads; a
+      // brand skill of a brand the actor cannot see behaves like one that does not exist.
+      const reader: ResolvedActor = {
+        ...agent(tenantA),
+        grants: [{ action: 'brand.read', brandIds: 'all' }],
+      } as ResolvedActor;
+      await expect(
+        runInTenant(ctx(tenantA), () => skillsService.list(reader, { page: { limit: 50 } })),
+      ).rejects.toMatchObject({ reason: 'grant_missing' });
+      await expect(
+        runInTenant(ctx(tenantA), () => skillsService.get(reader, { skillId })),
+      ).rejects.toMatchObject({ reason: 'grant_missing' });
+      await expect(
+        runInTenant(ctx(tenantA), () => skillsService.export(reader, { skillVersionId: v1 })),
+      ).rejects.toMatchObject({ reason: 'grant_missing' });
+      const granted: ResolvedActor = {
+        ...reader,
+        grants: [{ action: 'skill.read', brandIds: 'all' }],
+      } as ResolvedActor;
+      expect((await runInTenant(ctx(tenantA), () => skillsService.get(granted, { skillId }))).id).toBe(
+        skillId,
+      );
+      expect(
+        (await runInTenant(ctx(tenantA), () => skillsService.export(granted, { skillVersionId: v1 })))
+          .skillVersionId,
+      ).toBe(v1);
+      const brandSkill = await run(tenantA, (tx) =>
+        skillsService.versions.create(
+          A,
+          createInput({
+            scope: 'brand',
+            brandId: brandA1,
+            manifest: manifest('a1-only'),
+            instructions: INSTRUCTIONS,
+          }),
+          tx,
+        ),
+      );
+      await expect(
+        runInTenant(ctx(tenantA, new Set([brandA2])), () =>
+          skillsService.get(A, { skillId: brandSkill.skillId }),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      await expect(
+        runInTenant(ctx(tenantA, new Set([brandA2])), () =>
+          skillsService.export(A, { skillVersionId: brandSkill.skillVersionId }),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      const readAudit = await tdb.db
+        .select()
+        .from(auditEvents)
+        .where(and(eq(auditEvents.tenantId, tenantA), eq(auditEvents.action, 'skill.read')));
+      expect(readAudit.some((a) => a.decision === 'denied' && a.actorId === reader.id)).toBe(true);
       await expect(
         run(tenantA, (tx) =>
           skillsService.import(
@@ -1091,10 +1342,15 @@ describe('skills module (spec 10) against MySQL 8', () => {
       (r) => r.action === 'skill.version.evaluate' && r.metadata?.['reason'] === 'failed',
     )!;
     expect(failedEvaluation.metadata).toMatchObject({
-      fromState: 'draft',
+      fromState: 'sandbox_evaluation',
       toState: 'draft',
       reason: 'failed',
     });
+    const requestedEvaluation = rows.find(
+      (r) => r.action === 'skill.version.evaluate' && r.metadata?.['reason'] === 'requested',
+    )!;
+    expect(requestedEvaluation.metadata).toMatchObject({ fromState: 'draft', toState: 'sandbox_evaluation' });
+    expect(actions.has('skill.read')).toBe(true);
     const denied = rows.filter((r) => r.decision === 'denied').map((r) => r.reason);
     expect(denied).toContain('agent_never');
     expect(denied).toContain('role_missing');

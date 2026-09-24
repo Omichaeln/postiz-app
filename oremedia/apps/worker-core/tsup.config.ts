@@ -9,7 +9,7 @@ import { defineConfig } from 'tsup';
  * bundleWorkflowCode from the per-queue entry files in packages/workflows/src/queues (production images carry no
  * sources; the worker passes workflowBundle: { codePath } to Worker.create), as apps/worker-render does.
  */
-const QUEUES = ['agents'] as const;
+const QUEUES = ['agents', 'core'] as const;
 
 export default defineConfig({
   entry: { main: 'src/main.ts', worker: 'src/worker.ts' },

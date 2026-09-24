@@ -1,0 +1,153 @@
+{
+  "provider": "linkedin_page",
+  "scenarios": {
+    "post_metrics": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/organizationalEntityShareStatistics",
+            "query": {
+              "q": "organizationalEntity",
+              "organizationalEntity": "urn:li:organization:2001",
+              "shares": "List(urn:li:share:7001)"
+            }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                {
+                  "organizationalEntity": "urn:li:organization:2001",
+                  "share": "urn:li:share:7001",
+                  "totalShareStatistics": {
+                    "uniqueImpressionsCount": 812,
+                    "shareCount": 3,
+                    "engagement": 0.0412,
+                    "clickCount": 21,
+                    "likeCount": 40,
+                    "impressionCount": 1234,
+                    "commentCount": 5
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "account_metrics": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/organizationalEntityFollowerStatistics",
+            "query": { "q": "organizationalEntity" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                {
+                  "followerGains": { "organicFollowerGain": 4, "paidFollowerGain": 0 },
+                  "timeRange": { "start": 1789948800000, "end": 1790035200000 }
+                },
+                {
+                  "followerGains": { "organicFollowerGain": 6, "paidFollowerGain": 1 },
+                  "timeRange": { "start": 1790035200000, "end": 1790121600000 }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/organizationalEntityShareStatistics",
+            "query": { "q": "organizationalEntity" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                {
+                  "totalShareStatistics": { "impressionCount": 500, "clickCount": 9, "engagement": 0.02 },
+                  "timeRange": { "start": 1789948800000, "end": 1790035200000 }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/organizationPageStatistics",
+            "query": { "q": "organization" }
+          },
+          "response": {
+            "status": 403,
+            "json": {
+              "serviceErrorCode": 100,
+              "message": "Not enough permissions to access: organizationPageStatistics.GET.NO_VERSION",
+              "status": 403
+            }
+          }
+        }
+      ]
+    },
+    "comments_page": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/socialActions/urn:li:share:7001/comments",
+            "query": { "start": "0", "count": "50" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                {
+                  "$URN": "urn:li:comment:(urn:li:share:7001,1)",
+                  "actor": "urn:li:person:p1",
+                  "message": { "text": "Congrats!" },
+                  "created": { "time": 1790000200000 }
+                },
+                {
+                  "$URN": "urn:li:comment:(urn:li:share:7001,2)",
+                  "actor": "urn:li:organization:2001",
+                  "message": { "text": "Thanks" },
+                  "created": { "time": 1790000300000 },
+                  "parentComment": "urn:li:comment:(urn:li:share:7001,1)"
+                }
+              ],
+              "paging": { "start": 0, "count": 50, "total": 2 }
+            }
+          }
+        }
+      ]
+    },
+    "comment_reply": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "host": "api.linkedin.com",
+            "path": "/rest/socialActions/urn:li:share:7001/comments",
+            "bodyIncludes": ["\"actor\":\"urn:li:organization:2001\"", "\"text\":\"Thanks for the support\""]
+          },
+          "response": {
+            "status": 201,
+            "headers": { "x-restli-id": "urn:li:comment:(urn:li:share:7001,3)" },
+            "json": { "$URN": "urn:li:comment:(urn:li:share:7001,3)" }
+          }
+        }
+      ]
+    }
+  }
+}

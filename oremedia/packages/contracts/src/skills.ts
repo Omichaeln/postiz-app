@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PageRequest } from './pagination';
+import { TenantContextInput } from './tenancy';
 
 export const TaskKind = z.enum([
   'brand_onboarding',
@@ -206,3 +207,66 @@ export const SkillImport = z.object({
   cases: z.array(EvaluationCase).max(100).optional(),
 });
 export const SkillExport = z.object({ skillVersionId: z.string() });
+
+// ---- evaluation workflow contract (skillEvaluationWorkflowV1 on task queue `agents`, workflow id `skill-evaluation:<skillVersionId>:<suiteId>`) ----
+
+/**
+ * Spec 10.2 / 19.6: versions.evaluate moves the version to sandbox_evaluation and emits skill.evaluation_requested;
+ * the worker runs the suite outside any transaction and records the report through the skills module. Workflow
+ * input carries references only; the activity re-loads the pinned content at the point of effect (spec 5.2).
+ * Activity parameters are frozen once deployed: a change ships as a new interface and workflow version.
+ */
+export const SkillEvaluationWorkflowInputV1 = TenantContextInput.extend({
+  skillVersionId: z.string(),
+  skillId: z.string(),
+  suiteId: z.string(),
+  runs: z.number().int().min(EVALUATION_RUNS_MIN).max(20),
+  brandId: z.string().optional(),
+});
+export type SkillEvaluationWorkflowInputV1 = z.infer<typeof SkillEvaluationWorkflowInputV1>;
+
+/** What the activity reports back: a recorded result, or nothing when the version had already left the sandbox. */
+export const SkillEvaluationResultV1 = z.discriminatedUnion('outcome', [
+  z.object({
+    outcome: z.literal('recorded'),
+    skillVersionId: z.string(),
+    suiteId: z.string(),
+    resultId: z.string(),
+    passed: z.boolean(),
+    state: SkillVersionState,
+  }),
+  z.object({ outcome: z.literal('skipped'), skillVersionId: z.string(), state: SkillVersionState }),
+  z.object({ outcome: z.literal('failed'), skillVersionId: z.string(), error: z.string() }),
+]);
+export type SkillEvaluationResultV1 = z.infer<typeof SkillEvaluationResultV1>;
+
+export const SkillEvaluationFailInput = SkillEvaluationWorkflowInputV1.extend({
+  error: z.string().max(1500),
+});
+export type SkillEvaluationFailInput = z.infer<typeof SkillEvaluationFailInput>;
+
+/**
+ * The activity surface of skillEvaluationWorkflowV1: runSkillEvaluation makes the model calls and the short
+ * recording write; failSkillEvaluation returns a version whose run could not complete to draft (no result row).
+ */
+export interface SkillEvaluationActivitiesV1 {
+  runSkillEvaluation(input: SkillEvaluationWorkflowInputV1): Promise<SkillEvaluationResultV1>;
+  failSkillEvaluation(input: SkillEvaluationFailInput): Promise<void>;
+}
+
+// ---- worker-facing DTOs (the skills module's evaluation surface as the activity uses it) ----
+export const SkillEvaluationRun = z.object({
+  skillVersionId: z.string(),
+  suiteId: z.string(),
+  runs: z.number().int().min(EVALUATION_RUNS_MIN).max(20),
+});
+export const SkillEvaluationFail = z.object({
+  skillVersionId: z.string(),
+  suiteId: z.string(),
+  reason: z.string().min(1).max(2000),
+});
+export const SkillEvaluationRecord = z.object({
+  skillVersionId: z.string(),
+  suiteId: z.string(),
+  report: EvaluationReport,
+});

@@ -1,0 +1,57 @@
+{
+  "provider": "facebook_page",
+  "scenarios": {
+    "check_processing": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/vid_77",
+            "query": { "fields": "id,status,permalink_url" }
+          },
+          "response": {
+            "status": 200,
+            "json": { "id": "vid_77", "status": { "video_status": "processing", "processing_progress": 40 } }
+          }
+        }
+      ]
+    },
+    "check_completed": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/vid_77" },
+          "repeat": true,
+          "response": {
+            "status": 200,
+            "json": {
+              "id": "vid_77",
+              "status": { "video_status": "ready" },
+              "permalink_url": "/p_100/videos/vid_77/"
+            }
+          }
+        }
+      ]
+    },
+    "check_failed": {
+      "exchanges": [
+        {
+          "request": { "method": "GET", "host": "graph.facebook.com", "path": "/v25.0/vid_77" },
+          "response": {
+            "status": 200,
+            "json": {
+              "id": "vid_77",
+              "status": {
+                "video_status": "error",
+                "processing_phase": {
+                  "status": "error",
+                  "errors": [{ "code": 1, "message": "Unsupported codec" }]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

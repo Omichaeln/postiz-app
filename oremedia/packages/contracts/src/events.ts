@@ -40,10 +40,20 @@ export const EVENT_TYPES = {
   'agent.proposal_decided': 1,
   'agent.run_cancel_requested': 1,
   'skill.version_evaluated': 1,
+  'skill.evaluation_requested': 1,
   'skill.version_published': 1,
   'measurement.collection_due': 1,
   'intelligence.analysis_due': 1,
   'experiment.started': 1,
   'operations.deletion_requested': 1,
+  // Phase 5 publishing (appended; additive only)
+  'channel.connected': 1,
+  'channel.disconnected': 1,
+  'channel.reconnect_needed': 1,
+  'publication.reconcile_requested': 1,
+  'publication.delete_remote_requested': 1,
+  // Phase 5 review (appended; additive only)
+  'review.request_stale': 1,
+  'mandate.changed': 1,
 } as const;
 export type EventType = keyof typeof EVENT_TYPES;

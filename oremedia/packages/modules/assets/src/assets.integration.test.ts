@@ -780,12 +780,7 @@ describe('assets module against MySQL 8 (spec 9)', () => {
           .from(assetDerivatives)
           .where(eq(assetDerivatives.assetVersionId, a.versionId));
         expect(rows.map((r) => r.purpose)).toEqual(['release']);
-        await assetService.recordUsage(
-          a.versionId,
-          'publication',
-          'pub_1',
-          await withTransaction(async (tx) => tx),
-        );
+        await withTransaction((tx) => assetService.recordUsage(a.versionId, 'publication', 'pub_1', tx));
         const usages = await assetService.listUsages(ownerA, { assetId: a.id, page: { limit: 10 } });
         expect(usages.items).toMatchObject([{ usedByType: 'publication', usedById: 'pub_1' }]);
       });

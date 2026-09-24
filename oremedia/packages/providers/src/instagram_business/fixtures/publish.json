@@ -1,0 +1,148 @@
+{
+  "provider": "instagram_business",
+  "scenarios": {
+    "image_pending": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ig_900/media",
+            "bodyIncludes": [
+              "\"image_url\":\"https://media.oremedia.test/release/img1.jpg\"",
+              "\"caption\":\"Hello from Oremedia #launch\"",
+              "\"alt_text\":\"A launch banner\""
+            ]
+          },
+          "response": { "status": 200, "json": { "id": "ctn_1" } }
+        }
+      ]
+    },
+    "carousel_pending": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ig_900/media",
+            "bodyIncludes": ["img1.jpg", "\"is_carousel_item\":true"]
+          },
+          "response": { "status": 200, "json": { "id": "child_1" } }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ig_900/media",
+            "bodyIncludes": ["clip.mp4", "\"media_type\":\"VIDEO\"", "\"is_carousel_item\":true"]
+          },
+          "response": { "status": 200, "json": { "id": "child_2" } }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ig_900/media",
+            "bodyIncludes": [
+              "\"media_type\":\"CAROUSEL\"",
+              "\"children\":\"child_1,child_2\"",
+              "\"caption\":\"Hello from Oremedia #launch\""
+            ]
+          },
+          "response": { "status": 200, "json": { "id": "ctn_car" } }
+        }
+      ]
+    },
+    "rejected_validation": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/ig_900/media" },
+          "response": {
+            "status": 400,
+            "json": {
+              "error": {
+                "message": "The image's aspect ratio is not supported",
+                "type": "OAuthException",
+                "code": 36003,
+                "error_subcode": 2207009,
+                "fbtrace_id": "G7"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "rate_limited": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/ig_900/media" },
+          "response": {
+            "status": 400,
+            "json": {
+              "error": {
+                "message": "(#4) Application request limit reached",
+                "type": "OAuthException",
+                "code": 4,
+                "fbtrace_id": "H8"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "expired_token": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/ig_900/media" },
+          "response": {
+            "status": 400,
+            "json": {
+              "error": {
+                "message": "Error validating access token: Session has expired",
+                "type": "OAuthException",
+                "code": 190,
+                "error_subcode": 463
+              }
+            }
+          }
+        }
+      ]
+    },
+    "revoked_token": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/ig_900/media" },
+          "response": {
+            "status": 400,
+            "json": {
+              "error": {
+                "message": "(#10) Application does not have permission for this action",
+                "type": "OAuthException",
+                "code": 10
+              }
+            }
+          }
+        }
+      ]
+    },
+    "container_5xx": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/ig_900/media" },
+          "response": {
+            "status": 500,
+            "json": { "error": { "message": "An unknown error occurred", "code": 1 } }
+          }
+        }
+      ]
+    },
+    "container_hang": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "graph.facebook.com", "path": "/v25.0/ig_900/media" },
+          "behaviour": "hang"
+        }
+      ]
+    }
+  }
+}

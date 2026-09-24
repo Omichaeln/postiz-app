@@ -1,0 +1,64 @@
+{
+  "provider": "linkedin_page",
+  "scenarios": {
+    "found": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "query": { "q": "author", "author": "urn:li:organization:2001" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                {
+                  "id": "urn:li:share:7010",
+                  "commentary": "Hello from Oremedia #launch",
+                  "createdAt": 1790300000000
+                },
+                { "id": "urn:li:share:6000", "commentary": "An older post", "createdAt": 1758000000000 }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "absent": {
+      "description": "A short page whose posts all predate the attempt: the window is provably covered.",
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "query": { "q": "author" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                { "id": "urn:li:share:6000", "commentary": "An older post", "createdAt": 1758000000000 }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "cannot_determine": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "query": { "q": "author" }
+          },
+          "response": { "status": 500, "body": "Internal Server Error" }
+        }
+      ]
+    }
+  }
+}

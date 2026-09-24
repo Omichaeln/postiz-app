@@ -637,7 +637,12 @@ describe('agents module (spec 12) against MySQL 8', () => {
         baseRevisionId: revisionId,
         operations: [
           { op: 'setText', pageId: 'page_1', elementId: headlineId, text: longHeadline },
-          { op: 'setStyle', pageId: 'page_1', elementId: headlineId, patch: { colourToken: 'ink', tracking: 1 } },
+          {
+            op: 'setStyle',
+            pageId: 'page_1',
+            elementId: headlineId,
+            patch: { colourToken: 'ink', tracking: 1 },
+          },
         ],
         summary: 'sharpen headline',
       };
@@ -732,7 +737,11 @@ describe('agents module (spec 12) against MySQL 8', () => {
       const applied = after
         .find((r) => r.number === 2)!
         .snapshot.pages[0]!.elements.find((e) => e.id === headlineId);
-      expect(applied).toMatchObject({ type: 'text', text: longHeadline, style: { colourToken: 'ink', tracking: 1 } });
+      expect(applied).toMatchObject({
+        type: 'text',
+        text: longHeadline,
+        style: { colourToken: 'ink', tracking: 1 },
+      });
       const steps = await stepsOf(started.runId);
       expect(steps.filter((s) => s.kind === 'validation').map((s) => s.summary)).toEqual([
         expect.stringContaining(`proposal ${decisionStepId} accept by user ${USER}`),

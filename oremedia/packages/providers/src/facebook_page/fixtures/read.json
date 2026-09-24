@@ -1,0 +1,120 @@
+{
+  "provider": "facebook_page",
+  "scenarios": {
+    "post_metrics": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/p_100_5001/insights",
+            "query": {
+              "metric": "post_total_media_view_unique,post_clicks,post_clicks_by_type,post_reactions_by_type_total"
+            }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                {
+                  "name": "post_total_media_view_unique",
+                  "period": "lifetime",
+                  "values": [{ "value": 640 }]
+                },
+                { "name": "post_clicks", "period": "lifetime", "values": [{ "value": 12 }] },
+                {
+                  "name": "post_reactions_by_type_total",
+                  "period": "lifetime",
+                  "values": [{ "value": { "like": 30, "love": 4 } }]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "account_metrics": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/p_100/insights",
+            "query": { "period": "day" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                {
+                  "name": "page_daily_follows",
+                  "period": "day",
+                  "values": [
+                    { "value": 3, "end_time": "2026-09-22T07:00:00+0000" },
+                    { "value": 5, "end_time": "2026-09-23T07:00:00+0000" }
+                  ]
+                },
+                {
+                  "name": "page_media_view",
+                  "period": "day",
+                  "values": [
+                    { "value": { "paid": 10, "organic": 90 }, "end_time": "2026-09-22T07:00:00+0000" }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "comments_page": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/p_100_5001/comments",
+            "query": { "limit": "50", "filter": "stream" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                {
+                  "id": "c_1",
+                  "message": "Nice",
+                  "from": { "id": "u_9", "name": "Bea" },
+                  "created_time": "2026-09-24T01:00:00+0000"
+                },
+                {
+                  "id": "c_2",
+                  "message": "Reply",
+                  "from": { "id": "p_100", "name": "Ore Media" },
+                  "created_time": "2026-09-24T01:05:00+0000",
+                  "parent": { "id": "c_1" }
+                }
+              ],
+              "paging": {
+                "cursors": { "before": "b", "after": "aft_2" },
+                "next": "https://graph.facebook.com/v25.0/p_100_5001/comments?after=aft_2"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "comment_reply": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/c_1/comments",
+            "bodyIncludes": ["\"message\":\"Thanks Bea\""]
+          },
+          "response": { "status": 200, "json": { "id": "c_3" } }
+        }
+      ]
+    }
+  }
+}

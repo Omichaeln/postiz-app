@@ -28,7 +28,7 @@ export interface ProviderRequestMeta {
 export interface ProviderIO {
   request(
     url: string,
-    init: RequestInit & { body?: string | Uint8Array | FormData },
+    init: Omit<RequestInit, 'body'> & { body?: string | Uint8Array | FormData },
     meta: ProviderRequestMeta,
   ): Promise<{ res: Response; phase: 'after_send' }>;
 }

@@ -1,14 +1,14 @@
 # Runbook: reconcile an `outcome_unknown` publication
 
-**Symptom:** publication in `outcome_unknown` or `held` with reason `outcome_unknown_unresolved`; metric `oremedia.publish.outcome_unknown_age_ms` rising.
-**Owner:** publisher; platform on-call if many at once. **Exercised:** not yet (Phase 5 dependency).
+**Symptom:** publication in `outcome_unknown` or `held` with reason `outcome_unknown_unresolved`; metric `oremedia.publish.outcome_unknown` rising; a sweeper log line `sweeper found an expired dispatch claim (worker loss)`.
+**Owner:** publisher; platform on-call if many at once. **Exercised:** locally by `packages/modules/publishing/src/publishing.integration.test.ts` ("crash after send …", "reconciliation that proves absence …", "human reconciliation …") and `apps/worker-core/src/publishing.integration.test.ts` ("crash after send → outcome_unknown → reconciled …"). Production procedure not yet exercised.
 
-Never retry the publish blindly (spec 2.2). The attempt ledger decides:
+Never retry the publish blindly (spec 2.2). The attempt ledger decides, and the code enforces it: `publishOnce` refuses to re-send an attempt that carries `sentAt` (it reports `unknown`), and `retryAfterProvenNoEffect` only moves a row back to `scheduled` when the attempt has **no** `sentAt`.
 
-1. Open the publication's attempts (`publishing.publications.get` → attempts, `publishing.publications.evidence`).
-2. If the latest attempt has **no `sentAt`**, the call was never made: the workflow classifies it `retryable_error` itself. If you see this state by hand, re-schedule (`held → scheduled`); a new attempt with a new fencing token is opened.
-3. If the attempt has `sentAt`, the platform may have the post. Automatic reconciliation already polled `findRemotePost` at +1 m, +5 m, +15 m, +1 h. Check the remote account manually (provider UI or API) for a post matching the text fingerprint and media at the attempt time.
-4. Found: `publishing.publications.reconcile { resolution: 'confirm_published', remotePostId, remoteUrl }` records human confirmation evidence and moves to `published`.
-5. Definitely absent: `reconcile { resolution: 'confirm_absent' }` moves to `retry_eligible`; re-schedule when appropriate (same occurrence key, new attempt).
-6. Cannot determine: leave held, add a note, and revisit after the provider's processing window; do not schedule a duplicate.
-7. Verify: the publication is in a definitive state and no second remote post exists (duplicate detection metric unchanged).
+1. Open the publication's attempts and evidence: `publishing.publications.get { publicationId }` (returns `attempts[]` with `sentAt`, `finishedAt`, `outcome`, `remotePostId`) and `publishing.publications.evidence { publicationId }`.
+2. If the latest attempt has **no `sentAt`**, the call was never made. The workflow classifies that itself (`retryable_error` → back to `scheduled` with backoff, at most 8 attempts, then `held` with reason `retry_budget_exhausted`). If you see it by hand, re-release: `publishing.publications.reschedule { publicationId, expectedVersion, scheduledFor }` — a `held` or `retry_eligible` row goes back to `scheduled` and a new workflow generation (`pub:<id>:r<version>`) opens a new attempt with a new fencing token.
+3. If the attempt has `sentAt`, the platform may have the post. Automatic reconciliation (`publicationWorkflowV1` → `reconcile`, or `publicationReconcileWorkflowV1` when the sweeper found a lost worker) polled the adapter's `findRemotePost` at +1 m, +5 m, +15 m, +1 h; `remote_evidence` rows of kind `reconciliation` show what it found. Check the remote account manually (provider UI or API) for a post matching the caption around the attempt's `startedAt`.
+4. Found: `publishing.publications.reconcile { publicationId, resolution: 'confirm_published', remotePostId, remoteUrl }` records `human_confirmation` evidence, attaches the remote id to the attempt and moves `outcome_unknown → published`. (A row already `held` after exhausted reconciliation keeps `held` — the publication machine has no `held → published` move yet; the evidence and remote id are recorded, and the row is closed with `resolution: 'cancel'` once the team has confirmed. Machine gap reported to the lead.)
+5. Definitely absent: `reconcile { resolution: 'confirm_absent' }` moves `outcome_unknown → retry_eligible`; re-release with `publications.reschedule` when appropriate (same occurrence key, new attempt).
+6. Cannot determine: leave it, add a note, revisit after the provider's processing window; do not schedule a duplicate. Every reconcile step is audited (`publication.reconcile`) and emits `publication.state_changed`.
+7. Verify: the publication is in a definitive state, `publication_attempts` still has one row per attempt (never a second send for the same fencing token) and no second remote post exists.

@@ -1,0 +1,132 @@
+{
+  "provider": "instagram_business",
+  "scenarios": {
+    "post_metrics": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/media_555/insights",
+            "query": { "metric": "views,reach,saved,likes,comments,shares,total_interactions" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                { "name": "views", "period": "lifetime", "values": [{ "value": 900 }] },
+                { "name": "reach", "period": "lifetime", "values": [{ "value": 700 }] },
+                { "name": "likes", "period": "lifetime", "values": [{ "value": 55 }] }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "account_metrics": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ig_900/insights",
+            "query": { "metric": "follower_count,reach", "period": "day" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                {
+                  "name": "follower_count",
+                  "period": "day",
+                  "values": [
+                    { "value": 2, "end_time": "2026-09-22T07:00:00+0000" },
+                    { "value": 3, "end_time": "2026-09-23T07:00:00+0000" }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/ig_900/insights",
+            "query": { "metric_type": "total_value" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                { "name": "views", "period": "day", "total_value": { "value": 4200 } },
+                { "name": "likes", "period": "day", "total_value": { "value": 130 } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "comments_page": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/media_555/comments",
+            "query": { "limit": "50" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "data": [
+                {
+                  "id": "ic_1",
+                  "text": "Love it",
+                  "username": "bea",
+                  "timestamp": "2026-09-24T01:00:00+0000",
+                  "replies": {
+                    "data": [
+                      {
+                        "id": "ic_2",
+                        "text": "Thank you",
+                        "username": "oremedia",
+                        "timestamp": "2026-09-24T01:05:00+0000"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "paging": {
+                "cursors": { "after": "ig_after_1" },
+                "next": "https://graph.facebook.com/v25.0/media_555/comments?after=ig_after_1"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "comment_reply": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/media_555/comments",
+            "bodyIncludes": ["\"message\":\"Thanks all\""]
+          },
+          "response": { "status": 200, "json": { "id": "ic_3" } }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "host": "graph.facebook.com",
+            "path": "/v25.0/media_555",
+            "query": { "fields": "permalink" }
+          },
+          "response": { "status": 200, "json": { "permalink": "https://www.instagram.com/p/AbCdEf/" } }
+        }
+      ]
+    }
+  }
+}

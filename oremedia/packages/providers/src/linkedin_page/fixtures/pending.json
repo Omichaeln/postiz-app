@@ -1,0 +1,179 @@
+{
+  "provider": "linkedin_page",
+  "scenarios": {
+    "check_processing": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "query": { "q": "author" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                { "id": "urn:li:share:6000", "commentary": "An older post", "createdAt": 1758000000000 }
+              ],
+              "paging": { "start": 0, "count": 20 }
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/images/urn:li:image:C4D_1"
+          },
+          "response": { "status": 200, "json": { "status": "PROCESSING" } }
+        }
+      ]
+    },
+    "check_ready": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "query": { "q": "author" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                { "id": "urn:li:share:6000", "commentary": "An older post", "createdAt": 1758000000000 }
+              ]
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/images/urn:li:image:C4D_1"
+          },
+          "response": { "status": 200, "json": { "status": "AVAILABLE" } }
+        }
+      ]
+    },
+    "check_failed": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "query": { "q": "author" }
+          },
+          "response": { "status": 200, "json": { "elements": [] } }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/images/urn:li:image:C4D_1"
+          },
+          "response": {
+            "status": 200,
+            "json": { "status": "PROCESSING_FAILED", "processingFailureReason": "UNSUPPORTED_FORMAT" }
+          }
+        }
+      ]
+    },
+    "finalize_completed": {
+      "exchanges": [
+        {
+          "request": {
+            "method": "POST",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "bodyIncludes": [
+              "\"content\":{\"media\":{\"id\":\"urn:li:image:C4D_1\",\"altText\":\"A launch banner\"}}"
+            ]
+          },
+          "response": { "status": 201, "headers": { "x-restli-id": "urn:li:ugcPost:7002" }, "body": "" }
+        }
+      ]
+    },
+    "check_after_finalize": {
+      "description": "Spec 20.3: the post now exists in the author scan, so checkStatus reports completed and never ready again.",
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "query": { "q": "author" }
+          },
+          "repeat": true,
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                {
+                  "id": "urn:li:ugcPost:7002",
+                  "commentary": "Hello from Oremedia #launch",
+                  "createdAt": 1790300000000
+                },
+                { "id": "urn:li:share:6000", "commentary": "An older post", "createdAt": 1758000000000 }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "finalize_duplicate_then_found": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.linkedin.com", "path": "/rest/posts" },
+          "response": {
+            "status": 422,
+            "json": {
+              "message": "Content is a duplicate of urn:li:ugcPost:7002",
+              "status": 422,
+              "serviceErrorCode": 100
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "query": { "q": "author" }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                {
+                  "id": "urn:li:ugcPost:7002",
+                  "commentary": "Hello from Oremedia #launch",
+                  "createdAt": 1790300000000
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "finalize_5xx": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.linkedin.com", "path": "/rest/posts" },
+          "response": { "status": 502, "body": "Bad Gateway" }
+        }
+      ]
+    },
+    "finalize_reset_after_send": {
+      "exchanges": [
+        {
+          "request": { "method": "POST", "host": "api.linkedin.com", "path": "/rest/posts" },
+          "behaviour": "reset"
+        }
+      ]
+    }
+  }
+}

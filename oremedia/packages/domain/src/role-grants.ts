@@ -38,6 +38,7 @@ export const DEFAULT_ROLE_GRANTS: Readonly<Record<Action, readonly MembershipRol
   'mandate.manage': ADMINS,
   'agent.start_run': [...MANAGERS, 'creator', 'analyst'],
   'agent.cancel_run': [...MANAGERS, 'creator', 'analyst', 'publisher'],
+  'skill.read': ALL,
   'skill.author': MANAGERS,
   'skill.publish': ADMINS,
   'insight.read': ALL,
@@ -80,5 +81,6 @@ export const OPERATOR_READ_ONLY: ReadonlySet<Action> = new Set<Action>([
   'asset.read',
   'creative.read',
   'insight.read',
+  'skill.read',
   'audit.read',
 ]);
