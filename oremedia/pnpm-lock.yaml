@@ -68,6 +68,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@oremedia/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@oremedia/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -80,6 +83,9 @@ importers:
       '@oremedia/module-access':
         specifier: workspace:*
         version: link:../../packages/modules/access
+      '@oremedia/module-agents':
+        specifier: workspace:*
+        version: link:../../packages/modules/agents
       '@oremedia/module-assets':
         specifier: workspace:*
         version: link:../../packages/modules/assets
@@ -95,6 +101,9 @@ importers:
       '@oremedia/module-operations':
         specifier: workspace:*
         version: link:../../packages/modules/operations
+      '@oremedia/module-skills':
+        specifier: workspace:*
+        version: link:../../packages/modules/skills
       '@oremedia/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -208,6 +217,9 @@ importers:
 
   apps/worker-core:
     dependencies:
+      '@oremedia/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@oremedia/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -217,6 +229,9 @@ importers:
       '@oremedia/module-access':
         specifier: workspace:*
         version: link:../../packages/modules/access
+      '@oremedia/module-agents':
+        specifier: workspace:*
+        version: link:../../packages/modules/agents
       '@oremedia/module-assets':
         specifier: workspace:*
         version: link:../../packages/modules/assets
@@ -232,6 +247,9 @@ importers:
       '@oremedia/module-operations':
         specifier: workspace:*
         version: link:../../packages/modules/operations
+      '@oremedia/module-skills':
+        specifier: workspace:*
+        version: link:../../packages/modules/skills
       '@oremedia/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -359,6 +377,48 @@ importers:
         specifier: ^1.24.0
         version: 1.24.0(lightningcss@1.33.0)
 
+  packages/ai:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.128.0
+        version: 0.128.0(zod@3.25.76)
+      '@oremedia/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@oremedia/db':
+        specifier: workspace:*
+        version: link:../db
+      '@oremedia/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@oremedia/editor':
+        specifier: workspace:*
+        version: link:../editor
+      '@oremedia/module-access':
+        specifier: workspace:*
+        version: link:../modules/access
+      '@oremedia/module-assets':
+        specifier: workspace:*
+        version: link:../modules/assets
+      '@oremedia/module-billing':
+        specifier: workspace:*
+        version: link:../modules/billing
+      '@oremedia/module-brand':
+        specifier: workspace:*
+        version: link:../modules/brand
+      '@oremedia/module-creative':
+        specifier: workspace:*
+        version: link:../modules/creative
+      '@oremedia/module-operations':
+        specifier: workspace:*
+        version: link:../modules/operations
+      '@oremedia/observability':
+        specifier: workspace:*
+        version: link:../observability
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+
   packages/contracts:
     dependencies:
       zod:
@@ -441,6 +501,45 @@ importers:
       '@oremedia/module-operations':
         specifier: workspace:*
         version: link:../operations
+      '@oremedia/observability':
+        specifier: workspace:*
+        version: link:../../observability
+      drizzle-orm:
+        specifier: ^0.45.3
+        version: 0.45.3(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(mysql2@3.24.4(@types/node@22.20.4))
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+
+  packages/modules/agents:
+    dependencies:
+      '@oremedia/ai':
+        specifier: workspace:*
+        version: link:../../ai
+      '@oremedia/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@oremedia/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@oremedia/domain':
+        specifier: workspace:*
+        version: link:../../domain
+      '@oremedia/module-access':
+        specifier: workspace:*
+        version: link:../access
+      '@oremedia/module-billing':
+        specifier: workspace:*
+        version: link:../billing
+      '@oremedia/module-brand':
+        specifier: workspace:*
+        version: link:../brand
+      '@oremedia/module-operations':
+        specifier: workspace:*
+        version: link:../operations
+      '@oremedia/module-skills':
+        specifier: workspace:*
+        version: link:../skills
       '@oremedia/observability':
         specifier: workspace:*
         version: link:../../observability
@@ -649,6 +748,33 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
 
+  packages/modules/skills:
+    dependencies:
+      '@oremedia/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@oremedia/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@oremedia/domain':
+        specifier: workspace:*
+        version: link:../../domain
+      '@oremedia/module-access':
+        specifier: workspace:*
+        version: link:../access
+      '@oremedia/module-operations':
+        specifier: workspace:*
+        version: link:../operations
+      '@oremedia/observability':
+        specifier: workspace:*
+        version: link:../../observability
+      drizzle-orm:
+        specifier: ^0.45.3
+        version: 0.45.3(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(mysql2@3.24.4(@types/node@22.20.4))
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+
   packages/observability:
     dependencies:
       '@opentelemetry/api':
@@ -772,6 +898,15 @@ packages:
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
     engines: {node: '>=6.0.0'}
+
+  '@anthropic-ai/sdk@0.128.0':
+    resolution: {integrity: sha512-tl5cBFZC1jVFrTuQyvQObA4WmuNgcYVeXfriqOumgtLAHUm4gPUj18YnszBW60v0PrjDB8nBDOC6wd9CmHQFlA==}
+    hasBin: true
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   '@asamuzakjp/css-color@7.0.1':
     resolution: {integrity: sha512-C9duntabagkBZ1LebM7FKmphR4Q1pBclLxVbZETQV0akkFjV0ooFxo8FlvAQyKj9F6l8rEnmidgcTlpyxFYizg==}
@@ -911,6 +1046,10 @@ packages:
     resolution: {integrity: sha512-CjXrNHTnvqBVqHgdBysY3vk2T8tpJHb5/RMeHJBTyVa9xgugCB0CJTx/3oO8RV2QRQP391RWpB7D6hLjm8V9uA==}
     engines: {node: '>=6.0.0'}
     hasBin: true
+
+  '@babel/runtime@7.29.7':
+    resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
+    engines: {node: '>=6.9.0'}
 
   '@babel/template@7.29.7':
     resolution: {integrity: sha512-puq+Gf35oI24FeN11LkoUQFqv9uwNeWpxXZi/Ji3rRIoKAzKnxRaZ+Gkj0vKS9ZCiTESfng1N9LyOyXvo+m+Gg==}
@@ -3262,6 +3401,9 @@ packages:
     resolution: {integrity: sha512-r7jh49VJxGerfAcTQA6gXcKc+98zOp/tqRwzYjgOE+iSQsP6cEU1hq2QzbuipmP68QtYdY9wKEhiCQZIzHgZ4Q==}
     engines: {node: '>=18.0.0'}
 
+  '@stablelib/base64@1.0.1':
+    resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
+
   '@swc/core-darwin-arm64@1.16.2':
     resolution: {integrity: sha512-i/j0HNbnn79qnTVPicvay92Nark8fW8NQqn1e2mGERjUXNpBV0+SwQxlRpk2zBhn6laJ8PDI6Kn1nHZhnz3LCA==}
     engines: {node: '>=10'}
@@ -4707,6 +4849,9 @@ packages:
   fast-levenshtein@2.0.6:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
 
+  fast-sha256@1.3.0:
+    resolution: {integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==}
+
   fast-uri@3.1.8:
     resolution: {integrity: sha512-GZMtZUTNRpOVIECoXwLNZS5xUGE+mVNbTB8h/7Rwh2TFWcBQiPzTgyZi05BF9UMZKkLJv8XBRJTlU7zg8+ZfMg==}
 
@@ -5057,6 +5202,10 @@ packages:
 
   json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
+
+  json-schema-to-ts@3.1.1:
+    resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
+    engines: {node: '>=16'}
 
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
@@ -6005,6 +6154,9 @@ packages:
   standard-as-callback@2.1.0:
     resolution: {integrity: sha512-qoRRSyROncaz1z0mvYqIE4lCd9p2R90i6GxW3uZv5ucSu8tU7B5HXUP1gG8pVZsYNVaXjk8ClXHPttLyxAL48A==}
 
+  standardwebhooks@1.1.1:
+    resolution: {integrity: sha512-bCbX9ZEyFkWPsRz7Bl3NuQUJohmwGSev/yhr7vhaGPlc4AfIrspIRa6cPTBuI1ItmrTDJ4d/S2hCsfe4+vQGnQ==}
+
   statuses@2.0.2:
     resolution: {integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==}
     engines: {node: '>= 0.8'}
@@ -6201,6 +6353,9 @@ packages:
   tree-kill@1.2.2:
     resolution: {integrity: sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==}
     hasBin: true
+
+  ts-algebra@2.0.0:
+    resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
 
   ts-api-utils@2.5.0:
     resolution: {integrity: sha512-OJ/ibxhPlqrMM0UiNHJ/0CKQkoKF243/AEmplt3qpRgkW8VG7IfOS41h7V8TjITqdByHzrjcS/2si+y4lIh8NA==}
@@ -6586,6 +6741,13 @@ snapshots:
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
 
+  '@anthropic-ai/sdk@0.128.0(zod@3.25.76)':
+    dependencies:
+      json-schema-to-ts: 3.1.1
+      standardwebhooks: 1.1.1
+    optionalDependencies:
+      zod: 3.25.76
+
   '@asamuzakjp/css-color@7.0.1':
     dependencies:
       '@csstools/css-calc': 3.4.0(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.1))(@csstools/css-tokenizer@4.0.1)
@@ -6851,6 +7013,8 @@ snapshots:
   '@babel/parser@7.29.9':
     dependencies:
       '@babel/types': 7.29.8
+
+  '@babel/runtime@7.29.7': {}
 
   '@babel/template@7.29.7':
     dependencies:
@@ -8960,6 +9124,8 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  '@stablelib/base64@1.0.1': {}
+
   '@swc/core-darwin-arm64@1.16.2':
     optional: true
 
@@ -10602,6 +10768,8 @@ snapshots:
 
   fast-levenshtein@2.0.6: {}
 
+  fast-sha256@1.3.0: {}
+
   fast-uri@3.1.8: {}
 
   fdir@6.5.0(picomatch@4.0.7):
@@ -10988,6 +11156,11 @@ snapshots:
       bignumber.js: 9.3.1
 
   json-buffer@3.0.1: {}
+
+  json-schema-to-ts@3.1.1:
+    dependencies:
+      '@babel/runtime': 7.29.7
+      ts-algebra: 2.0.0
 
   json-schema-traverse@0.4.1: {}
 
@@ -11932,6 +12105,11 @@ snapshots:
 
   standard-as-callback@2.1.0: {}
 
+  standardwebhooks@1.1.1:
+    dependencies:
+      '@stablelib/base64': 1.0.1
+      fast-sha256: 1.3.0
+
   statuses@2.0.2: {}
 
   std-env@3.10.0: {}
@@ -12184,6 +12362,8 @@ snapshots:
       tslib: 2.8.1
 
   tree-kill@1.2.2: {}
+
+  ts-algebra@2.0.0: {}
 
   ts-api-utils@2.5.0(typescript@5.9.3):
     dependencies:

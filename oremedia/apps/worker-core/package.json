@@ -13,14 +13,17 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@oremedia/ai": "workspace:*",
     "@oremedia/contracts": "workspace:*",
     "@oremedia/db": "workspace:*",
     "@oremedia/module-access": "workspace:*",
+    "@oremedia/module-agents": "workspace:*",
     "@oremedia/module-assets": "workspace:*",
     "@oremedia/module-billing": "workspace:*",
     "@oremedia/module-brand": "workspace:*",
     "@oremedia/module-creative": "workspace:*",
     "@oremedia/module-operations": "workspace:*",
+    "@oremedia/module-skills": "workspace:*",
     "@oremedia/observability": "workspace:*",
     "@temporalio/client": "^1.24.0",
     "zod": "^3.25.76"
