@@ -18,6 +18,12 @@ moving, labelled as such. Nothing below is decided until a named owner records i
 | D-11 | Separation of duties on by default                                   | **Open**                                     | Off (`require_distinct_approver = false`) per brand policy.                                                                                                                                          | Policy version default                                                |
 | D-12 | Oremedia product identity                                            | **Open**                                     | Neutral placeholder tokens in `packages/ui/src/tokens.css`.                                                                                                                                          | Load the governing brand skill's tokens before Phase 3 UI polish      |
 
+## Recorded specification interpretations
+
+| Ref       | Interpretation                                                                                                                                                                                                                                                                                                                                               | Status                                            |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| Spec 17.6 | After a restore, `scheduled` and unsent `dispatching` publications move to `held` (`restored_from_backup`); `processing` and sent `dispatching` publications move to `outcome_unknown` and are reconciled against remote history. Reason: 13.1's exhaustive table has no `held → published` move, and 14.3 sends an attempt with `sentAt` to reconciliation. | **Accepted (programme owner, 24 September 2026)** |
+
 ## How to record a decision
 
 Edit the row: set Status to **Decided (owner, date)**, replace the working assumption with the decision, and open a
