@@ -66,9 +66,9 @@ describe('reducer (spec 11.3, 11.4)', () => {
     expect(() => reduce(doc, { op: 'setText', pageId: 'nope', elementId: ids.headline, text: 'x' })).toThrow(
       OperationError,
     );
-    expect(() =>
-      reduce(doc, { op: 'setText', pageId: P, elementId: 'el_01HZZZZZZZZZZZZZZZZZZZZZZZ', text: 'x' }),
-    ).toThrowError(/element_not_found/);
+    expect(() => reduce(doc, { op: 'setText', pageId: P, elementId: eid('01HNPE'), text: 'x' })).toThrowError(
+      /element_not_found/,
+    );
     expect(() => reduce(doc, { op: 'setText', pageId: P, elementId: ids.image, text: 'x' })).toThrowError(
       /not_a_text_element/,
     );
@@ -155,15 +155,17 @@ describe('guards (spec 11.4: agents cannot touch protected elements)', () => {
   });
   it('agents cannot insert logo elements', () => {
     const logo = fixtureDocument().pages[0]!.elements[4]!;
-    expect(() =>
-      guardLogoInsertion(
-        { op: 'insertElement', pageId: P, element: { ...logo, id: 'el_01HZZZZZZZZZZZZZZZZZZZZZL2' } },
-        'agent',
+    expect(
+      reasonOf(() =>
+        guardLogoInsertion(
+          { op: 'insertElement', pageId: P, element: { ...logo, id: eid('01HMARK2') } },
+          'agent',
+        ),
       ),
-    ).toThrowError(/agent_logo_insert/);
+    ).toBe('agent_logo_insert');
     expect(() =>
       guardLogoInsertion(
-        { op: 'insertElement', pageId: P, element: { ...logo, id: 'el_01HZZZZZZZZZZZZZZZZZZZZZL2' } },
+        { op: 'insertElement', pageId: P, element: { ...logo, id: eid('01HMARK2') } },
         'user',
       ),
     ).not.toThrow();
