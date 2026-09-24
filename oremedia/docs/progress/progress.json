@@ -541,9 +541,24 @@
       "title": "Brand and asset core",
       "spec": "8, 9",
       "gate": [
-        ["2.g1", "Ineligible assets never appear in search, agent context or render", "open", ""],
-        ["2.g2", "Every revision records its brand version", "open", ""],
-        ["2.g3", "SVG, font and image attack fixtures are rejected", "open", ""]
+        [
+          "2.g1",
+          "Ineligible assets never appear in search, agent context or render",
+          "in_progress",
+          "Search (findEligibleAssets) and authoriseUse verified by assets.integration.test.ts and the cross-tenant harness; the agent-context (Phase 4) and render (Phase 3) callers must go through those two entry points — verified once they exist."
+        ],
+        [
+          "2.g2",
+          "Every revision records its brand version",
+          "open",
+          "creative_revisions.brand_version_id is NOT NULL in the schema; resolveBrandSnapshot supplies brandVersionId and hash. Verified when the creative module (Phase 3) records it on every revision."
+        ],
+        [
+          "2.g3",
+          "SVG, font and image attack fixtures are rejected",
+          "complete",
+          "steps.test.ts and assets.integration.test.ts: script/onload/external-ref/@import/ENTITY SVGs, decompression-style oversized SVG/PNG headers, garbage and collection fonts, truncated images, mime mismatches, archives and EICAR are all rejected with typed reasons and no asset rows."
+        ]
       ],
       "items": [
         [
@@ -631,121 +646,128 @@
           "Upload intents: declared mime, per-kind size caps, presigned PUT to quarantine/{tenant}/{intent}",
           "production",
           "9.1",
-          "open",
-          ""
+          "complete",
+          "assetService.createIntent: declared mime checked against KIND_MIME_GROUPS, per-kind caps (UPLOAD_CAPS_BYTES), archives and Release-2 kinds refused, presigned PUT to quarantine/{tenant}/{intent} with SIGNED_URL/UPLOAD_INTENT TTLs; uploadIntentMachine issued → uploaded → quarantined → accepted|rejected. assets.integration.test.ts + cross-tenant (48/48)."
         ],
         [
           "2.12",
           "StorageProvider: S3/R2, tenant-prefixed keys enforced, head/copy/delete, no local storage in production",
           "production",
           "9.1, 20.2",
-          "open",
-          ""
+          "in_progress",
+          "storage.ts: StorageProvider interface, TenantPrefixedStorage template enforcing assertTenantKey on every operation (malformed/traversal and foreign-tenant keys → PolicyDeniedError), S3StorageProvider (AWS SDK v3, R2 via OBJECT_STORE_ENDPOINT, private buckets, presigned PUT/GET, releases bucket), MemoryStorageProvider, createStorageFromEnv fails closed in production. storage.test.ts (8) + module integration on the memory provider. Open: S3StorageProvider has not been exercised against a live R2/S3 bucket (no credentials in this environment)."
         ],
         [
           "2.13",
           "assetIngestWorkflowV1 step 1: verify object exists and size ≤ cap",
           "production",
           "9.1",
-          "open",
-          ""
+          "complete",
+          "ingest/steps.ts verifyObject (exists, size ≤ cap) → assetIngestWorkflowV1 step 1; activities re-load the intent through the brand-scoped repository (packages/activities/src/asset-ingest.ts). Unit (steps.test.ts 27) + activities integration with MockActivityEnvironment (5)."
         ],
         [
           "2.14",
           "assetIngestWorkflowV1 step 2: content sniffing (file-type) authoritative over declared type",
           "critical",
           "9.1",
-          "open",
-          ""
+          "complete",
+          "sniffType: file-type magic + font magic + SVG-by-content is authoritative; declared-mime mismatch, kind/content mismatch, archives and unaccepted formats rejected (steps.test.ts)."
         ],
         [
           "2.15",
           "assetIngestWorkflowV1 step 3: malware scan (ClamAV or managed scanner)",
           "critical",
           "9.1",
-          "open",
-          ""
+          "in_progress",
+          "ingest/scanner.ts: ClamAvScanner (clamd zINSTREAM over TCP, chunked, socket timeout), FakeScanner (EICAR), FailClosedScanner; no verdict → ScannerUnavailableError → Temporal retries → intent stays quarantined, never accepted; production without SCANNER_CLAMD_ADDRESS fails closed (scanner.test.ts 5, workflow test). Open: not run against a live clamd."
         ],
         [
           "2.16",
           "assetIngestWorkflowV1 step 4: sanitise SVG (scripts/external refs), parse fonts in sandbox, strip EXIF GPS, normalise orientation, record colour profile",
           "critical",
           "9.1",
-          "open",
-          ""
+          "complete",
+          "sanitise: SVG entity/DOCTYPE pre-check, DOMPurify SVG profile with fragment-only URI regexp, unsafe removals → reject svg_unsafe_content, external url()/@import → reject, PNG preview, pixel budget by intrinsic size; images: header dimensions checked before decode, sharp re-encode drops EXIF/GPS, HEIC/AVIF converted; fonts: fontkit parse, collections rejected, family/licence metadata recorded in provenance; PDF header check. steps.test.ts + integration end-to-end."
         ],
         [
           "2.17",
           "assetIngestWorkflowV1 step 5: SHA-256 dedupe within brand (propose link, never silently merge)",
           "production",
           "9.1",
-          "open",
-          ""
+          "complete",
+          "hashAndDedupe: SHA-256 over the sanitised bytes; a duplicate within the brand ends the intent rejected with rejectionReason duplicate_of and resultAssetId = the existing asset (the link proposal); no second asset row. Integration test."
         ],
         [
           "2.18",
           "assetIngestWorkflowV1 step 6: derivatives (thumbnail, preview, web-optimised)",
           "production",
           "9.1",
-          "open",
-          ""
+          "complete",
+          "derivatives: thumbnail 256 / preview 1024 / web 2048 WebP without enlargement, written under the asset/version prefix; asset_derivatives rows insert-only. Unit + integration."
         ],
         [
           "2.19",
           "assetIngestWorkflowV1 step 7–8: move original to immutable path; catalogue row pending_review/approved",
           "production",
           "9.1",
-          "open",
-          ""
+          "complete",
+          "moveToImmutable copies quarantine → assets/{tenant}/{brand}/{asset}/{version}/original then deletes; catalogueAsset commits asset + version + derivatives + intent acceptance + audit + outbox asset.ingested in one transaction; autoApprove decided by policy.decide(actor, asset.approve) at the point of effect and passed explicitly. Activities integration (MockActivityEnvironment)."
         ],
-        ["2.20", "Accepted kinds and caps; archives rejected", "production", "9.1", "open", ""],
+        [
+          "2.20",
+          "Accepted kinds and caps; archives rejected",
+          "production",
+          "9.1",
+          "complete",
+          "KIND_MIME_GROUPS / UPLOAD_CAPS_BYTES / ARCHIVE_MIMES / KINDS_NOT_PROCESSABLE in contracts; createIntent and sniffType enforce them (unit + integration)."
+        ],
         [
           "2.21",
           "Usage rights (owner, licence, channels, territories, expiry, releases, restrictions)",
           "critical",
           "6.3",
-          "open",
-          ""
+          "complete",
+          "assetService.setRights upserts usage_rights (owner, licence, permitted channels, territories, expiry, releases, restrictions) and moves rightsState → recorded; eligibility.ts rightsRequired/rightsExpiryThreshold (eligibility.test.ts 6, integration)."
         ],
         [
           "2.22",
           "Asset grants (cross-brand within a tenant) and asset usages (impact analysis)",
           "production",
           "5.1, 6.3",
-          "open",
-          ""
+          "complete",
+          "asset_grants (cross-brand within a tenant, per purpose; createGrant verifies target brands via brandService.assertExist → foreign tenant NOT_FOUND) and asset_usages (recordUsage, listUsages insert-only). Integration + cross-tenant."
         ],
         [
           "2.23",
           "findEligibleAssets: filter before ranking (brand or grant, approved, rights, expiry, kind)",
           "critical",
           "9.2",
-          "open",
-          ""
+          "complete",
+          "assetService.findEligibleAssets: SQL filter tenant ∧ (brand ∨ active grant for purpose) ∧ approved ∧ kind ∧ rights presence/expiry, then the pure evaluateEligibility rule per row (channels, territory, scheduledFor + 24 h processing window) before ranking; pending, expired, wrong-kind, other-brand-without-grant, rights-unknown, retired and expired-grant assets never returned (assets.integration.test.ts)."
         ],
         [
           "2.24",
           "authoriseUse re-checked at render and at dispatch; expiring rights cause a hold",
           "critical",
           "9.2",
-          "open",
-          ""
+          "in_progress",
+          "assetService.authoriseUse re-runs evaluateEligibility (version_not_current, state_not_approved, rights_expired, rights_unknown, kind_incompatible, channel/territory/brand_not_permitted → RightsIneligibleError) — verified. Open: the render (Phase 3) and dispatch (Phase 5) callers, and the expiring-rights review flag."
         ],
         [
           "2.25",
           "Delivery: private buckets; 5-minute signed URLs via a media endpoint that re-checks authorisation",
           "critical",
           "9.3",
-          "open",
-          ""
+          "complete",
+          "assets.media.signedUrl: private buckets, 300 s signed GET minted by the media endpoint after visibility + policy checks (SIGNED_URL_TTL_SEC); integration + cross-tenant. Live-bucket caveat recorded under 2.12."
         ],
         [
           "2.26",
           "Release derivatives minted at dispatch with provider processing-window lifetime",
           "production",
           "9.3",
-          "open",
-          ""
+          "in_progress",
+          "assetService.releaseDerivative(versionId, windowSec, {derivative}) mints a releases/{tenant}/{brand}/{version}/{purpose}/{nonce} object with a signed URL covering the provider processing window and records an asset_derivatives row (purpose release). Open: the dispatch caller (Phase 5)."
         ],
         [
           "2.27",
@@ -760,8 +782,8 @@
           "Attack fixtures: malformed SVG/font/image, decompression bombs, oversized input, SSRF/redirect chains",
           "critical",
           "18",
-          "open",
-          ""
+          "complete",
+          "Attack fixtures generated in tests and rejected with typed reasons: SVG with script / onload / external xlink:href / @import url(http…) / <!ENTITY> → svg_unsafe_content; 40000×40000 SVG and a PNG whose IHDR declares 40000×40000 → pixel_limit_exceeded before decode; garbage/truncated font → font_unparsable; TTC → font_collection_unsupported; truncated PNG, declared-mime mismatch, zip → rejected; EICAR → malware_detected; unreachable scanner → quarantined. End-to-end: a script SVG upload ends rejected, quarantine object deleted, no asset rows."
         ]
       ]
     },

@@ -6,3 +6,7 @@ export * from './agent-run';
 export * from './approval';
 export * from './brand-version';
 export * from './review-request';
+export * from './approved-fact';
+export * from './policy-version';
+export * from './asset';
+export * from './template-version';

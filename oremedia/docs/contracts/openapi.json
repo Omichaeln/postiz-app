@@ -28,7 +28,10 @@
                     "type": "string"
                   }
                 },
-                "required": ["servicePrincipalId", "scopes"]
+                "required": [
+                  "servicePrincipalId",
+                  "scopes"
+                ]
               }
             }
           }
@@ -49,7 +52,9 @@
                     "type": "string"
                   }
                 },
-                "required": ["apiClientId"]
+                "required": [
+                  "apiClientId"
+                ]
               }
             }
           }
@@ -79,7 +84,11 @@
                     }
                   }
                 },
-                "required": ["membershipId", "brandId", "roles"]
+                "required": [
+                  "membershipId",
+                  "brandId",
+                  "roles"
+                ]
               }
             }
           }
@@ -128,7 +137,10 @@
                     "type": "boolean"
                   }
                 },
-                "required": ["email", "role"]
+                "required": [
+                  "email",
+                  "role"
+                ]
               }
             }
           }
@@ -168,7 +180,11 @@
                     "type": "boolean"
                   }
                 },
-                "required": ["membershipId", "expectedVersion", "role"]
+                "required": [
+                  "membershipId",
+                  "expectedVersion",
+                  "role"
+                ]
               }
             }
           }
@@ -187,7 +203,12 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": ["agent", "api_client", "mcp_client", "integration"]
+                    "enum": [
+                      "agent",
+                      "api_client",
+                      "mcp_client",
+                      "integration"
+                    ]
                   },
                   "name": {
                     "type": "string"
@@ -260,15 +281,27 @@
                           ]
                         }
                       },
-                      "required": ["action", "brandIds"]
+                      "required": [
+                        "action",
+                        "brandIds"
+                      ]
                     }
                   },
                   "maxAutonomy": {
                     "type": "string",
-                    "enum": ["assist", "create", "prepare_release", "managed_autopublish"]
+                    "enum": [
+                      "assist",
+                      "create",
+                      "prepare_release",
+                      "managed_autopublish"
+                    ]
                   }
                 },
-                "required": ["kind", "name", "grants"]
+                "required": [
+                  "kind",
+                  "name",
+                  "grants"
+                ]
               }
             }
           }
@@ -292,7 +325,10 @@
                     "type": "number"
                   }
                 },
-                "required": ["servicePrincipalId", "expectedVersion"]
+                "required": [
+                  "servicePrincipalId",
+                  "expectedVersion"
+                ]
               }
             }
           }
@@ -313,7 +349,488 @@
                     "type": "string"
                   }
                 },
-                "required": ["tenantId"]
+                "required": [
+                  "tenantId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/assets.approve": {
+      "post": {
+        "operationId": "assets.approve",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "expectedVersion"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/assets.get": {
+      "get": {
+        "operationId": "assets.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "assetId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/assets.grants.create": {
+      "post": {
+        "operationId": "assets.grants.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "type": "string"
+                  },
+                  "granteeBrandId": {
+                    "type": "string"
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "enum": [
+                      "creative",
+                      "logo",
+                      "font",
+                      "reference"
+                    ]
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "granteeBrandId",
+                  "purpose"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/assets.media.signedUrl": {
+      "get": {
+        "operationId": "assets.media.signedUrl",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assetVersionId": {
+                    "type": "string"
+                  },
+                  "derivative": {
+                    "anyOf": [
+                      {
+                        "const": "original"
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "thumbnail",
+                          "preview",
+                          "web"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "assetVersionId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/assets.retire": {
+      "post": {
+        "operationId": "assets.retire",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "expectedVersion"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/assets.rights.set": {
+      "post": {
+        "operationId": "assets.rights.set",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "type": "string"
+                  },
+                  "owner": {
+                    "type": "string"
+                  },
+                  "licenceRef": {
+                    "type": "string"
+                  },
+                  "permittedChannels": {
+                    "anyOf": [
+                      {
+                        "const": "all"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ]
+                  },
+                  "territories": {
+                    "anyOf": [
+                      {
+                        "const": "all"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ]
+                  },
+                  "expiresAt": {
+                    "type": "string"
+                  },
+                  "releases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "model",
+                            "property",
+                            "talent"
+                          ]
+                        },
+                        "ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ]
+                    }
+                  },
+                  "restrictions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "owner",
+                  "permittedChannels",
+                  "territories"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/assets.search": {
+      "get": {
+        "operationId": "assets.search",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "object",
+                    "properties": {
+                      "brandId": {
+                        "type": "string"
+                      },
+                      "purpose": {
+                        "type": "string",
+                        "enum": [
+                          "creative",
+                          "logo",
+                          "font",
+                          "reference"
+                        ]
+                      },
+                      "channelConnectionIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "territory": {
+                        "type": "string"
+                      },
+                      "scheduledFor": {
+                        "type": "string"
+                      },
+                      "kinds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "logo",
+                            "photo",
+                            "icon",
+                            "illustration",
+                            "font",
+                            "video",
+                            "audio",
+                            "template",
+                            "reference"
+                          ]
+                        }
+                      },
+                      "query": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "brandId",
+                      "purpose"
+                    ]
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": [
+                  "query",
+                  "page"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/assets.uploads.complete": {
+      "post": {
+        "operationId": "assets.uploads.complete",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "intentId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "intentId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/assets.uploads.createIntent": {
+      "post": {
+        "operationId": "assets.uploads.createIntent",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "logo",
+                      "photo",
+                      "icon",
+                      "illustration",
+                      "font",
+                      "video",
+                      "audio",
+                      "template",
+                      "reference"
+                    ]
+                  },
+                  "declaredMime": {
+                    "type": "string"
+                  },
+                  "declaredBytes": {
+                    "type": "number"
+                  },
+                  "originalFilename": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "kind",
+                  "declaredMime",
+                  "declaredBytes",
+                  "originalFilename"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/assets.usages.list": {
+      "get": {
+        "operationId": "assets.usages.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "page"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/assets.versions.list": {
+      "get": {
+        "operationId": "assets.versions.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "page"
+                ]
               }
             }
           }
@@ -340,7 +857,201 @@
                     "type": "string"
                   }
                 },
-                "required": ["name", "timezone", "defaultLocale"]
+                "required": [
+                  "name",
+                  "timezone",
+                  "defaultLocale"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.facts.approve": {
+      "post": {
+        "operationId": "brand.facts.approve",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "factId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "factId",
+                  "expectedVersion"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.facts.list": {
+      "get": {
+        "operationId": "brand.facts.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "proposed",
+                      "approved",
+                      "revoked"
+                    ]
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "page"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.facts.propose": {
+      "post": {
+        "operationId": "brand.facts.propose",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "product",
+                      "claim",
+                      "offer",
+                      "contact",
+                      "price",
+                      "statistic",
+                      "legal"
+                    ]
+                  },
+                  "statement": {
+                    "type": "string"
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "asset",
+                            "document",
+                            "url",
+                            "reviewer",
+                            "metric_snapshot",
+                            "experiment_result",
+                            "comment",
+                            "other"
+                          ]
+                        },
+                        "ref": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        },
+                        "capturedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ]
+                    }
+                  },
+                  "validFrom": {
+                    "type": "string"
+                  },
+                  "validUntil": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "kind",
+                  "statement",
+                  "evidence"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.facts.revoke": {
+      "post": {
+        "operationId": "brand.facts.revoke",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "factId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "factId",
+                  "expectedVersion"
+                ]
               }
             }
           }
@@ -361,7 +1072,9 @@
                     "type": "string"
                   }
                 },
-                "required": ["brandId"]
+                "required": [
+                  "brandId"
+                ]
               }
             }
           }
@@ -372,6 +1085,757 @@
       "get": {
         "operationId": "brand.list",
         "x-trpc-type": "query"
+      }
+    },
+    "/trpc/brand.objectives.list": {
+      "get": {
+        "operationId": "brand.objectives.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "activeOnly": {
+                    "type": "boolean"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "page"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.objectives.set": {
+      "post": {
+        "operationId": "brand.objectives.set",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "primaryMetricKey": {
+                    "type": "string"
+                  },
+                  "guardrailMetricKeys": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "engagementQualityWeights": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  },
+                  "activeFrom": {
+                    "type": "string"
+                  },
+                  "activeUntil": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "name",
+                  "primaryMetricKey",
+                  "guardrailMetricKeys",
+                  "activeFrom"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.onboarding.start": {
+      "post": {
+        "operationId": "brand.onboarding.start",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "sourceAssetIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "websiteUrls": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "brandId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.policy.activate": {
+      "post": {
+        "operationId": "brand.policy.activate",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "policyVersionId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "policyVersionId",
+                  "expectedVersion"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.policy.createVersion": {
+      "post": {
+        "operationId": "brand.policy.createVersion",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "document": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "reviewThresholds": {
+                        "type": "object",
+                        "properties": {
+                          "requireReviewForContentClasses": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "blockOnBrandReviewSeverity": {
+                            "type": "string",
+                            "enum": [
+                              "blocking",
+                              "warning"
+                            ]
+                          }
+                        },
+                        "required": []
+                      },
+                      "restrictedTopics": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "prohibitedTerms": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "requireDistinctApprover": {
+                        "type": "boolean"
+                      },
+                      "holdOnDependencyRevocation": {
+                        "type": "boolean"
+                      },
+                      "mfaRequired": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "schemaVersion",
+                      "reviewThresholds"
+                    ]
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "document"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.policy.get": {
+      "get": {
+        "operationId": "brand.policy.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "policyVersionId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "brandId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.versions.createDraft": {
+      "post": {
+        "operationId": "brand.versions.createDraft",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "brandId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.versions.get": {
+      "get": {
+        "operationId": "brand.versions.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "versionId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "versionId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.versions.list": {
+      "get": {
+        "operationId": "brand.versions.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "page"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.versions.publish": {
+      "post": {
+        "operationId": "brand.versions.publish",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "versionId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "versionId",
+                  "expectedVersion"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.versions.submitForReview": {
+      "post": {
+        "operationId": "brand.versions.submitForReview",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "versionId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "versionId",
+                  "expectedVersion"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/brand.versions.update": {
+      "post": {
+        "operationId": "brand.versions.update",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "versionId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "document": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "voice": {
+                        "type": "object",
+                        "properties": {
+                          "summary": {
+                            "type": "string"
+                          },
+                          "tone": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "audiences": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "key",
+                                "description"
+                              ]
+                            }
+                          },
+                          "preferredTerms": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "use": {
+                                  "type": "string"
+                                },
+                                "avoid": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "use",
+                                "avoid"
+                              ]
+                            }
+                          },
+                          "prohibitedPhrases": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "locales": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "examples": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "text": {
+                                  "type": "string"
+                                },
+                                "verdict": {
+                                  "type": "string",
+                                  "enum": [
+                                    "on_brand",
+                                    "off_brand"
+                                  ]
+                                },
+                                "note": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "text",
+                                "verdict",
+                                "note"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "summary",
+                          "tone",
+                          "audiences",
+                          "preferredTerms",
+                          "prohibitedPhrases",
+                          "locales",
+                          "examples"
+                        ]
+                      },
+                      "tokens": {
+                        "type": "object",
+                        "properties": {
+                          "colours": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "type": "string"
+                                },
+                                "role": {
+                                  "type": "string",
+                                  "enum": [
+                                    "primary",
+                                    "secondary",
+                                    "accent",
+                                    "neutral",
+                                    "background",
+                                    "text",
+                                    "semantic"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "key",
+                                "value",
+                                "role"
+                              ]
+                            }
+                          },
+                          "typeRoles": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "role": {
+                                  "type": "string",
+                                  "enum": [
+                                    "display",
+                                    "heading",
+                                    "body",
+                                    "label",
+                                    "caption"
+                                  ]
+                                },
+                                "fontAssetId": {
+                                  "type": "string"
+                                },
+                                "weight": {
+                                  "type": "number"
+                                },
+                                "minSizePx": {
+                                  "type": "number"
+                                },
+                                "tracking": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "role",
+                                "fontAssetId",
+                                "weight",
+                                "minSizePx"
+                              ]
+                            }
+                          },
+                          "spacingScale": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            }
+                          },
+                          "radii": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            }
+                          },
+                          "contrastTarget": {
+                            "type": "string",
+                            "enum": [
+                              "AA",
+                              "AAA"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "colours",
+                          "typeRoles",
+                          "spacingScale",
+                          "radii"
+                        ]
+                      },
+                      "logoRules": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "assetId": {
+                              "type": "string"
+                            },
+                            "variant": {
+                              "type": "string",
+                              "enum": [
+                                "primary",
+                                "reversed",
+                                "mono",
+                                "mark_only"
+                              ]
+                            },
+                            "allowedBackgroundColourKeys": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "clearSpaceRatio": {
+                              "type": "number"
+                            },
+                            "minWidthPx": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "assetId",
+                            "variant",
+                            "allowedBackgroundColourKeys",
+                            "clearSpaceRatio",
+                            "minWidthPx"
+                          ]
+                        }
+                      },
+                      "patterns": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "key": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "exampleAssetIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "templateVersionIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "description",
+                            "exampleAssetIds",
+                            "templateVersionIds"
+                          ]
+                        }
+                      },
+                      "channelGuidance": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "providerKey": {
+                              "type": "string"
+                            },
+                            "captionStyle": {
+                              "type": "string"
+                            },
+                            "preferredFormats": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "ctaConventions": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "providerKey",
+                            "captionStyle",
+                            "preferredFormats",
+                            "ctaConventions"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "schemaVersion",
+                      "voice",
+                      "tokens",
+                      "logoRules",
+                      "patterns",
+                      "channelGuidance"
+                    ]
+                  }
+                },
+                "required": [
+                  "brandId",
+                  "versionId",
+                  "expectedVersion",
+                  "document"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "/trpc/operations.audit.query": {
@@ -418,7 +1882,10 @@
                     "required": []
                   }
                 },
-                "required": ["query", "page"]
+                "required": [
+                  "query",
+                  "page"
+                ]
               }
             }
           }
@@ -437,7 +1904,14 @@
                 "properties": {
                   "subjectType": {
                     "type": "string",
-                    "enum": ["user", "asset", "brand", "tenant", "channel_connection", "customer_voice"]
+                    "enum": [
+                      "user",
+                      "asset",
+                      "brand",
+                      "tenant",
+                      "channel_connection",
+                      "customer_voice"
+                    ]
                   },
                   "subjectId": {
                     "type": "string"
@@ -446,7 +1920,11 @@
                     "type": "string"
                   }
                 },
-                "required": ["subjectType", "subjectId", "reason"]
+                "required": [
+                  "subjectType",
+                  "subjectId",
+                  "reason"
+                ]
               }
             }
           }
@@ -471,13 +1949,18 @@
                 "properties": {
                   "scope": {
                     "type": "string",
-                    "enum": ["agent_starts", "release_dispatch"]
+                    "enum": [
+                      "agent_starts",
+                      "release_dispatch"
+                    ]
                   },
                   "brandId": {
                     "type": "string"
                   }
                 },
-                "required": ["scope"]
+                "required": [
+                  "scope"
+                ]
               }
             }
           }
@@ -496,7 +1979,10 @@
                 "properties": {
                   "scope": {
                     "type": "string",
-                    "enum": ["agent_starts", "release_dispatch"]
+                    "enum": [
+                      "agent_starts",
+                      "release_dispatch"
+                    ]
                   },
                   "brandId": {
                     "type": "string"
@@ -508,7 +1994,10 @@
                     "type": "string"
                   }
                 },
-                "required": ["scope", "engaged"]
+                "required": [
+                  "scope",
+                  "engaged"
+                ]
               }
             }
           }
@@ -537,7 +2026,10 @@
               "type": "string"
             }
           },
-          "required": ["servicePrincipalId", "scopes"]
+          "required": [
+            "servicePrincipalId",
+            "scopes"
+          ]
         }
       },
       "access.apiClients.rotate": {
@@ -549,7 +2041,9 @@
               "type": "string"
             }
           },
-          "required": ["apiClientId"]
+          "required": [
+            "apiClientId"
+          ]
         }
       },
       "access.brandGrants.set": {
@@ -570,7 +2064,11 @@
               }
             }
           },
-          "required": ["membershipId", "brandId", "roles"]
+          "required": [
+            "membershipId",
+            "brandId",
+            "roles"
+          ]
         }
       },
       "access.listCompanies": {
@@ -606,7 +2104,10 @@
               "type": "boolean"
             }
           },
-          "required": ["email", "role"]
+          "required": [
+            "email",
+            "role"
+          ]
         }
       },
       "access.members.setRole": {
@@ -637,7 +2138,11 @@
               "type": "boolean"
             }
           },
-          "required": ["membershipId", "expectedVersion", "role"]
+          "required": [
+            "membershipId",
+            "expectedVersion",
+            "role"
+          ]
         }
       },
       "access.servicePrincipals.create": {
@@ -647,7 +2152,12 @@
           "properties": {
             "kind": {
               "type": "string",
-              "enum": ["agent", "api_client", "mcp_client", "integration"]
+              "enum": [
+                "agent",
+                "api_client",
+                "mcp_client",
+                "integration"
+              ]
             },
             "name": {
               "type": "string"
@@ -720,15 +2230,27 @@
                     ]
                   }
                 },
-                "required": ["action", "brandIds"]
+                "required": [
+                  "action",
+                  "brandIds"
+                ]
               }
             },
             "maxAutonomy": {
               "type": "string",
-              "enum": ["assist", "create", "prepare_release", "managed_autopublish"]
+              "enum": [
+                "assist",
+                "create",
+                "prepare_release",
+                "managed_autopublish"
+              ]
             }
           },
-          "required": ["kind", "name", "grants"]
+          "required": [
+            "kind",
+            "name",
+            "grants"
+          ]
         }
       },
       "access.servicePrincipals.revoke": {
@@ -743,7 +2265,10 @@
               "type": "number"
             }
           },
-          "required": ["servicePrincipalId", "expectedVersion"]
+          "required": [
+            "servicePrincipalId",
+            "expectedVersion"
+          ]
         }
       },
       "access.switchCompany": {
@@ -755,7 +2280,389 @@
               "type": "string"
             }
           },
-          "required": ["tenantId"]
+          "required": [
+            "tenantId"
+          ]
+        }
+      },
+      "assets.approve": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "assetId",
+            "expectedVersion"
+          ]
+        }
+      },
+      "assets.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "assetId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assetId"
+          ]
+        }
+      },
+      "assets.grants.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "granteeBrandId": {
+              "type": "string"
+            },
+            "purpose": {
+              "type": "string",
+              "enum": [
+                "creative",
+                "logo",
+                "font",
+                "reference"
+              ]
+            },
+            "expiresAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assetId",
+            "granteeBrandId",
+            "purpose"
+          ]
+        }
+      },
+      "assets.media.signedUrl": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "assetVersionId": {
+              "type": "string"
+            },
+            "derivative": {
+              "anyOf": [
+                {
+                  "const": "original"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "thumbnail",
+                    "preview",
+                    "web"
+                  ]
+                }
+              ]
+            }
+          },
+          "required": [
+            "assetVersionId"
+          ]
+        }
+      },
+      "assets.retire": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assetId",
+            "expectedVersion"
+          ]
+        }
+      },
+      "assets.rights.set": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "licenceRef": {
+              "type": "string"
+            },
+            "permittedChannels": {
+              "anyOf": [
+                {
+                  "const": "all"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
+            "territories": {
+              "anyOf": [
+                {
+                  "const": "all"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
+            "expiresAt": {
+              "type": "string"
+            },
+            "releases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "model",
+                      "property",
+                      "talent"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref"
+                ]
+              }
+            },
+            "restrictions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "assetId",
+            "owner",
+            "permittedChannels",
+            "territories"
+          ]
+        }
+      },
+      "assets.search": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "object",
+              "properties": {
+                "brandId": {
+                  "type": "string"
+                },
+                "purpose": {
+                  "type": "string",
+                  "enum": [
+                    "creative",
+                    "logo",
+                    "font",
+                    "reference"
+                  ]
+                },
+                "channelConnectionIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "territory": {
+                  "type": "string"
+                },
+                "scheduledFor": {
+                  "type": "string"
+                },
+                "kinds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "logo",
+                      "photo",
+                      "icon",
+                      "illustration",
+                      "font",
+                      "video",
+                      "audio",
+                      "template",
+                      "reference"
+                    ]
+                  }
+                },
+                "query": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "brandId",
+                "purpose"
+              ]
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": [
+            "query",
+            "page"
+          ]
+        }
+      },
+      "assets.uploads.complete": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "intentId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "intentId"
+          ]
+        }
+      },
+      "assets.uploads.createIntent": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "logo",
+                "photo",
+                "icon",
+                "illustration",
+                "font",
+                "video",
+                "audio",
+                "template",
+                "reference"
+              ]
+            },
+            "declaredMime": {
+              "type": "string"
+            },
+            "declaredBytes": {
+              "type": "number"
+            },
+            "originalFilename": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "brandId",
+            "kind",
+            "declaredMime",
+            "declaredBytes",
+            "originalFilename"
+          ]
+        }
+      },
+      "assets.usages.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": [
+            "assetId",
+            "page"
+          ]
+        }
+      },
+      "assets.versions.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": [
+            "assetId",
+            "page"
+          ]
         }
       },
       "brand.create": {
@@ -773,7 +2680,165 @@
               "type": "string"
             }
           },
-          "required": ["name", "timezone", "defaultLocale"]
+          "required": [
+            "name",
+            "timezone",
+            "defaultLocale"
+          ]
+        }
+      },
+      "brand.facts.approve": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "factId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "brandId",
+            "factId",
+            "expectedVersion"
+          ]
+        }
+      },
+      "brand.facts.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "proposed",
+                "approved",
+                "revoked"
+              ]
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": [
+            "brandId",
+            "page"
+          ]
+        }
+      },
+      "brand.facts.propose": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "product",
+                "claim",
+                "offer",
+                "contact",
+                "price",
+                "statistic",
+                "legal"
+              ]
+            },
+            "statement": {
+              "type": "string"
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "asset",
+                      "document",
+                      "url",
+                      "reviewer",
+                      "metric_snapshot",
+                      "experiment_result",
+                      "comment",
+                      "other"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "capturedAt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref"
+                ]
+              }
+            },
+            "validFrom": {
+              "type": "string"
+            },
+            "validUntil": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "brandId",
+            "kind",
+            "statement",
+            "evidence"
+          ]
+        }
+      },
+      "brand.facts.revoke": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "factId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "brandId",
+            "factId",
+            "expectedVersion"
+          ]
         }
       },
       "brand.get": {
@@ -785,12 +2850,657 @@
               "type": "string"
             }
           },
-          "required": ["brandId"]
+          "required": [
+            "brandId"
+          ]
         }
       },
       "brand.list": {
         "type": "query",
         "input": null
+      },
+      "brand.objectives.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "activeOnly": {
+              "type": "boolean"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": [
+            "brandId",
+            "page"
+          ]
+        }
+      },
+      "brand.objectives.set": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "primaryMetricKey": {
+              "type": "string"
+            },
+            "guardrailMetricKeys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "engagementQualityWeights": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            },
+            "activeFrom": {
+              "type": "string"
+            },
+            "activeUntil": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "brandId",
+            "name",
+            "primaryMetricKey",
+            "guardrailMetricKeys",
+            "activeFrom"
+          ]
+        }
+      },
+      "brand.onboarding.start": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "sourceAssetIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "websiteUrls": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "brandId"
+          ]
+        }
+      },
+      "brand.policy.activate": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "policyVersionId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "brandId",
+            "policyVersionId",
+            "expectedVersion"
+          ]
+        }
+      },
+      "brand.policy.createVersion": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "document": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "const": 1
+                },
+                "reviewThresholds": {
+                  "type": "object",
+                  "properties": {
+                    "requireReviewForContentClasses": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "blockOnBrandReviewSeverity": {
+                      "type": "string",
+                      "enum": [
+                        "blocking",
+                        "warning"
+                      ]
+                    }
+                  },
+                  "required": []
+                },
+                "restrictedTopics": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "prohibitedTerms": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "requireDistinctApprover": {
+                  "type": "boolean"
+                },
+                "holdOnDependencyRevocation": {
+                  "type": "boolean"
+                },
+                "mfaRequired": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "reviewThresholds"
+              ]
+            }
+          },
+          "required": [
+            "brandId",
+            "document"
+          ]
+        }
+      },
+      "brand.policy.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "policyVersionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "brandId"
+          ]
+        }
+      },
+      "brand.versions.createDraft": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "brandId"
+          ]
+        }
+      },
+      "brand.versions.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "versionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "brandId",
+            "versionId"
+          ]
+        }
+      },
+      "brand.versions.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": [
+            "brandId",
+            "page"
+          ]
+        }
+      },
+      "brand.versions.publish": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "versionId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "brandId",
+            "versionId",
+            "expectedVersion"
+          ]
+        }
+      },
+      "brand.versions.submitForReview": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "versionId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "brandId",
+            "versionId",
+            "expectedVersion"
+          ]
+        }
+      },
+      "brand.versions.update": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "versionId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "document": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "const": 1
+                },
+                "voice": {
+                  "type": "object",
+                  "properties": {
+                    "summary": {
+                      "type": "string"
+                    },
+                    "tone": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "audiences": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "description"
+                        ]
+                      }
+                    },
+                    "preferredTerms": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "use": {
+                            "type": "string"
+                          },
+                          "avoid": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "use",
+                          "avoid"
+                        ]
+                      }
+                    },
+                    "prohibitedPhrases": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "locales": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "examples": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "verdict": {
+                            "type": "string",
+                            "enum": [
+                              "on_brand",
+                              "off_brand"
+                            ]
+                          },
+                          "note": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "text",
+                          "verdict",
+                          "note"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "summary",
+                    "tone",
+                    "audiences",
+                    "preferredTerms",
+                    "prohibitedPhrases",
+                    "locales",
+                    "examples"
+                  ]
+                },
+                "tokens": {
+                  "type": "object",
+                  "properties": {
+                    "colours": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "primary",
+                              "secondary",
+                              "accent",
+                              "neutral",
+                              "background",
+                              "text",
+                              "semantic"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value",
+                          "role"
+                        ]
+                      }
+                    },
+                    "typeRoles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "display",
+                              "heading",
+                              "body",
+                              "label",
+                              "caption"
+                            ]
+                          },
+                          "fontAssetId": {
+                            "type": "string"
+                          },
+                          "weight": {
+                            "type": "number"
+                          },
+                          "minSizePx": {
+                            "type": "number"
+                          },
+                          "tracking": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "role",
+                          "fontAssetId",
+                          "weight",
+                          "minSizePx"
+                        ]
+                      }
+                    },
+                    "spacingScale": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "radii": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "contrastTarget": {
+                      "type": "string",
+                      "enum": [
+                        "AA",
+                        "AAA"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "colours",
+                    "typeRoles",
+                    "spacingScale",
+                    "radii"
+                  ]
+                },
+                "logoRules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "assetId": {
+                        "type": "string"
+                      },
+                      "variant": {
+                        "type": "string",
+                        "enum": [
+                          "primary",
+                          "reversed",
+                          "mono",
+                          "mark_only"
+                        ]
+                      },
+                      "allowedBackgroundColourKeys": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "clearSpaceRatio": {
+                        "type": "number"
+                      },
+                      "minWidthPx": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "assetId",
+                      "variant",
+                      "allowedBackgroundColourKeys",
+                      "clearSpaceRatio",
+                      "minWidthPx"
+                    ]
+                  }
+                },
+                "patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "exampleAssetIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "templateVersionIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "description",
+                      "exampleAssetIds",
+                      "templateVersionIds"
+                    ]
+                  }
+                },
+                "channelGuidance": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "providerKey": {
+                        "type": "string"
+                      },
+                      "captionStyle": {
+                        "type": "string"
+                      },
+                      "preferredFormats": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "ctaConventions": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "providerKey",
+                      "captionStyle",
+                      "preferredFormats",
+                      "ctaConventions"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "voice",
+                "tokens",
+                "logoRules",
+                "patterns",
+                "channelGuidance"
+              ]
+            }
+          },
+          "required": [
+            "brandId",
+            "versionId",
+            "expectedVersion",
+            "document"
+          ]
+        }
       },
       "operations.audit.query": {
         "type": "query",
@@ -831,7 +3541,10 @@
               "required": []
             }
           },
-          "required": ["query", "page"]
+          "required": [
+            "query",
+            "page"
+          ]
         }
       },
       "operations.deletion.request": {
@@ -841,7 +3554,14 @@
           "properties": {
             "subjectType": {
               "type": "string",
-              "enum": ["user", "asset", "brand", "tenant", "channel_connection", "customer_voice"]
+              "enum": [
+                "user",
+                "asset",
+                "brand",
+                "tenant",
+                "channel_connection",
+                "customer_voice"
+              ]
             },
             "subjectId": {
               "type": "string"
@@ -850,7 +3570,11 @@
               "type": "string"
             }
           },
-          "required": ["subjectType", "subjectId", "reason"]
+          "required": [
+            "subjectType",
+            "subjectId",
+            "reason"
+          ]
         }
       },
       "operations.flags.snapshot": {
@@ -864,13 +3588,18 @@
           "properties": {
             "scope": {
               "type": "string",
-              "enum": ["agent_starts", "release_dispatch"]
+              "enum": [
+                "agent_starts",
+                "release_dispatch"
+              ]
             },
             "brandId": {
               "type": "string"
             }
           },
-          "required": ["scope"]
+          "required": [
+            "scope"
+          ]
         }
       },
       "operations.killSwitch.set": {
@@ -880,7 +3609,10 @@
           "properties": {
             "scope": {
               "type": "string",
-              "enum": ["agent_starts", "release_dispatch"]
+              "enum": [
+                "agent_starts",
+                "release_dispatch"
+              ]
             },
             "brandId": {
               "type": "string"
@@ -892,7 +3624,10 @@
               "type": "string"
             }
           },
-          "required": ["scope", "engaged"]
+          "required": [
+            "scope",
+            "engaged"
+          ]
         }
       }
     }

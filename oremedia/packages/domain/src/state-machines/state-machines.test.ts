@@ -6,6 +6,8 @@ import { renderJobMachine } from './render-job';
 import { agentRunMachine } from './agent-run';
 import { approvalMachine } from './approval';
 import { brandVersionMachine } from './brand-version';
+import { approvedFactMachine } from './approved-fact';
+import { policyVersionMachine } from './policy-version';
 import { reviewRequestMachine } from './review-request';
 
 /** Spec 13.1: the publication transition table, exhaustively. */
@@ -90,6 +92,22 @@ describe('other machines', () => {
     expect(brandVersionMachine.transition('in_review', 'publish')).toBe('published');
     expect(brandVersionMachine.transition('published', 'retire')).toBe('retired');
     expect(brandVersionMachine.can('published', 'submit')).toBe(false);
+    expect(brandVersionMachine.can('draft', 'publish')).toBe(false);
+    expect(() => brandVersionMachine.transition('retired', 'submit')).toThrow(IllegalTransitionError);
+  });
+  it('approved fact: proposed → approved → revoked; a proposal can be withdrawn; revoked is final', () => {
+    expect(approvedFactMachine.transition('proposed', 'approve')).toBe('approved');
+    expect(approvedFactMachine.transition('approved', 'revoke')).toBe('revoked');
+    expect(approvedFactMachine.transition('proposed', 'revoke')).toBe('revoked');
+    expect(approvedFactMachine.can('approved', 'approve')).toBe(false);
+    for (const e of approvedFactMachine.events) expect(approvedFactMachine.can('revoked', e)).toBe(false);
+  });
+  it('policy version: draft → active → retired; a retired policy never re-activates', () => {
+    expect(policyVersionMachine.transition('draft', 'activate')).toBe('active');
+    expect(policyVersionMachine.transition('active', 'retire')).toBe('retired');
+    expect(policyVersionMachine.transition('draft', 'retire')).toBe('retired');
+    expect(policyVersionMachine.can('active', 'activate')).toBe(false);
+    for (const e of policyVersionMachine.events) expect(policyVersionMachine.can('retired', e)).toBe(false);
   });
   it('review request: open → stale on package change; stale cannot be decided', () => {
     expect(reviewRequestMachine.transition('open', 'package_changed')).toBe('stale');

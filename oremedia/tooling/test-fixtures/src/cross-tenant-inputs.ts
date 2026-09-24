@@ -2,6 +2,7 @@ import type { Db } from '@oremedia/db';
 import type { SeededTenant } from './seed';
 import { ACCESS_INPUTS } from './inputs/access';
 import { BRAND_INPUTS } from './inputs/brand';
+import { BRAND_SEED } from './inputs/brand-seed';
 import { OPERATIONS_INPUTS } from './inputs/operations';
 import { ASSETS_INPUTS, ASSETS_SEED } from './inputs/assets';
 
@@ -29,4 +30,6 @@ export const CROSS_TENANT_INPUTS: Record<string, CrossTenantFixture> = {
   ...OPERATIONS_INPUTS,
   ...ASSETS_INPUTS,
 };
-export const SEED_EXTENSIONS: SeedExtension[] = [ASSETS_SEED].filter((s): s is SeedExtension => s !== null);
+export const SEED_EXTENSIONS: SeedExtension[] = [ASSETS_SEED, BRAND_SEED].filter(
+  (s): s is SeedExtension => s !== null,
+);
