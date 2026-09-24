@@ -119,7 +119,9 @@ engine still decide every action.
 
 `POST /mcp`, JSON-RPC 2.0 over Streamable HTTP (`initialize`, `ping`, `tools/list`, `tools/call`), API client keys
 only. Every call passes through the agent tool dispatcher as the key's service principal. No tool schedules or
-publishes.
+publishes. A `tools/call` of a tool whose effect is not `read` requires the HTTP `Idempotency-Key` header, as a REST
+POST does (each JSON-RPC message is its own HTTP request): the same key and arguments replay the stored result, other
+arguments or another tool are `IDEMPOTENCY_KEY_REUSED`, a call in progress is `CONFLICT` with `retryAfterMs`.
 
 | Tool                         | Effect  | Policy action     | Scope               | Takes brandId |
 | ---------------------------- | ------- | ----------------- | ------------------- | ------------- |

@@ -16,10 +16,11 @@ import {
   type ErrorCode,
   type ErrorEnvelope,
 } from '@oremedia/contracts/errors';
-import { runInTenant } from '@oremedia/db';
+import { runInTenant, type Tx } from '@oremedia/db';
 import { resolveTenantContext, type ResolvedTenant } from '@oremedia/module-access';
 import { dispatchSurfaceToolCall } from '@oremedia/module-agents';
 import { brandService } from '@oremedia/module-brand';
+import { hashRequest, idempotent } from '@oremedia/module-operations';
 import { withLogContext } from '@oremedia/observability';
 import { createContext, type RequestContext } from '../context';
 import { assertApiScope, consumeRateLimit } from '../trpc';
@@ -36,6 +37,18 @@ import { MCP_TOOLS, createMcpRegistry } from './tools';
  * runs through dispatchToolDetailed with an AgentRunContext built for that principal, so the policy engine, audit,
  * budgets and timeouts are those of internal agents (spec 12.4). Failures are JSON-RPC errors whose `data` is the
  * spec 7.2 error envelope, so MCP clients branch on the same codes as REST and tRPC clients.
+ *
+ * Replay protection (spec 7.1 / 7.3, ledger T.3): a tools/call of a tool whose effect is not `read` (draft, propose)
+ * carries the HTTP `Idempotency-Key` header, exactly as a REST POST or a tRPC mutation does. The header is the
+ * carrier because every JSON-RPC message is its own HTTP request here (batches are rejected), so a key names one
+ * tool call. As on REST the key is required for those tools (missing or over 120 characters → VALIDATION_FAILED,
+ * JSON-RPC -32602, details `Idempotency-Key: required`) and ignored for read tools. The call runs inside the
+ * operations module's `idempotent()`: the tool's writes, its audit and outbox events and the stored result commit
+ * together; the same key with the same tool and arguments replays the stored result without running the tool again;
+ * the same key with other arguments or another tool is IDEMPOTENCY_KEY_REUSED; a call still in progress under the
+ * key is CONFLICT with retryAfterMs (JSON-RPC -32000, `Retry-After` header). Keys belong to the service principal,
+ * as on tRPC and REST, and the request hash covers `mcp:<tool name>` and the full arguments (brandId included).
+ * A refused or failed call stores nothing, so an honest retry under the same key runs.
  */
 export const MCP_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const;
 const LATEST_PROTOCOL_VERSION = MCP_PROTOCOL_VERSIONS[0];
@@ -171,18 +184,49 @@ async function callTool(
       brandId = rawBrandId;
     } else if (rawBrandId !== undefined) args['brandId'] = rawBrandId; // the tool's schema rejects it
   }
-  const { result, record } = await dispatchSurfaceToolCall(
+  const invoke = (dispatch: DispatchDeps) =>
+    dispatchSurfaceToolCall(
+      {
+        tenantContext: tenant.context,
+        principal,
+        brandId,
+        correlationId: ctx.correlationId,
+        allowedTools: MCP_TOOLS.map((t) => t.name),
+        name,
+        arguments: args,
+      },
+      dispatch,
+    ).then((outcome) => toolCallResult(outcome, ctx.correlationId));
+  const def = exposure ? (deps.registry.get(name) as AnyToolDefinition | undefined) : undefined;
+  if (!def || def.effect === 'read') return invoke(deps.dispatch);
+  const path = `mcp:${name}`;
+  return idempotent(
     {
-      tenantContext: tenant.context,
-      principal,
-      brandId,
-      correlationId: ctx.correlationId,
-      allowedTools: MCP_TOOLS.map((t) => t.name),
-      name,
-      arguments: args,
+      idempotency: { key: idempotencyKeyOf(ctx.headers), path, requestHash: hashRequest(path, rawArgs) },
+      actor: { kind: tenant.actorRef.kind, id: tenant.actorRef.id },
     },
-    deps.dispatch,
+    // The tool runs in the idempotency transaction, so its writes and the stored result commit together.
+    (tx: Tx) => invoke({ ...deps.dispatch, transaction: (fn) => fn(tx) }),
   );
+}
+
+/** Spec 7.1: the same header and bound as the tRPC idempotencyKey middleware (and so REST). */
+function idempotencyKeyOf(headers: IncomingHttpHeaders): string {
+  const header = headers['idempotency-key'];
+  const key = Array.isArray(header) ? header[0] : header;
+  if (!key || key.length > 120)
+    throw new ValidationFailedError(
+      [{ path: 'Idempotency-Key', issue: 'required' }],
+      'Idempotency-Key header is required',
+    );
+  return key;
+}
+
+/** The MCP tools/call result for a dispatcher outcome; anything but ok or a proposal throws its envelope. */
+function toolCallResult(
+  { result, record }: Awaited<ReturnType<typeof dispatchSurfaceToolCall>>,
+  correlationId: string,
+): Record<string, unknown> {
   if (result.kind === 'ok') {
     const output = result.output as Record<string, unknown>;
     return {
@@ -201,7 +245,7 @@ async function callTool(
     };
   }
   throw Object.assign(new Error('tool call failed'), {
-    envelope: envelopeForResult(result, ctx.correlationId),
+    envelope: envelopeForResult(result, correlationId),
   });
 }
 

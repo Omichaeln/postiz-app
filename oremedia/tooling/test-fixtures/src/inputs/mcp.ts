@@ -21,9 +21,10 @@ export const MCP_CROSS_TENANT_INPUTS: Record<string, McpCrossTenantFixture> = {
     buildArguments: (f, own) => ({
       brandId: own['brandId'],
       campaignId: f['campaignId'],
-      title: 'Foreign',
-      objective: 'x',
-      factIds: [f['factId']],
+      audience: 'Foreign audience',
+      message: 'Foreign message',
+      offerFactIds: [f['factId']],
+      channelConnectionIds: [f['channelConnectionId']],
     }),
   },
   'agents.startRun': {

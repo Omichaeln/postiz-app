@@ -1,7 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
+import { and, eq } from 'drizzle-orm';
+import { defaultPolicyDocument } from '@oremedia/contracts/brand';
+import { agentRuns } from '@oremedia/db/schema/agents';
+import { brands } from '@oremedia/db/schema/brand';
+import { briefs } from '@oremedia/db/schema/content';
+import { idempotencyKeys, outboxEvents } from '@oremedia/db/schema/operations';
+import { reviewRequests } from '@oremedia/db/schema/review';
 import { createTestDatabase, type TestDatabase } from '@oremedia/db/testing';
+import { hashRequest } from '@oremedia/module-operations';
 // Relative import: a workspace dependency here would create an api ↔ test-fixtures cycle (test-fixtures imports the router).
 import {
   callMcp,
@@ -13,6 +22,7 @@ import {
   seedTwoTenants,
   type SeededTenant,
 } from '../../../tooling/test-fixtures/src';
+import { seedContentPackage } from '../../../tooling/test-fixtures/src/inputs/content-seed';
 import { createMcpRegistry, MCP_TOOLS } from './mcp/tools';
 import { createServer } from './server';
 import { configureRateLimiter } from './trpc';
@@ -298,6 +308,332 @@ describe('MCP server (spec 7.6, 12.4)', () => {
         (e) => e.action === 'agent.tool.insights.list' && e.decision === 'allowed',
       );
       expect(allowed?.resourceId).toMatch(/^mcp_/);
+    });
+  });
+
+  describe('write tools succeed for a correctly scoped and granted key (ledger T.3)', () => {
+    const outboxFor = async (aggregateId: string) =>
+      tdb.db
+        .select()
+        .from(outboxEvents)
+        .where(and(eq(outboxEvents.tenantId, tenantA.tenantId), eq(outboxEvents.aggregateId, aggregateId)));
+
+    it('agents.startRun starts a run at the key’s effective autonomy (spec 12.5): run row, audit and outbox event', async () => {
+      const writer = await seedApiClient(tdb.db, tenantA, {
+        grants: [
+          { action: 'brand.read', brandIds: 'all' },
+          { action: 'agent.start_run', brandIds: 'all' },
+        ],
+        scopes: ['agents:write'],
+        maxAutonomy: 'create',
+      });
+      const before = await domainRows();
+      const res = await callMcpTool({ bearer: writer.key }, 'agents.startRun', {
+        brandId: tenantA.brandIds[0],
+        taskKind: 'copywriting',
+        brief: { objective: 'Launch post' },
+        requestedAutonomy: 'prepare_release', // above the principal ceiling: the run is capped at create
+      });
+      expect(res.error).toBeUndefined();
+      const runId = res.data?.['runId'] as string;
+      expect(runId).toMatch(/^run_/);
+      expect(res.data).toMatchObject({ state: 'planned', autonomyMode: 'create' });
+      const [run] = await tdb.db
+        .select()
+        .from(agentRuns)
+        .where(and(eq(agentRuns.tenantId, tenantA.tenantId), eq(agentRuns.id, runId)));
+      expect(run).toMatchObject({
+        brandId: tenantA.brandIds[0],
+        servicePrincipalId: writer.servicePrincipalId,
+        initiatorId: writer.servicePrincipalId,
+        autonomyMode: 'create',
+        taskKind: 'copywriting',
+        state: 'planned',
+      });
+      const trail = await auditFor(writer.servicePrincipalId);
+      expect(trail.find((e) => e.action === 'agent.tool.agents.startRun')?.decision).toBe('allowed');
+      expect(trail.find((e) => e.action === 'agent.run.request' && e.resourceId === runId)?.decision).toBe(
+        'allowed',
+      );
+      expect((await outboxFor(runId)).map((e) => e.eventType)).toEqual(['agent.run_requested']);
+      const after = await domainRows();
+      expect(after.counts['agent_runs']).toBe((before.counts['agent_runs'] ?? 0) + 1);
+    });
+
+    it('content.createBrief creates a draft brief of the brand recorded as the key’s principal', async () => {
+      const writer = await seedApiClient(tdb.db, tenantA, {
+        grants: [
+          { action: 'brand.read', brandIds: 'all' },
+          { action: 'content.plan', brandIds: 'all' },
+        ],
+        scopes: ['content:write'],
+        maxAutonomy: 'create',
+      });
+      const res = await callMcpTool({ bearer: writer.key }, 'content.createBrief', {
+        brandId: tenantA.brandIds[0],
+        audience: 'Runners in Harare',
+        message: 'The autumn range is in store',
+      });
+      expect(res.error).toBeUndefined();
+      expect(res.data).toMatchObject({ state: 'draft' });
+      const briefId = res.data?.['briefId'] as string;
+      const [brief] = await tdb.db
+        .select()
+        .from(briefs)
+        .where(and(eq(briefs.tenantId, tenantA.tenantId), eq(briefs.id, briefId)));
+      expect(brief).toMatchObject({ brandId: tenantA.brandIds[0], state: 'draft' });
+      expect(JSON.stringify(brief)).toContain(writer.servicePrincipalId);
+      const trail = await auditFor(writer.servicePrincipalId);
+      expect(trail.find((e) => e.action === 'agent.tool.content.createBrief')?.decision).toBe('allowed');
+    });
+
+    it('review.request opens a review request on a draft revision of the brand', async () => {
+      const writer = await seedApiClient(tdb.db, tenantA, {
+        grants: [
+          { action: 'brand.read', brandIds: 'all' },
+          { action: 'review.request', brandIds: 'all' },
+        ],
+        scopes: ['review:write'],
+        maxAutonomy: 'prepare_release', // requesting review prepares a release: refused below that mode
+      });
+      // The brand's policy is activated in the product; the revision is written against the brand's current
+      // published version and active policy, with a channel variant (what a review request freezes).
+      const owner = { bearer: tenantA.ownerToken, tenantId: tenantA.tenantId };
+      const policy = (
+        await callPath(owner, 'brand.policy.createVersion', {
+          brandId: tenantA.brandIds[0],
+          document: defaultPolicyDocument(),
+        })
+      ).data as { policyVersionId: string };
+      const current = (await callPath(owner, 'brand.get', { brandId: tenantA.brandIds[0] })).data as {
+        version: number;
+      };
+      const activated = await callPath(owner, 'brand.policy.activate', {
+        brandId: tenantA.brandIds[0],
+        policyVersionId: policy.policyVersionId,
+        expectedVersion: current.version,
+      });
+      expect(activated.error).toBeUndefined();
+      const [brand] = await tdb.db.select().from(brands).where(eq(brands.id, tenantA.brandIds[0]));
+      const pkg = await seedContentPackage(
+        tdb.db,
+        {
+          tenantId: tenantA.tenantId,
+          brandId: tenantA.brandIds[0],
+          ownerUserId: tenantA.ownerUserId,
+          brandVersionId: brand!.publishedVersionId!,
+          policyVersionId: brand!.activePolicyVersionId!,
+        },
+        'mcp-review',
+      );
+      const res = await callMcpTool({ bearer: writer.key }, 'review.request', {
+        brandId: tenantA.brandIds[0],
+        contentRevisionId: pkg.contentRevisionId,
+        timing: { kind: 'exact', at: new Date(Date.now() + 3 * 86_400_000).toISOString() },
+      });
+      expect(res.error).toBeUndefined();
+      expect(res.data).toMatchObject({ state: 'open' });
+      const reviewRequestId = res.data?.['reviewRequestId'] as string;
+      const [request] = await tdb.db
+        .select()
+        .from(reviewRequests)
+        .where(and(eq(reviewRequests.tenantId, tenantA.tenantId), eq(reviewRequests.id, reviewRequestId)));
+      expect(request).toMatchObject({
+        contentRevisionId: pkg.contentRevisionId,
+        requestedById: writer.servicePrincipalId,
+        state: 'open',
+      });
+      expect((await outboxFor(reviewRequestId)).map((e) => e.eventType)).toContain('review.requested');
+      const trail = await auditFor(writer.servicePrincipalId);
+      expect(trail.find((e) => e.action === 'agent.tool.review.request')?.decision).toBe('allowed');
+    });
+
+    it('creative.proposeOperations hands a clean batch to a person as a proposal and applies nothing', async () => {
+      const writer = await seedApiClient(tdb.db, tenantA, {
+        grants: [
+          { action: 'brand.read', brandIds: 'all' },
+          { action: 'creative.edit', brandIds: 'all' },
+        ],
+        scopes: ['creative:write'],
+        maxAutonomy: 'create',
+      });
+      const before = await domainRows();
+      const res = await callMcpTool({ bearer: writer.key }, 'creative.proposeOperations', {
+        brandId: tenantA.brandIds[0],
+        documentId: tenantA.ids['creativeDocumentId'],
+        baseRevisionId: tenantA.ids['creativeRevisionId'],
+        operations: [
+          { op: 'setLock', pageId: 'page_1', elementId: tenantA.ids['creativeElementId'], locked: true },
+        ],
+        summary: 'Lock the headline',
+      });
+      expect(res.error).toBeUndefined();
+      expect(res.data).toMatchObject({
+        kind: 'proposal_requires_user',
+        proposal: { documentId: tenantA.ids['creativeDocumentId'], summary: 'Lock the headline' },
+      });
+      expect(res.data?.['proposalRef']).toBeTruthy();
+      const trail = await auditFor(writer.servicePrincipalId);
+      expect(trail.find((e) => e.action === 'agent.tool.creative.proposeOperations')?.decision).toBe(
+        'allowed',
+      );
+      // A proposal is a preview: no revision, no operation, no event (the idempotency record is not a domain row).
+      const after = await domainRows();
+      delete after.counts['idempotency_keys'];
+      delete before.counts['idempotency_keys'];
+      expect(after).toEqual(before);
+    });
+  });
+
+  describe('replay protection for write tools (spec 7.1 / 7.3, ledger T.3)', () => {
+    const startArgs = (objective: string) => ({
+      brandId: tenantA.brandIds[0],
+      taskKind: 'copywriting',
+      brief: { objective },
+    });
+    const runCount = async () => (await domainRows()).counts['agent_runs'] ?? 0;
+
+    it('a write tool needs the Idempotency-Key header (VALIDATION_FAILED, -32602, nothing written); a read tool does not', async () => {
+      const before = await runCount();
+      const res = await rpc(full.key, {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'agents.startRun', arguments: startArgs('no key') },
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        error: { code: number; data: { code: string; details: unknown } };
+      };
+      expect(body.error.code).toBe(-32602);
+      expect(body.error.data).toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [{ path: 'Idempotency-Key', issue: 'required' }],
+      });
+      const tooLong = (await (
+        await rpc(
+          full.key,
+          {
+            jsonrpc: '2.0',
+            id: 2,
+            method: 'tools/call',
+            params: { name: 'agents.startRun', arguments: startArgs('long key') },
+          },
+          { 'idempotency-key': 'k'.repeat(121) },
+        )
+      ).json()) as { error: { data: { code: string } } };
+      expect(tooLong.error.data.code).toBe('VALIDATION_FAILED');
+      expect(await runCount()).toBe(before);
+      for (const name of ['content.createBrief', 'creative.proposeOperations', 'review.request']) {
+        const unkeyed = (await (
+          await rpc(full.key, {
+            jsonrpc: '2.0',
+            id: 3,
+            method: 'tools/call',
+            params: { name, arguments: { brandId: tenantA.brandIds[0] } },
+          })
+        ).json()) as { error?: { data: { details?: Array<{ path?: string }> } } };
+        expect(unkeyed.error?.data.details, name).toEqual([{ path: 'Idempotency-Key', issue: 'required' }]);
+      }
+      const read = (await (
+        await rpc(full.key, {
+          jsonrpc: '2.0',
+          id: 4,
+          method: 'tools/call',
+          params: { name: 'insights.list', arguments: { brandId: tenantA.brandIds[0] } },
+        })
+      ).json()) as { result?: unknown; error?: unknown };
+      expect(read.error).toBeUndefined();
+      expect(read.result).toBeDefined();
+    });
+
+    it('the same key replays the stored result without running the tool again; other arguments or another tool are IDEMPOTENCY_KEY_REUSED', async () => {
+      const key = randomUUID();
+      const before = await runCount();
+      const call = (args: Record<string, unknown>, name = 'agents.startRun') =>
+        rpc(
+          full.key,
+          { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name, arguments: args } },
+          { 'idempotency-key': key },
+        ).then(
+          (r) => r.json() as Promise<{ result?: unknown; error?: { code: number; data: { code: string } } }>,
+        );
+      const first = await call(startArgs('replayed'));
+      expect(first.error).toBeUndefined();
+      const replay = await call(startArgs('replayed'));
+      expect(replay.result).toEqual(first.result);
+      expect(await runCount()).toBe(before + 1); // one run, however often the call is retried
+      const reused = await call(startArgs('something else'));
+      expect(reused.error?.code).toBe(-32000);
+      expect(reused.error?.data.code).toBe('IDEMPOTENCY_KEY_REUSED');
+      const otherTool = await call(
+        { brandId: tenantA.brandIds[0], audience: 'a', message: 'b' },
+        'content.createBrief',
+      );
+      expect(otherTool.error?.data.code).toBe('IDEMPOTENCY_KEY_REUSED');
+      expect(await runCount()).toBe(before + 1);
+      // Keys belong to the principal: another key's principal may use the same key string independently.
+      const other = await seedApiClient(tdb.db, tenantA, {
+        grants: ['brand.read', 'agent.start_run'].map((action) => ({ action, brandIds: 'all' as const })),
+        scopes: ['agents:write'],
+        maxAutonomy: 'create',
+      });
+      const theirs = await callMcpTool({ bearer: other.key, idempotencyKey: key }, 'agents.startRun', {
+        ...startArgs('replayed'),
+      });
+      expect(theirs.error).toBeUndefined();
+      expect(theirs.data?.['runId']).not.toBe(
+        (first.result as { structuredContent: { runId: string } }).structuredContent.runId,
+      );
+    });
+
+    it('a call still in progress under the key is CONFLICT with retryAfterMs and Retry-After (the 409 of REST)', async () => {
+      const key = randomUUID();
+      const args = startArgs('in progress');
+      const path = 'mcp:agents.startRun';
+      await tdb.db.insert(idempotencyKeys).values({
+        tenantId: tenantA.tenantId,
+        principalId: full.servicePrincipalId,
+        key,
+        path,
+        requestHash: hashRequest(path, args),
+        state: 'in_progress',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      const before = await runCount();
+      const res = await rpc(
+        full.key,
+        { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'agents.startRun', arguments: args } },
+        { 'idempotency-key': key },
+      );
+      expect(res.headers.get('retry-after')).toBe('2');
+      const body = (await res.json()) as {
+        error: { code: number; data: { code: string; retryAfterMs: number } };
+      };
+      expect(body.error.code).toBe(-32000);
+      expect(body.error.data).toMatchObject({ code: 'CONFLICT', retryAfterMs: 2000 });
+      expect(await runCount()).toBe(before);
+    });
+
+    it('a refused call stores nothing: the same key runs once the cause is fixed', async () => {
+      const key = randomUUID();
+      const bad = await callMcpTool({ bearer: full.key, idempotencyKey: key }, 'agents.startRun', {
+        ...startArgs('refused first'),
+        taskKind: 'not_a_task_kind',
+      });
+      expect(bad.error?.code).toBe('VALIDATION_FAILED');
+      const stored = await tdb.db
+        .select()
+        .from(idempotencyKeys)
+        .where(and(eq(idempotencyKeys.tenantId, tenantA.tenantId), eq(idempotencyKeys.key, key)));
+      expect(stored).toEqual([]);
+      const good = await callMcpTool(
+        { bearer: full.key, idempotencyKey: key },
+        'agents.startRun',
+        startArgs('refused first'),
+      );
+      expect(good.error).toBeUndefined();
+      expect(good.data?.['runId']).toBeTruthy();
     });
   });
 
