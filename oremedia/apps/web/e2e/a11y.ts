@@ -22,7 +22,8 @@ import type { Page } from 'playwright';
  *
  * Plus two interaction checks, `keyboardPath` (2.1.1 Keyboard, 2.4.7 Focus Visible, 2.4.11 Focus Not Obscured: every
  * pointer action is reached by Tab, shows a focus indicator and is not entirely covered by fixed content) and
- * `dialogFocusTrap` (2.4.3: an open modal keeps focus inside). Violations
+ * `dialogFocusTrap` (2.4.3: an open modal keeps focus inside); `focusNotObscured` runs the 2.4.11 hit test on the
+ * current focus without moving it (content that appears on its own, such as a toast). Violations
  * name the rule, a CSS selector and the evidence, so a failure reads like a lint report.
  */
 export type A11yRule =
@@ -122,6 +123,24 @@ export async function keyboardPath(page: Page): Promise<KeyboardPathResult> {
     invisibleFocus: [...invisible.values()],
     stops,
   };
+}
+
+/**
+ * 2.4.11 Focus Not Obscured for the element that has focus now, without moving it: the same hit test `keyboardPath`
+ * applies at every Tab stop. Used when content appears on its own (a toast) while focus stays where it is.
+ */
+export async function focusNotObscured(page: Page): Promise<A11yViolation[]> {
+  const stop = await page.evaluate(readFocusStop);
+  if (!stop) return [{ rule: 'focus-obscured', selector: 'body', detail: 'nothing has focus' }];
+  return stop.obscured
+    ? [
+        {
+          rule: 'focus-obscured',
+          selector: stop.selector,
+          detail: `${stop.label}: entirely covered by other content while focused`,
+        },
+      ]
+    : [];
 }
 
 /** With a dialog open: Tab and Shift+Tab never leave it, and it has a name (spec 21.3 "focus is managed"). */

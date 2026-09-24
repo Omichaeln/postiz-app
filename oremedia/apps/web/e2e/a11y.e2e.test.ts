@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import { auditPage, dialogFocusTrap, formatViolations, keyboardPath } from './a11y';
+import { auditPage, dialogFocusTrap, focusNotObscured, formatViolations, keyboardPath } from './a11y';
 import { createMockHandler, E2E, MockBackend } from './mock-api';
 import { P5 } from './mock-phase5';
 import { P6 } from './mock-phase6';
@@ -135,9 +135,10 @@ describe.skipIf(!enabled)('accessibility audit (built app in Chromium, mock tran
   const signedIn = async (
     theme: 'light' | 'dark',
     width: number,
+    height = 900,
   ): Promise<{ context: BrowserContext; page: Page }> => {
     const context = await browser.newContext({
-      viewport: { width, height: 900 },
+      viewport: { width, height },
       colorScheme: theme,
       timezoneId: 'UTC',
       reducedMotion: 'reduce',
@@ -327,5 +328,155 @@ describe.skipIf(!enabled)('accessibility audit (built app in Chromium, mock tran
       await page.keyboard.press('Escape');
       await expect.poll(() => page.getByRole('alertdialog').count()).toBe(0);
     }, 45_000);
+  });
+  /**
+   * 2.4.11 with content that appears on its own: a toast raised while focus sits on a control under the stack's
+   * default bottom-right position must not hide it (the stack moves to the top edge), and every Tab stop stays
+   * clear while a toast is up. Toasts are raised through the real app flow: the review inbox's Revoke action with
+   * the mutation aborted (a critical "Revoke failed" toast, which stays until dismissed) or answered (a 6 s "Link
+   * revoked" toast). Neither reaches the shared mock backend, so the active link other screens use is untouched.
+   */
+  describe('toasts never hide the focused control (2.4.11) and are keyboard operable', () => {
+    const revokeName = 'Revoke link for approver@client.example';
+    const reviewScreen: Screen = {
+      name: 'review inbox (links)',
+      path: () => brandPath(`review?request=${P5.requests.revoked}`),
+      ready: (p) => p.getByRole('button', { name: revokeName }).waitFor({ timeout: 15_000 }),
+    };
+    /** Clicks Revoke without moving focus (what an async completion looks like to the person on another control). */
+    const raiseToast = (page: Page) =>
+      page.evaluate((name) => {
+        document.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)?.click();
+      }, revokeName);
+    const toastCount = (page: Page) => page.getByTestId('toast-stack').locator('[data-toast-id]').count();
+    const placement = (page: Page) => page.getByTestId('toast-stack').getAttribute('data-placement');
+
+    for (const width of [320, 390])
+      it(`${width} px: a toast raised over the focused control moves away; focus stays visible`, async () => {
+        const { context, page } = await signedIn('light', width, 640);
+        try {
+          await page.route('**/trpc/review.externalLinks.revoke*', (route) => route.abort());
+          await open(page, reviewScreen);
+          await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+
+          // The stack's default position, measured with nothing focused.
+          await raiseToast(page);
+          await expect.poll(() => toastCount(page)).toBe(1);
+          expect(await placement(page)).toBe('bottom');
+
+          // A focusable control that fits inside that rectangle, scrolled so it sits in the middle of it.
+          const target = await page.evaluate(() => {
+            const stack = document.querySelector<HTMLElement>('[data-testid="toast-stack"]');
+            if (!stack) return null;
+            const s = stack.getBoundingClientRect();
+            const scroller = (el: Element): Element => {
+              for (let n = el.parentElement; n; n = n.parentElement) {
+                const o = getComputedStyle(n).overflowY;
+                if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight) return n;
+              }
+              return document.scrollingElement ?? document.documentElement;
+            };
+            const candidates = [
+              ...document.querySelectorAll<HTMLElement>(
+                'main button:not([disabled]), main input, main a[href]',
+              ),
+            ];
+            for (const el of candidates) {
+              const r = el.getBoundingClientRect();
+              if (r.width === 0 || r.left < s.left + 2 || r.right > s.right - 2 || r.height > s.height - 8)
+                continue;
+              const box = scroller(el);
+              box.scrollTop += r.top + r.height / 2 - (s.top + s.height / 2);
+              const after = el.getBoundingClientRect();
+              if (after.top < s.top + 2 || after.bottom > s.bottom - 2) continue;
+              el.setAttribute('data-a11y-target', '1');
+              el.focus({ preventScroll: true });
+              return { label: el.getAttribute('aria-label') ?? el.textContent?.trim() ?? el.localName };
+            }
+            return null;
+          });
+          expect(target, 'a control that the default toast position covers entirely').not.toBeNull();
+          console.info(`[a11y] ${width} px: focused "${target?.label}" inside the default toast rectangle`);
+          let violations = await focusNotObscured(page);
+          expect(violations, formatViolations(`focused ${target?.label}`, violations)).toEqual([]);
+          expect(await placement(page)).toBe('top');
+
+          // Another toast while focus stays on that control: still not obscured.
+          await raiseToast(page);
+          await expect.poll(() => toastCount(page)).toBe(2);
+          expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-a11y-target'))).toBe(
+            true,
+          );
+          violations = await focusNotObscured(page);
+          expect(violations, formatViolations(`focused ${target?.label} (2 toasts)`, violations)).toEqual([]);
+          violations = await auditPage(page, { narrow: true });
+          expect(violations, formatViolations('review inbox with toasts', violations)).toEqual([]);
+
+          // Keyboard dismissal: Escape inside a toast, then Enter on Dismiss; focus returns to the control.
+          await page.getByRole('button', { name: 'Dismiss: Revoke failed' }).first().focus();
+          await page.keyboard.press('Escape');
+          await expect.poll(() => toastCount(page)).toBe(1);
+          expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-a11y-target'))).toBe(
+            true,
+          );
+          await page.getByRole('button', { name: 'Dismiss: Revoke failed' }).focus();
+          await page.keyboard.press('Enter');
+          await expect.poll(() => toastCount(page)).toBe(0);
+          expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-a11y-target'))).toBe(
+            true,
+          );
+        } finally {
+          await context.close();
+        }
+      }, 60_000);
+
+    it('390 px: every Tab stop stays visible and unobscured while a toast is up', async () => {
+      const { context, page } = await signedIn('dark', 390, 640);
+      try {
+        await page.route('**/trpc/review.externalLinks.revoke*', (route) => route.abort());
+        await open(page, reviewScreen);
+        await raiseToast(page);
+        await expect.poll(() => toastCount(page)).toBe(1);
+        const result = await keyboardPath(page);
+        expect(result.actions).toContain('button "Dismiss: Revoke failed"');
+        expect(result.unreached, formatViolations('toast keyboard reach', result.unreached)).toEqual([]);
+        expect(result.invisibleFocus, formatViolations('toast focus', result.invisibleFocus)).toEqual([]);
+      } finally {
+        await context.close();
+      }
+    }, 90_000);
+
+    it('a timed toast is announced politely and pauses while hovered or focused', async () => {
+      const { context, page } = await signedIn('light', 390, 640);
+      try {
+        await page.route('**/trpc/review.externalLinks.revoke*', (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ result: { data: { json: { id: 'rl_id_active' } } } }),
+          }),
+        );
+        await open(page, reviewScreen);
+        const stack = page.getByTestId('toast-stack');
+        expect(await stack.getAttribute('aria-live')).toBe('polite');
+        await raiseToast(page);
+        const toast = stack.locator('[data-toast-id]');
+        await expect.poll(() => toast.count()).toBe(1);
+        // Polite: a named group inside the live region, not an interrupting alert.
+        expect(await toast.getAttribute('role')).toBe('group');
+        expect(await toast.getAttribute('aria-label')).toBe('Link revoked');
+        await toast.hover();
+        await page.waitForTimeout(7_000);
+        expect(await toast.count(), 'hovered past its 6 s lifetime').toBe(1);
+        await page.mouse.move(0, 0);
+        await page.getByRole('button', { name: 'Dismiss: Link revoked' }).focus();
+        await page.waitForTimeout(1_500);
+        expect(await toast.count(), 'focused inside').toBe(1);
+        await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+        await expect.poll(() => toast.count(), { timeout: 10_000 }).toBe(0);
+      } finally {
+        await context.close();
+      }
+    }, 60_000);
   });
 });

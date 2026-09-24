@@ -198,7 +198,7 @@ export const latinFeedFixture = (): RenderFixture => {
             { ...base(eid('01GBG'), 'Background', 0, 0, 1080, 1080), type: 'background', fillToken: 'paper' },
             {
               // Very large source (4000×3000) covered into a wide box, crop driven by the focal point.
-              ...base(eid('01GHERO'), 'Hero', 80, 300, 920, 420),
+              ...base(eid('01GHER0'), 'Hero', 80, 300, 920, 420),
               type: 'image',
               assetVersionId: 'av_photo_large',
               fit: 'cover',
@@ -207,7 +207,7 @@ export const latinFeedFixture = (): RenderFixture => {
             },
             {
               // Explicit crop of a checkerboard, contain-fit in a circle mask (clipping).
-              ...base(eid('01GCROP'), 'Crop', 760, 740, 240, 240),
+              ...base(eid('01GCR0P'), 'Crop', 760, 740, 240, 240),
               type: 'image',
               assetVersionId: 'av_photo_checker',
               fit: 'contain',
@@ -216,7 +216,7 @@ export const latinFeedFixture = (): RenderFixture => {
             },
             {
               // Translucent rotated panel over the photo (transparency + rotation).
-              ...base(eid('01GPANEL'), 'Panel', 120, 560, 420, 120, -8, 0.6),
+              ...base(eid('01GPANE1'), 'Panel', 120, 560, 420, 120, -8, 0.6),
               type: 'shape',
               shape: 'rect',
               fillToken: 'accent',
@@ -225,7 +225,7 @@ export const latinFeedFixture = (): RenderFixture => {
               semanticRole: 'decoration',
             },
             {
-              ...base(eid('01GRING'), 'Ring', 900, 120, 100, 100),
+              ...base(eid('01GR1NG'), 'Ring', 900, 120, 100, 100),
               type: 'shape',
               shape: 'ellipse',
               strokeToken: 'coral',
@@ -234,7 +234,7 @@ export const latinFeedFixture = (): RenderFixture => {
               semanticRole: 'decoration',
             },
             {
-              ...base(eid('01GRULE'), 'Rule', 80, 270, 920, 4),
+              ...base(eid('01GRV1E'), 'Rule', 80, 270, 920, 4),
               type: 'shape',
               shape: 'line',
               strokeToken: 'mist',
@@ -252,7 +252,7 @@ export const latinFeedFixture = (): RenderFixture => {
               { sizePx: 60, weight: 700, lineHeight: 1.1, tracking: -0.02 },
             ),
             text(
-              eid('01GBODY'),
+              eid('01GB0DY'),
               'Body',
               font,
               'body',
@@ -262,7 +262,7 @@ export const latinFeedFixture = (): RenderFixture => {
             ),
             {
               // A group's own box spans the page; it is decoration so the brand rules read its children, not the box.
-              ...base(eid('01GGROUP'), 'Badge group', 0, 0, 1080, 1080),
+              ...base(eid('01GGR0VP'), 'Badge group', 0, 0, 1080, 1080),
               type: 'group',
               semanticRole: 'decoration',
               children: [
@@ -288,7 +288,7 @@ export const latinFeedFixture = (): RenderFixture => {
               ],
             },
             text(
-              eid('01GCLIP'),
+              eid('01GC11P'),
               'Clipped caption',
               font,
               'caption',
@@ -297,7 +297,7 @@ export const latinFeedFixture = (): RenderFixture => {
               { sizePx: 18, weight: 400, overflow: 'clip', colourToken: 'ink' },
             ),
             {
-              ...base(eid('01GLOGO'), 'Logo', 80, 960, 200, 60),
+              ...base(eid('01G10G0'), 'Logo', 80, 960, 200, 60),
               type: 'logo',
               assetVersionId: 'av_logo_wide',
               variant: 'primary',
@@ -348,14 +348,14 @@ export const arabicStoryFixture = (): RenderFixture => {
           elements: [
             { ...base(eid('01ABG'), 'Background', 0, 0, 1080, 1920), type: 'background', fillToken: 'ink' },
             {
-              ...base(eid('01APHOTO'), 'Photo', 140, 520, 800, 800),
+              ...base(eid('01APH0T0'), 'Photo', 140, 520, 800, 800),
               type: 'image',
               assetVersionId: 'av_photo_story',
               fit: 'cover',
               mask: { kind: 'circle' },
             },
             {
-              ...base(eid('01ARIBBON'), 'Ribbon', 60, 1360, 960, 80, -4, 0.85),
+              ...base(eid('01AR1BB0N'), 'Ribbon', 60, 1360, 960, 80, -4, 0.85),
               type: 'shape',
               shape: 'rect',
               fillToken: 'gold',
@@ -373,7 +373,7 @@ export const arabicStoryFixture = (): RenderFixture => {
               { sizePx: 64, weight: 700, align: 'right', colourToken: 'paper', lineHeight: 1.3 },
             ),
             text(
-              eid('01ABODY'),
+              eid('01AB0DY'),
               'Body',
               font,
               'body',
@@ -381,7 +381,7 @@ export const arabicStoryFixture = (): RenderFixture => {
               [80, 1372, 920, 56],
               { sizePx: 30, weight: 500, align: 'center', colourToken: 'ink' },
             ),
-            text(eid('01ALABEL'), 'Label', font, 'label', 'OREMEDIA · 2026', [80, 1450, 920, 36], {
+            text(eid('01A1ABE1'), 'Label', font, 'label', 'OREMEDIA · 2026', [80, 1450, 920, 36], {
               sizePx: 22,
               weight: 500,
               align: 'center',
@@ -389,7 +389,7 @@ export const arabicStoryFixture = (): RenderFixture => {
               tracking: 0.2,
             }),
             {
-              ...base(eid('01ALOGO'), 'Mark', 480, 1550, 120, 120),
+              ...base(eid('01A10G0'), 'Mark', 480, 1550, 120, 120),
               type: 'logo',
               assetVersionId: 'av_logo_mark',
               variant: 'reversed',
