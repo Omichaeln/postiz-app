@@ -1,7 +1,14 @@
 import type { PublicationState } from '@oremedia/contracts/publishing';
 import { defineMachine } from './machine';
 
-/** Spec 13.1 publication transitions (exhaustive; anything else is rejected). */
+/**
+ * Spec 13.1 publication transitions (exhaustive; anything else is rejected), plus the spec 17.6 restore rule: after
+ * a restore, a `scheduled` row, or a `dispatching` one whose attempt was never sent, moves to `held` so nothing fires
+ * from restored state before a person has released or cancelled it. A restored row that may already be live (a
+ * `dispatching` attempt with sentAt, or any `processing` row) takes the existing 13.1 moves instead
+ * (`ambiguous_failure` / `poll_unknown` → `outcome_unknown`, spec 14.3: sentAt with no recorded outcome is unknown and
+ * goes to reconciliation), so the reconciliation path can find it (→ published) or prove it absent.
+ */
 export type PublicationEvent =
   | 'claim' // workflow claim (fencing token issued)
   | 'user_cancel' // user cancel before claim
@@ -20,7 +27,8 @@ export type PublicationEvent =
   | 'reconcile_exhausted' // reconciliation exhausted; needs a human
   | 'reschedule' // human or policy re-schedules (new attempt, same occurrence)
   | 'hold_resolved_schedule' // human resolves the hold → scheduled
-  | 'hold_resolved_cancel'; // human resolves the hold → cancelled
+  | 'hold_resolved_cancel' // human resolves the hold → cancelled
+  | 'restored_from_backup'; // spec 17.6 restore rule: restored, never sent → waits for a person
 
 export const publicationMachine = defineMachine<PublicationState, PublicationEvent>({
   name: 'publication',
@@ -54,11 +62,18 @@ export const publicationMachine = defineMachine<PublicationState, PublicationEve
     'reschedule',
     'hold_resolved_schedule',
     'hold_resolved_cancel',
+    'restored_from_backup',
   ],
   table: {
-    scheduled: { claim: 'dispatching', user_cancel: 'cancelled', dependency_revoked: 'held' },
+    scheduled: {
+      claim: 'dispatching',
+      user_cancel: 'cancelled',
+      dependency_revoked: 'held',
+      restored_from_backup: 'held',
+    },
     dispatching: {
       release_policy_failed: 'held',
+      restored_from_backup: 'held',
       provider_accepted: 'published',
       provider_pending: 'processing',
       provider_rejected: 'failed',

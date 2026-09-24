@@ -29,7 +29,7 @@ import {
   registerAssetAuthoriser,
   registerCreativeOutboxRoutes,
 } from '@oremedia/module-creative';
-import { registerAgentOutboxRoutes } from '@oremedia/module-agents';
+import { agentsService, durableProviderJobStore, registerAgentOutboxRoutes } from '@oremedia/module-agents';
 import {
   registerBrandChecker as registerSkillBrandChecker,
   registerEvaluationRunner,
@@ -41,8 +41,10 @@ import {
   createReleaseOneRegistry,
   registerContentToolSource,
   registerIntelligenceToolSource,
+  registerProviderJobStore,
   registerPublishingToolSource,
   registerReviewToolSource,
+  registerRoutingPolicySource,
   registerSkillResolver,
 } from '@oremedia/ai';
 import {
@@ -110,6 +112,13 @@ export function composeModules(opts: { workflowProbe?: WorkflowProbe } = {}): vo
   // Spec 12: agent runs start and are signalled through the outbox; the context resolver pins skills (spec 12.3).
   registerSkillBrandChecker({ assertExist: (ids, tx) => brandService.assertExist(ids, tx) });
   registerAgentOutboxRoutes();
+  // Spec 12.2 / 12.7: provider job ids survive a worker restart; the tenant's stored routing policy gates every call.
+  // Only here: agent runs (the only callers with a run row for fk_provider_job_run) dispatch tools in this process.
+  // The API's surface path (MCP, spec 7.6 / 12.4) never reaches a provider job: the only tool that submits one,
+  // images.generate, is outside MCP_TOOLS (denied tool_not_allowed) and costed, and a surface call has no budget
+  // reservation (denied no_budget_reservation before the tool runs). So the API keeps the in-memory default.
+  registerProviderJobStore(durableProviderJobStore());
+  registerRoutingPolicySource((tenantId) => agentsService.routingPolicy.storedFor(tenantId));
   registerSkillResolver((input, tx) =>
     skillsService.resolveForRun(input.actor, { brandId: input.brandId, taskKind: input.taskKind }, tx),
   );

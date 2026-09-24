@@ -300,12 +300,18 @@ export const RevisionGet = z.object({ documentId: z.string(), revisionId: z.stri
 /** Spec 11.4 applyOperations(docId, batch): the batch plus the document it targets. */
 export const OperationsApply = OperationBatch.extend({ documentId: z.string() });
 export type OperationsApply = z.infer<typeof OperationsApply>;
-/** Same input as apply; runs the same guards and validation as a dry run (agent preview). */
-export const OperationsPropose = OperationsApply;
+export const RenderFormatKeys = z.array(z.string().min(1).max(40)).min(1).max(20);
+/**
+ * Same input as apply; runs the same guards and validation as a dry run (agent preview). With `previewRender` the
+ * proposed snapshot is also queued as a worker preview render (spec 11.4): its output is never publishable.
+ */
+export const OperationsPropose = OperationsApply.extend({
+  previewRender: z.object({ formatKeys: RenderFormatKeys }).optional(),
+});
 export const RenderRequest = z.object({
   documentId: z.string(),
   revisionId: z.string(),
-  formatKeys: z.array(z.string().min(1).max(40)).min(1).max(20),
+  formatKeys: RenderFormatKeys,
 });
 export const RenderGet = z.object({ renderJobId: z.string() });
 export const CommentAdd = z.object({

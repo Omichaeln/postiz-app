@@ -42,6 +42,9 @@ export const PUBLISHING_INPUTS: Record<string, CrossTenantFixture> = {
   'publishing.publications.reconcile': {
     buildInput: (f) => ({ publicationId: f['publicationId'], resolution: 'confirm_absent' }),
   },
+  'publishing.publications.holdRestored': {
+    buildInput: (f) => ({ brandId: f['brandId'] }),
+  },
   'publishing.publications.deleteRemote': {
     buildInput: (f) => ({ publicationId: f['publicationId'], reason: 'x' }),
   },

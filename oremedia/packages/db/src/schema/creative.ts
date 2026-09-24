@@ -205,10 +205,81 @@ export const renderJobs = mysqlTable(
   },
   (t) => [
     index('ix_render_job_revision').on(t.tenantId, t.revisionId),
+    uniqueIndex('uq_render_job_tbi').on(t.tenantId, t.brandId, t.id),
     foreignKey({
       columns: [t.tenantId, t.brandId, t.revisionId],
       foreignColumns: [creativeRevisions.tenantId, creativeRevisions.brandId, creativeRevisions.id],
       name: 'fk_render_job_revision',
+    }),
+  ],
+);
+
+/**
+ * Spec 11.4 proposal preview (operations.propose with a preview render): the proposed snapshot a preview render job
+ * draws. It is not a committed revision; the job's revision_id is the committed base the proposal was made against.
+ * A render job with a row here is a preview job; its output goes to preview_exports, never to rendered_exports.
+ */
+export const renderPreviews = mysqlTable(
+  'render_previews',
+  {
+    id: id(),
+    tenantId: tenantId(),
+    brandId: brandId(),
+    renderJobId: ref('render_job_id').notNull(),
+    baseRevisionId: ref('base_revision_id').notNull(),
+    snapshot: json('snapshot').$type<CreativeDocumentV1>().notNull(),
+    contentHash: hash('content_hash').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('uq_render_preview_job').on(t.tenantId, t.renderJobId),
+    uniqueIndex('uq_render_preview_tbi').on(t.tenantId, t.brandId, t.id),
+    index('ix_render_preview_job').on(t.tenantId, t.brandId, t.renderJobId),
+    index('ix_render_preview_revision').on(t.tenantId, t.brandId, t.baseRevisionId),
+    foreignKey({
+      columns: [t.tenantId, t.brandId, t.renderJobId],
+      foreignColumns: [renderJobs.tenantId, renderJobs.brandId, renderJobs.id],
+      name: 'fk_render_preview_job',
+    }),
+    foreignKey({
+      columns: [t.tenantId, t.brandId, t.baseRevisionId],
+      foreignColumns: [creativeRevisions.tenantId, creativeRevisions.brandId, creativeRevisions.id],
+      name: 'fk_render_preview_revision',
+    }),
+  ],
+);
+
+/**
+ * What a preview render produced. Deliberately a separate table from rendered_exports: approvals, channel variants
+ * and releases only ever resolve rendered_exports ids, so a preview export is structurally never publishable.
+ */
+export const previewExports = mysqlTable(
+  'preview_exports',
+  {
+    id: id(),
+    tenantId: tenantId(),
+    brandId: brandId(),
+    renderJobId: ref('render_job_id').notNull(),
+    pageId: varchar('page_id', { length: 40 }).notNull(),
+    formatKey: varchar('format_key', { length: 40 }).notNull(),
+    mime: varchar('mime', { length: 40 }).notNull(),
+    width: int('width').notNull(),
+    height: int('height').notNull(),
+    bytes: bigint('bytes', { mode: 'number' }).notNull(),
+    storageKey: varchar('storage_key', { length: 300 }).notNull(),
+    contentHash: hash('content_hash').notNull(),
+    rendererVersion: varchar('renderer_version', { length: 40 }).notNull(),
+    manifest: json('manifest').$type<RenderManifest>().notNull(),
+    validation: json('validation').$type<RenderValidationResult>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('ix_preview_export_job').on(t.tenantId, t.brandId, t.renderJobId),
+    uniqueIndex('uq_preview_export_tbi').on(t.tenantId, t.brandId, t.id),
+    foreignKey({
+      columns: [t.tenantId, t.brandId, t.renderJobId],
+      foreignColumns: [renderJobs.tenantId, renderJobs.brandId, renderJobs.id],
+      name: 'fk_preview_export_job',
     }),
   ],
 );

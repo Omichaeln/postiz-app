@@ -50,6 +50,7 @@ import {
 import { LocalKms, WrapOnlyKms } from './kms';
 import { configurePublishingProviders } from './providers';
 import { publicationService } from './publications';
+import { PublicationAttemptRepository, PublicationRepository } from './repositories';
 import { createPublishingRuntime } from './runtime';
 import { publishingToolSource } from './tools';
 import { FIXTURE_PROVIDER_KEY, FixtureProviderAdapter, fixtureCapability } from './testing/fixture-provider';
@@ -1432,6 +1433,506 @@ describe('publishing module (spec 14) against MySQL 8', () => {
       expect(reconcile.payload).toMatchObject({ attemptId, providerKey: FIXTURE_PROVIDER_KEY });
       // a second pass finds nothing new for the expired claim (outcome_unknown is not swept)
       expect((await runtime.sweep.sweepPublications(sweepInput)).dispatchingExpired).toBe(0);
+    });
+  });
+
+  describe('restore rule (spec 17.6, runbook "restore a single tenant" step 5): holdRestored', () => {
+    const STALE_FENCE = {
+      code: 'VALIDATION_FAILED',
+      details: [expect.objectContaining({ issue: expect.stringMatching(/^stale_fencing_token:/) })],
+    };
+    /** An illegal move from the row's state: the activity layer maps VALIDATION_FAILED to a non-retryable failure. */
+    const ILLEGAL_FROM_HELD = {
+      code: 'VALIDATION_FAILED',
+      details: [expect.objectContaining({ issue: expect.stringMatching(/illegal transition from 'held'/) })],
+    };
+    const publicationsRepo = new PublicationRepository();
+    const attemptsRepo = new PublicationAttemptRepository();
+    const holdRestored = (
+      actor: ResolvedActor,
+      brandId: string | null,
+      tenantId = tenantA,
+      extra: { limit?: number } = {},
+    ) => run(tenantId, (tx) => publicationService.holdRestored(actor, { brandId, ...extra }, tx));
+    /** A pending publish left in `processing` (its attempt was sent), as a restore can bring back. */
+    const processingRow = async (text: string) => {
+      const v = newVariant(tenantA, brandA, connA, text);
+      const pub = await schedule(tenantA, v.id);
+      const { claim, attemptId } = await dispatch(pub.id);
+      fixture.behaviour = { kind: 'pending' };
+      fixture.pendingChecks = ['ready'];
+      const pending = await inTenant(tenantA, () =>
+        runtime.provider.publishOnce({ ...wfInput(pub.id), attemptId, fencingToken: claim.fencingToken }),
+      );
+      await inTenant(tenantA, () => runtime.control.markProcessing({ ...wfInput(pub.id), attempt: pending }));
+      fixture.behaviour = { kind: 'accept' };
+      return { id: pub.id, attemptId, fencingToken: claim.fencingToken };
+    };
+    /** Sent and live on the channel, the response lost; the restore point is before markOutcomeUnknown. */
+    const sentDispatchingRow = async (text: string) => {
+      const pub = await schedule(tenantA, newVariant(tenantA, brandA, connA, text).id);
+      const { claim, attemptId } = await dispatch(pub.id);
+      fixture.behaviour = { kind: 'crash_after_send' };
+      await inTenant(tenantA, () =>
+        runtime.provider.publishOnce({ ...wfInput(pub.id), attemptId, fencingToken: claim.fencingToken }),
+      );
+      fixture.behaviour = { kind: 'accept' };
+      return { id: pub.id, attemptId, fencingToken: claim.fencingToken };
+    };
+
+    it('never-sent rows move to held; sent rows (processing, or dispatching with sentAt) to outcome_unknown with a reconcile request; the rest and the other tenant are untouched; audited, announced, idempotent', async () => {
+      const scheduled = await schedule(tenantA, newVariant(tenantA, brandA, connA).id);
+      const dispatching = await schedule(
+        tenantA,
+        newVariant(tenantA, brandA, connA, 'Restore dispatching').id,
+      );
+      await dispatch(dispatching.id);
+      const sent = await sentDispatchingRow('Restore sent, live on the channel');
+      const processing = await processingRow('Restore processing');
+      const published = await schedule(tenantA, newVariant(tenantA, brandA, connA, 'Restore published').id);
+      const d = await dispatch(published.id);
+      const accepted = await inTenant(tenantA, () =>
+        runtime.provider.publishOnce({ ...wfInput(published.id), attemptId: d.attemptId, fencingToken: 1 }),
+      );
+      await inTenant(tenantA, () =>
+        runtime.control.markPublished({ ...wfInput(published.id), attempt: accepted }),
+      );
+      const foreign = await schedule(tenantB, newVariant(tenantB, brandB, connB).id);
+      const allA = async () => tdb.db.select().from(publications).where(eq(publications.tenantId, tenantA));
+      const before = await allA();
+      const inFlight = before.filter((p) => ['scheduled', 'dispatching', 'processing'].includes(p.state));
+      expect(inFlight.map((p) => p.id)).toEqual(
+        expect.arrayContaining([scheduled.id, dispatching.id, sent.id, processing.id]),
+      );
+      const foreignBefore = await row(foreign.id);
+      const postsBefore = fixture.posts.length;
+
+      const result = await holdRestored(A, null);
+      expect(result.hasMore).toBe(false);
+      expect([...result.held, ...result.outcomeUnknown].sort()).toEqual(inFlight.map((p) => p.id).sort());
+      expect(result.held).toEqual(expect.arrayContaining([scheduled.id, dispatching.id]));
+      expect([...result.outcomeUnknown].sort()).toEqual(expect.arrayContaining([sent.id, processing.id]));
+      expect(result.outcomeUnknown).not.toContain(dispatching.id); // attempt open, never sent
+      const after = new Map((await allA()).map((p) => [p.id, p]));
+      for (const p of before) {
+        const now = after.get(p.id)!;
+        if (!inFlight.includes(p)) {
+          expect(now, `${p.id} (${p.state}) is untouched`).toEqual(p);
+          continue;
+        }
+        const toState = result.held.includes(p.id) ? 'held' : 'outcome_unknown';
+        expect(now).toMatchObject({
+          state: toState,
+          stateReason: 'restored_from_backup',
+          version: p.version + 1,
+        });
+        if (toState === 'held') expect(now.holdReasons).toEqual(['restored_from_backup']);
+        // A claimed row's fence moves on, so the workflow holding the old claim can do nothing more with it.
+        expect(now.fencingToken).toBe(p.state === 'scheduled' ? p.fencingToken : p.fencingToken + 1);
+      }
+      expect(after.get(processing.id)!.state).toBe('outcome_unknown');
+      expect(after.get(published.id)!.state).toBe('published');
+      expect(await row(foreign.id)).toEqual(foreignBefore);
+      expect(fixture.posts.length).toBe(postsBefore);
+      // Audited and announced per row, like every other hold and outcome move; sent rows ask for reconciliation.
+      const audits = await tdb.db.select().from(auditEvents).where(eq(auditEvents.tenantId, tenantA));
+      for (const [ids, action] of [
+        [result.held, 'publication.hold'],
+        [result.outcomeUnknown, 'publication.outcome_unknown'],
+      ] as const)
+        for (const id of ids) {
+          const audit = audits.find(
+            (a) =>
+              a.resourceId === id && a.action === action && a.metadata?.['reason'] === 'restored_from_backup',
+          );
+          expect(audit, `${action} audit for ${id}`).toMatchObject({ decision: 'allowed', actorId: USER });
+        }
+      const changed = (await eventsOf(tenantA, 'publication.state_changed')).filter(
+        (e) => e.payload['reason'] === 'restored_from_backup',
+      );
+      expect(changed.map((e) => e.payload['publicationId']).sort()).toEqual(
+        [...result.held, ...result.outcomeUnknown].sort(),
+      );
+      const reconcile = (await eventsOf(tenantA, 'publication.reconcile_requested')).filter((e) =>
+        result.outcomeUnknown.includes(String(e.payload['publicationId'])),
+      );
+      expect(reconcile.map((e) => e.payload['publicationId']).sort()).toEqual(
+        [...result.outcomeUnknown].sort(),
+      );
+      expect(reconcile.find((e) => e.payload['publicationId'] === sent.id)!.payload).toMatchObject({
+        attemptId: sent.attemptId,
+        providerKey: FIXTURE_PROVIDER_KEY,
+        workflowId: `pub:${sent.id}:reconcile:${after.get(sent.id)!.version}`,
+      });
+      // A second run finds nothing in flight and changes nothing.
+      const snapshot = await allA();
+      expect(await holdRestored(A, null)).toEqual({ held: [], outcomeUnknown: [], hasMore: false });
+      expect(await allA()).toEqual(snapshot);
+
+      // The exits. Never sent: a person releases it (a new generation).
+      const heldRow = await row(scheduled.id);
+      const released = await run(tenantA, (tx) =>
+        publicationService.reschedule(
+          A,
+          {
+            publicationId: scheduled.id,
+            expectedVersion: heldRow.version,
+            scheduledFor: new Date().toISOString(),
+          },
+          tx,
+        ),
+      );
+      expect(released).toMatchObject({ state: 'scheduled', holdReasons: [] });
+      // Sent and live: the reconciliation workflow's lookup finds it → published with evidence, no second post.
+      const found = await inTenant(tenantA, () =>
+        runtime.provider.findRemotePost({ ...wfInput(sent.id), attemptId: sent.attemptId }),
+      );
+      if (found.status !== 'found') throw new Error(`expected the live post, got ${found.status}`);
+      await inTenant(tenantA, () =>
+        runtime.control.markPublished({
+          ...wfInput(sent.id),
+          evidence: { ...found, attemptId: sent.attemptId },
+        }),
+      );
+      expect(await row(sent.id)).toMatchObject({ state: 'published', remotePostId: found.remotePostId });
+      expect(fixture.posts.length).toBe(postsBefore);
+      // Sent and pending when restored: a person who finds it live confirms it (never a re-release).
+      const confirmed = await run(tenantA, (tx) =>
+        publicationService.reconcile(
+          A,
+          { publicationId: processing.id, resolution: 'confirm_published', remotePostId: 'remote_restored' },
+          tx,
+        ),
+      );
+      expect(confirmed).toMatchObject({ state: 'published', remotePostId: 'remote_restored' });
+      expect((await evidenceOf(processing.id)).map((e) => e.kind)).toContain('human_confirmation');
+    });
+
+    it('a sentAt the pre-send fence commits while holdRestored waits for the row lock is seen (locking read under REPEATABLE READ)', async () => {
+      const pub = await schedule(tenantA, newVariant(tenantA, brandA, connA, 'Fence interleaving').id);
+      const { claim, attemptId } = await dispatch(pub.id);
+      let fenceHolds!: () => void;
+      const fenceHolding = new Promise<void>((r) => (fenceHolds = r));
+      let commitFence!: () => void;
+      const fenceMayCommit = new Promise<void>((r) => (commitFence = r));
+      // Connection 1: the pre-send fence exactly as publishOnce runs it (row lock, fence check, sentAt), held open.
+      const fence = run(tenantA, async (tx) => {
+        const locked = await publicationsRepo.lock(pub.id, tx);
+        expect(locked).toMatchObject({ state: 'dispatching', fencingToken: claim.fencingToken });
+        expect(await attemptsRepo.markSent(attemptId, new Date(), tx)).toBe(true);
+        fenceHolds();
+        await fenceMayCommit;
+      });
+      await fenceHolding;
+      // Connection 2: holdRestored's transaction. Its first consistent read (policy.assert's, here made explicit so
+      // the read view is certainly taken now) fixes the snapshot before the fence commits; then it waits on the lock.
+      let snapshotTaken!: () => void;
+      const snapshot = new Promise<void>((r) => (snapshotTaken = r));
+      const restore = run(tenantA, async (tx) => {
+        const [seen] = await tx
+          .select()
+          .from(publicationAttempts)
+          .where(eq(publicationAttempts.id, attemptId));
+        expect(seen!.sentAt).toBeNull(); // uncommitted: not in this transaction's snapshot
+        snapshotTaken();
+        return publicationService.holdRestored(A, { brandId: null }, tx);
+      });
+      await snapshot;
+      await new Promise((r) => setTimeout(r, 300)); // holdRestored is now blocked on the publication row lock
+      commitFence();
+      await fence;
+      const result = await restore;
+      // Sent before the hold: it may be live, so it goes to reconciliation, never to a hold a person might release.
+      expect(result.outcomeUnknown).toContain(pub.id);
+      expect(result.held).not.toContain(pub.id);
+      expect(await row(pub.id)).toMatchObject({
+        state: 'outcome_unknown',
+        stateReason: 'restored_from_backup',
+        fencingToken: claim.fencingToken + 1,
+      });
+      expect((await attemptsOf(pub.id))[0]).toMatchObject({
+        id: attemptId,
+        outcome: 'unknown',
+        errorCode: 'restored_from_backup',
+      });
+      expect((await attemptsOf(pub.id))[0]!.sentAt).not.toBeNull();
+    });
+
+    it('the run that held the old claim cannot send, poll or finalise; its token-less calls on a held row fail as VALIDATION_FAILED (non-retryable) and change nothing', async () => {
+      // (a) Claimed with an open attempt, held before publishOnce: the old fence is refused, nothing is sent.
+      const a = await schedule(tenantA, newVariant(tenantA, brandA, connA, 'Fence a').id);
+      const da = await dispatch(a.id);
+      await holdRestored(A, null);
+      const heldA = await row(a.id);
+      expect(heldA).toMatchObject({ state: 'held', holdReasons: ['restored_from_backup'] });
+      const postsBefore = fixture.posts.length;
+      await expect(
+        inTenant(tenantA, () =>
+          runtime.provider.publishOnce({
+            ...wfInput(a.id),
+            attemptId: da.attemptId,
+            fencingToken: da.claim.fencingToken,
+          }),
+        ),
+      ).rejects.toMatchObject(STALE_FENCE);
+      const oldClaim = { ...wfInput(a.id), fencingToken: da.claim.fencingToken };
+      await expect(inTenant(tenantA, () => runtime.control.openAttempt(oldClaim))).rejects.toMatchObject(
+        STALE_FENCE,
+      );
+      await expect(inTenant(tenantA, () => runtime.control.evaluateRelease(oldClaim))).rejects.toMatchObject(
+        STALE_FENCE,
+      );
+      // The workflow maps the failed publishOnce to `unknown` and reconciles: markOutcomeUnknown has no token and
+      // fails on the held row (no held → outcome_unknown move), rolling back its ledger write. markProcessing and
+      // markPublished fail the same way; markFailed leaves a held row as it is.
+      const attempt = { attemptId: da.attemptId, outcome: 'accepted' as const, remotePostId: 'never' };
+      for (const call of [
+        () => runtime.control.markOutcomeUnknown({ ...wfInput(a.id), attemptId: da.attemptId }),
+        () => runtime.control.markProcessing({ ...wfInput(a.id), attempt }),
+        () => runtime.control.markPublished({ ...wfInput(a.id), attempt }),
+      ])
+        await expect(inTenant(tenantA, call)).rejects.toMatchObject(ILLEGAL_FROM_HELD);
+      expect(
+        await inTenant(tenantA, () => runtime.control.markFailed({ ...wfInput(a.id), attempt })),
+      ).toMatchObject({ state: 'held', changed: false });
+      expect(await row(a.id)).toEqual(heldA);
+      expect(fixture.posts.length).toBe(postsBefore);
+      expect((await attemptsOf(a.id))[0]).toMatchObject({ sentAt: null, finishedAt: null });
+
+      // (b) The race: publishOnce has loaded the row, the hold commits, then the adapter reaches its first mutation.
+      // The pre-send fence refuses to commit sentAt, so the request never leaves; the workflow ends on the held row.
+      const b = await schedule(tenantA, newVariant(tenantA, brandA, connA, 'Fence b').id);
+      const db = await dispatch(b.id);
+      const original = fixture.publish.bind(fixture);
+      fixture.publish = async (req, creds, io) => {
+        await holdRestored(A, null);
+        return original(req, creds, io);
+      };
+      let raced;
+      try {
+        raced = await inTenant(tenantA, () =>
+          runtime.provider.publishOnce({
+            ...wfInput(b.id),
+            attemptId: db.attemptId,
+            fencingToken: db.claim.fencingToken,
+          }),
+        );
+      } finally {
+        fixture.publish = original;
+      }
+      expect(raced.outcome).toBe('retryable_error');
+      expect(fixture.posts.length).toBe(postsBefore);
+      const [attemptB] = await attemptsOf(b.id);
+      expect(attemptB).toMatchObject({ sentAt: null, outcome: 'retryable_error' });
+      expect(await row(b.id)).toMatchObject({ state: 'held', holdReasons: ['restored_from_backup'] });
+      expect(
+        await inTenant(tenantA, () =>
+          runtime.control.retryAfterProvenNoEffect({ ...wfInput(b.id), attempt: raced }),
+        ),
+      ).toEqual({ retried: false, reason: 'state' });
+      expect((await row(b.id)).state).toBe('held');
+
+      // (c) Processing (sent, pending on the channel): reconciled, and the old claim can no longer poll or finalise.
+      const c = await processingRow('Fence c');
+      await holdRestored(A, null);
+      const calls = fixture.calls.length;
+      const call = { ...wfInput(c.id), attemptId: c.attemptId, fencingToken: c.fencingToken };
+      await expect(inTenant(tenantA, () => runtime.provider.finalize(call))).rejects.toMatchObject(
+        STALE_FENCE,
+      );
+      await expect(inTenant(tenantA, () => runtime.provider.checkStatus(call))).rejects.toMatchObject(
+        STALE_FENCE,
+      );
+      expect(fixture.calls.slice(calls)).toEqual([]);
+      expect(await row(c.id)).toMatchObject({
+        state: 'outcome_unknown',
+        stateReason: 'restored_from_backup',
+      });
+
+      // (d) The same pre-send fence covers a move that keeps the token: worker loss declared while the worker was
+      // only slow (dispatching → outcome_unknown). The late send is refused, so reconciliation cannot race it.
+      const d = await schedule(tenantA, newVariant(tenantA, brandA, connA, 'Fence d').id);
+      const dd = await dispatch(d.id);
+      const postsBeforeD = fixture.posts.length;
+      fixture.publish = async (req, creds, io) => {
+        await inTenant(tenantA, () =>
+          runtime.control.markOutcomeUnknown({ ...wfInput(d.id), attemptId: null }),
+        );
+        return original(req, creds, io);
+      };
+      try {
+        await inTenant(tenantA, () =>
+          runtime.provider.publishOnce({
+            ...wfInput(d.id),
+            attemptId: dd.attemptId,
+            fencingToken: dd.claim.fencingToken,
+          }),
+        );
+      } finally {
+        fixture.publish = original;
+      }
+      expect(fixture.posts.length).toBe(postsBeforeD);
+      expect((await attemptsOf(d.id))[0]).toMatchObject({ sentAt: null });
+      expect(await row(d.id)).toMatchObject({
+        state: 'outcome_unknown',
+        fencingToken: dd.claim.fencingToken,
+      });
+
+      // (e) Held, released by a person and claimed again by the new generation while the old run was still on its
+      // way to the channel: the row is dispatching again, but under a newer token, so the old send is refused and
+      // only the new claim can send (one post, never two).
+      const e = await schedule(tenantA, newVariant(tenantA, brandA, connA, 'Fence e').id);
+      const de = await dispatch(e.id, 'pub:old:run-1');
+      let newClaim = 0;
+      fixture.publish = async (req, creds, io) => {
+        fixture.publish = original;
+        await holdRestored(A, null);
+        const heldE = await row(e.id);
+        await run(tenantA, (tx) =>
+          publicationService.reschedule(
+            A,
+            { publicationId: e.id, expectedVersion: heldE.version, scheduledFor: new Date().toISOString() },
+            tx,
+          ),
+        );
+        const claim = await inTenant(tenantA, () =>
+          runtime.control.claimForDispatch({ ...wfInput(e.id), claimant: 'pub:new:run-2' }),
+        );
+        if (claim.ok) newClaim = claim.fencingToken;
+        return original(req, creds, io);
+      };
+      const postsBeforeE = fixture.posts.length;
+      try {
+        await inTenant(tenantA, () =>
+          runtime.provider.publishOnce({
+            ...wfInput(e.id),
+            attemptId: de.attemptId,
+            fencingToken: de.claim.fencingToken,
+          }),
+        );
+      } finally {
+        fixture.publish = original;
+      }
+      expect(newClaim).toBeGreaterThan(de.claim.fencingToken);
+      expect(fixture.posts.length).toBe(postsBeforeE);
+      expect(await row(e.id)).toMatchObject({ state: 'dispatching', fencingToken: newClaim });
+      const oldAttempt = (await attemptsOf(e.id)).find((a) => a.id === de.attemptId)!;
+      expect(oldAttempt.sentAt).toBeNull();
+    });
+
+    it('bounded batches, each its own transaction: hasMore until every row moved; a failed batch leaves the committed ones and a re-run resumes; the input is parsed', async () => {
+      const brandA3 = newId('brand');
+      await tdb.db.insert(brands).values({
+        id: brandA3,
+        tenantId: tenantA,
+        name: 'A3',
+        timezone: 'UTC',
+        defaultLocale: 'en',
+        status: 'active',
+      });
+      let brandLookupFails = false;
+      registerBrandChecker({
+        assertExist: async (ids) => {
+          if (brandLookupFails) throw new Error('lost connection');
+          for (const id of ids) if (![brandA, brandA3].includes(id)) throw new NotFoundError('Brand', id);
+        },
+      });
+      fixture.grant.remoteAccountId = 'acct_A3';
+      const connA3 = (await connect(tenantA, brandA3)).id;
+      fixture.grant.remoteAccountId = 'acct_A';
+      const ids: string[] = [];
+      for (let i = 0; i < 5; i++)
+        ids.push((await schedule(tenantA, newVariant(tenantA, brandA3, connA3, `Batch ${i}`).id)).id);
+      const stateOf = async () => Promise.all(ids.map(async (id) => (await row(id)).state));
+
+      const first = await holdRestored(A, brandA3, tenantA, { limit: 2 });
+      expect(first).toMatchObject({ outcomeUnknown: [], hasMore: true });
+      expect(first.held).toEqual(ids.slice(0, 2)); // oldest first
+      // The next batch fails: its transaction rolls back alone; the first batch stays committed.
+      brandLookupFails = true;
+      await expect(holdRestored(A, brandA3, tenantA, { limit: 2 })).rejects.toThrow('lost connection');
+      brandLookupFails = false;
+      expect(await stateOf()).toEqual(['held', 'held', 'scheduled', 'scheduled', 'scheduled']);
+      // Re-run: it resumes with what is still in flight; the counts add up to every row exactly once.
+      const second = await holdRestored(A, brandA3, tenantA, { limit: 2 });
+      const third = await holdRestored(A, brandA3, tenantA, { limit: 2 });
+      expect(second).toMatchObject({ held: ids.slice(2, 4), hasMore: true });
+      expect(third).toMatchObject({ held: ids.slice(4), hasMore: false });
+      expect(await holdRestored(A, brandA3, tenantA, { limit: 2 })).toEqual({
+        held: [],
+        outcomeUnknown: [],
+        hasMore: false,
+      });
+      expect(await stateOf()).toEqual(ids.map(() => 'held'));
+      // The contract is parsed by the command, not only at the edge: brandId is required (null for the tenant).
+      for (const bad of [{}, { brandId: brandA3, limit: 0 }, { brandId: brandA3, limit: 201 }])
+        await expect(
+          run(tenantA, (tx) => publicationService.holdRestored(A, bad as { brandId: string }, tx)),
+        ).rejects.toMatchObject({ name: 'ZodError' });
+      registerBrandChecker({
+        assertExist: async (ids) => {
+          const known = new Set([brandA, brandB]);
+          for (const id of ids) if (!known.has(id)) throw new NotFoundError('Brand', id);
+        },
+      });
+    });
+
+    it('a tenant admin command, brand-scoped on request: another brand is untouched, a foreign brand is NOT_FOUND, a publisher or an agent is refused', async () => {
+      const brandA2 = newId('brand');
+      await tdb.db.insert(brands).values({
+        id: brandA2,
+        tenantId: tenantA,
+        name: 'A2',
+        timezone: 'UTC',
+        defaultLocale: 'en',
+        status: 'active',
+      });
+      registerBrandChecker({
+        assertExist: async (ids) => {
+          const known = new Set([brandA, brandA2, brandB]);
+          for (const id of ids) {
+            if (!known.has(id)) throw new NotFoundError('Brand', id);
+            if (id === brandB && requireTenantId() !== tenantB) throw new NotFoundError('Brand', id);
+          }
+        },
+      });
+      fixture.grant.remoteAccountId = 'acct_A2';
+      const connA2 = (await connect(tenantA, brandA2)).id;
+      fixture.grant.remoteAccountId = 'acct_A';
+      const one = await schedule(tenantA, newVariant(tenantA, brandA, connA, 'Brand one').id);
+      const two = await schedule(tenantA, newVariant(tenantA, brandA2, connA2, 'Brand two').id);
+      const result = await holdRestored(A, brandA);
+      expect(result.held).toContain(one.id);
+      expect(result.held).not.toContain(two.id);
+      expect((await row(one.id)).state).toBe('held');
+      expect((await row(two.id)).state).toBe('scheduled');
+      // Another tenant's brand does not exist here; nothing moves.
+      await expect(holdRestored(A, brandB)).rejects.toBeInstanceOf(NotFoundError);
+      expect((await row(two.id)).state).toBe('scheduled');
+      // Below admin, or an agent: refused by the policy engine, nothing moves.
+      await expect(holdRestored({ ...A, role: 'publisher' } as ResolvedActor, null)).rejects.toBeInstanceOf(
+        PolicyDeniedError,
+      );
+      const agent: ResolvedActorServicePrincipal = {
+        kind: 'service_principal',
+        id: 'sp_restore',
+        tenantId: tenantA,
+        status: 'active',
+        maxAutonomy: 'managed_autopublish',
+        grants: [{ action: 'billing.manage', brandIds: 'all' }],
+      };
+      await expect(holdRestored(agent, null)).rejects.toBeInstanceOf(PolicyDeniedError);
+      expect((await row(two.id)).state).toBe('scheduled');
+      // Tenant-wide from a brand-restricted context reaches only its own brands (none, or brand 1 here).
+      const restricted = (brandIds: ReadonlySet<string>) =>
+        runInTenant(ctx(tenantA, brandIds), () =>
+          withTransaction((tx) => publicationService.holdRestored(A, { brandId: null }, tx)),
+        );
+      expect(await restricted(new Set())).toEqual({ held: [], outcomeUnknown: [], hasMore: false });
+      expect((await restricted(new Set([brandA]))).held).not.toContain(two.id);
+      expect((await row(two.id)).state).toBe('scheduled');
+      // The admin, tenant-wide, reaches the other brand too.
+      expect((await holdRestored(A, null)).held).toContain(two.id);
     });
   });
 });

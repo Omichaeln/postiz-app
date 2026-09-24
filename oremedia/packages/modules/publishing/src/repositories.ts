@@ -232,6 +232,29 @@ export class PublicationRepository extends BrandScopedRepository<typeof publicat
       .limit(1);
     return rows.length > 0;
   }
+  /**
+   * Spec 17.6 restore rule: the in-flight rows (scheduled, dispatching, processing) of the tenant, or of one brand,
+   * locked, oldest first, at most `limit` (bounded like listScheduledForBrand; the command asks for one more to know
+   * whether another batch is needed). A brand-restricted context sees only its brands.
+   */
+  async lockInFlightForRestore(brandId: string | null, limit: number, tx: Tx) {
+    const inFlight = inArray(publications.state, ['scheduled', 'dispatching', 'processing']);
+    const { brandIds } = requireTenant();
+    const where = brandId
+      ? this.brandScope(brandId, inFlight)
+      : this.scope(
+          brandIds === 'all'
+            ? inFlight
+            : (and(inFlight, inArray(publications.brandId, [...brandIds])) as SQL),
+        );
+    return tx
+      .select()
+      .from(publications)
+      .where(where)
+      .orderBy(asc(publications.id))
+      .limit(limit)
+      .for('update');
+  }
   /** The scheduled publications of one channel (disconnect holds them, spec 14.7). */
   async listScheduledForChannel(channelConnectionId: string, tx: Tx) {
     return tx
@@ -273,6 +296,27 @@ export class PublicationAttemptRepository extends TenantScopedRepository<typeof 
         ),
       )
       .limit(1);
+    return rows[0] ?? null;
+  }
+  /**
+   * The attempt of one claim, locked: a locking read sees the latest committed row, not the transaction's snapshot,
+   * so a caller that waited on the publication row lock (taken first, the pre-send fence's order) sees a sentAt the
+   * fence committed meanwhile.
+   */
+  async lockByFence(publicationId: string, fencingToken: number, tx: Tx) {
+    const rows = await tx
+      .select()
+      .from(publicationAttempts)
+      .where(
+        this.scope(
+          and(
+            eq(publicationAttempts.publicationId, publicationId),
+            eq(publicationAttempts.fencingToken, fencingToken),
+          ) as SQL,
+        ),
+      )
+      .limit(1)
+      .for('update');
     return rows[0] ?? null;
   }
   async listForPublication(publicationId: string, tx?: Tx) {

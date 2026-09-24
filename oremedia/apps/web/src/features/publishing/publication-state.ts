@@ -30,14 +30,15 @@ export const PUBLICATION_CHIP: Record<PublicationStateT, StateChip> = {
   held: {
     tone: 'warning',
     label: 'Held',
-    detail: 'A release check failed; it needs a person to resolve the reasons below.',
+    detail:
+      'It will not publish until a person resolves the reasons below (a failed release check, or a restore from backup).',
   },
   failed: { tone: 'critical', label: 'Failed', detail: 'The channel rejected it definitively.' },
   outcome_unknown: {
     tone: 'warning',
     label: 'Outcome unknown',
     detail:
-      'The send may or may not have reached the channel (an ambiguous failure after sending, or the worker was lost). Nothing is retried automatically until the outcome is reconciled, so the post is never duplicated.',
+      'The send may or may not have reached the channel (an ambiguous failure after sending, the worker was lost, or it was in flight when the data was restored from a backup). Nothing is retried automatically until the outcome is reconciled, so the post is never duplicated.',
   },
   retry_eligible: {
     tone: 'warning',
@@ -80,10 +81,25 @@ export const HOLD_REASON_TEXT: Record<string, string> = {
   assets_rights_valid: 'An asset in the package lost its usage rights.',
   facts_valid: 'A fact the copy relies on is no longer valid (an expired offer, for example).',
   capability_valid: 'The variant no longer passes the channel capability check.',
+  // Spec 17.6 restore rule (publishing.publications.holdRestored), not a release check: it was never sent.
+  restored_from_backup:
+    'The data was restored from a backup while this was waiting to be sent; it was never sent. Release it again or cancel it.',
 };
 
 export const holdReasonText = (key: string): string =>
   HOLD_REASON_TEXT[key] ?? 'No explanation is recorded for this reason.';
+
+/** Why a publication's outcome is unknown, by its recorded state reason; the key is always shown verbatim too. */
+export const OUTCOME_UNKNOWN_REASON_TEXT: Record<string, string> = {
+  outcome_unknown: 'The send failed after the request may have reached the channel.',
+  claim_lease_expired: 'The worker sending it was lost after the request may have reached the channel.',
+  // Spec 17.6 restore rule (publishing.publications.holdRestored): sent before the restore, maybe live already.
+  restored_from_backup:
+    'The data was restored from a backup after this was sent to the channel, so it may already be live. Look for the post on the channel before anything else.',
+};
+
+export const outcomeUnknownReasonText = (key: string | null): string | null =>
+  key ? (OUTCOME_UNKNOWN_REASON_TEXT[key] ?? null) : null;
 
 export interface ChannelChip extends StateChip {
   /** True when the channel cannot publish until someone acts (spec 21.2 token expiry). */

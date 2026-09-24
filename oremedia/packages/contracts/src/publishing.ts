@@ -88,7 +88,7 @@ export const MandateCreate = z.object({
 // Phase 5 publishing (spec 13.5, 14.1, 14.3, 14.7): router DTOs, workflow inputs, activity contracts and the
 // cross-module hook shapes. Appended only; nothing above changes.
 // ---------------------------------------------------------------------------------------------------------------
-import { PageRequest } from './pagination';
+import { PAGE_MAX, PageRequest } from './pagination';
 import { TenantContextInput } from './tenancy';
 import type { ActivityHooks } from './agents';
 import type { ChannelConnectionStatus, PendingCheck, ReconcileResult } from './providers';
@@ -107,6 +107,15 @@ export const PublicationList = z.object({
 });
 export const PublicationEvidence = z.object({ publicationId: z.string() });
 export const PublicationDeleteRemote = z.object({ publicationId: z.string(), reason: z.string().max(500) });
+/**
+ * Spec 17.6 restore rule (runbook "restore a single tenant", step 5): the restored tenant's in-flight publications,
+ * or one brand's (`brandId` is required; null means the whole tenant). One call handles at most `limit` rows in its
+ * own transaction; `hasMore` asks for another call.
+ */
+export const PublicationHoldRestored = z.object({
+  brandId: z.string().nullable(),
+  limit: z.number().int().min(1).max(PAGE_MAX).default(PAGE_MAX),
+});
 
 /** Spec 13.5: the cancel response; `prevented: false` means dispatch already started and the outcome is reconciled. */
 export type CancelResult =

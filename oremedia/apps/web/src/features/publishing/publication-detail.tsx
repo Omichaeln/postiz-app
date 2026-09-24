@@ -24,6 +24,7 @@ import {
   holdReasonText,
   isoToLocalInput,
   localInputToIso,
+  outcomeUnknownReasonText,
   publicationChip,
   CHANNEL_CHIP,
 } from './publication-state';
@@ -145,10 +146,10 @@ function Loaded({
       {p.state === 'held' && (
         <StatusBanner
           tone="warning"
-          title="Held: a release check failed"
+          title="Held: a person needs to resolve it before it can publish"
           description={
             <>
-              <p>Reasons, exactly as the release policy recorded them:</p>
+              <p>Reasons, exactly as they were recorded:</p>
               <ul className="mt-1 list-disc pl-5" data-testid="hold-reasons">
                 {p.holdReasons.map((r) => (
                   <li key={r}>
@@ -170,7 +171,24 @@ function Loaded({
         <StatusBanner
           tone="warning"
           title="Outcome unknown: reconcile before anything else happens"
-          description="The workflow could not tell whether the channel received the post. Automatic reconciliation looks for the remote post; if you can see it on the channel, confirm it here with its id, and if you are sure it is absent, confirm that so it becomes eligible for a retry. Nothing is re-sent until then."
+          description={
+            <>
+              <p>
+                The workflow could not tell whether the channel received the post. Automatic reconciliation
+                looks for the remote post; if you can see it on the channel, confirm it here with its id, and
+                if you are sure it is absent, confirm that so it becomes eligible for a retry. Nothing is
+                re-sent until then.
+              </p>
+              {p.stateReason && (
+                <p className="mt-1" data-testid="outcome-unknown-reason">
+                  <code>{p.stateReason}</code>
+                  {outcomeUnknownReasonText(p.stateReason) && (
+                    <> — {outcomeUnknownReasonText(p.stateReason)}</>
+                  )}
+                </p>
+              )}
+            </>
+          }
         />
       )}
       {p.state === 'retry_eligible' && (

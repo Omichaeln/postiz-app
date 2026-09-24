@@ -6,6 +6,7 @@ import {
   RETENTION_SWEEP_WORKFLOW_TYPE,
   createOperationsRuntime,
 } from '@oremedia/module-operations';
+import { runWithDatabaseRole } from '@oremedia/db';
 import { logger } from '@oremedia/observability';
 
 /**
@@ -19,7 +20,13 @@ export function operationsActivities() {
   const runtime = createOperationsRuntime();
   return {
     ...createDeletionActivities(runtime.deletion),
-    ...createRetentionActivities(runtime.retention),
+    // Spec 17.5 / 6.1: the TTL deletes run on the retention role's connection (DATABASE_URL_RETENTION,
+    // roles/retention-role.sql), the only role with DELETE on the insert-only tables a TTL class removes.
+    ...createRetentionActivities({
+      listRetentionTenants: (input) => runtime.retention.listRetentionTenants(input),
+      applyRetention: (input) =>
+        runWithDatabaseRole('retention', () => runtime.retention.applyRetention(input)),
+    }),
   };
 }
 

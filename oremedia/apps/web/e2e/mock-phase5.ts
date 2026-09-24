@@ -313,6 +313,66 @@ export class Phase5Backend {
   }
 
   /**
+   * Test backdoor: the operator ran `publishing.publications.holdRestored` after a restore (spec 17.6) until
+   * `hasMore` was false. A never-sent publication (scheduled, or dispatching without a sent attempt) moves to held
+   * with `restored_from_backup`; one that may be live (processing, or dispatching with a sent attempt) moves to
+   * outcome_unknown with the same state reason, for reconciliation. A claimed one's fencing token moves on.
+   * Published, failed, cancelled, held and outcome_unknown rows are left alone.
+   */
+  holdRestored(brandId: string | null = null): { held: string[]; outcomeUnknown: string[] } {
+    const held: string[] = [];
+    const outcomeUnknown: string[] = [];
+    for (const p of this.publications.values()) {
+      if (brandId !== null && p.brandId !== brandId) continue;
+      if (p.state !== 'scheduled' && p.state !== 'dispatching' && p.state !== 'processing') continue;
+      const claimed = p.state !== 'scheduled';
+      const fence = claimed ? { fencingToken: (p.fencingToken ?? 0) + 1 } : {};
+      const sent = p.attempts.some((a) => a.fencingToken === p.fencingToken && a.sentAt !== null);
+      if (p.state === 'processing' || sent) {
+        this.transition(p.id, { state: 'outcome_unknown', stateReason: 'restored_from_backup', ...fence });
+        outcomeUnknown.push(p.id);
+        continue;
+      }
+      this.transition(p.id, {
+        state: 'held',
+        stateReason: 'restored_from_backup',
+        holdReasons: ['restored_from_backup'],
+        ...fence,
+      });
+      held.push(p.id);
+    }
+    return { held, outcomeUnknown };
+  }
+
+  /** Test backdoor: the workflow claimed the publication and sent it; the channel is still processing it. */
+  sentAndProcessing(publicationId: string): Publication {
+    const p = this.publication(publicationId);
+    return this.transition(p.id, {
+      state: 'processing',
+      fencingToken: 1,
+      claimedAt: now(),
+      attempts: [
+        {
+          id: rid('att'),
+          publicationId: p.id,
+          attemptNumber: 1,
+          fencingToken: 1,
+          requestFingerprint: hash(p.id),
+          providerIdempotencyKey: rid('pik'),
+          startedAt: now(),
+          sentAt: now(),
+          finishedAt: null,
+          outcome: null,
+          errorCode: null,
+          errorDetail: null,
+          remoteJobId: rid('job'),
+          remotePostId: null,
+        },
+      ],
+    });
+  }
+
+  /**
    * Spec 13.2 eager invalidation (UX only; dispatch still recomputes the binding): a revision was superseded, so its
    * valid approvals are invalidated and its open requests go stale with the reason.
    */

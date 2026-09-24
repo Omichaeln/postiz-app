@@ -50,7 +50,7 @@ describe.skipIf(!enabled)('two-company journey (built app in Chromium, mock tran
     requestId: '',
     approvalId: '',
     variants: { linkedin: '', x: '' },
-    publications: { linkedin: '', x: '', followUp: '' },
+    publications: { linkedin: '', x: '', followUp: '', restoredWaiting: '', restoredSent: '' },
   };
 
   const open = async (path: string) => {
@@ -317,6 +317,91 @@ describe.skipIf(!enabled)('two-company journey (built app in Chromium, mock tran
     const reasons = await page.getByTestId('publication-detail').getByTestId('hold-reasons').textContent();
     expect(reasons).toContain('approval_matches');
     expect(reasons).toContain('The approved package no longer matches what would be published.');
+  }, 60_000);
+
+  it('restore and reconcile: after a restore the never-sent publications are held and the sent one is reconciled, each with its reason in text; a person releases one and confirms the live one; nothing else moves', async () => {
+    // In flight at the restore point: a post waiting for the day after tomorrow, one the workflow had sent and the
+    // channel was still processing (live there), and the seeded one the workflow had claimed (dispatching).
+    await open(pathA(`calendar?day=${dayKey(2)}`));
+    await expect.poll(() => page.getByLabel('Channel variant id').count(), { timeout: 15_000 }).toBe(1);
+    journey.publications.restoredWaiting = await schedule(journey.variants.x, 'Acme X', localInput(2, 9));
+    journey.publications.restoredSent = await schedule(
+      journey.variants.linkedin,
+      'Acme LinkedIn',
+      localInput(2, 11),
+    );
+    p5.sentAndProcessing(journey.publications.restoredSent);
+    const untouched = [
+      journey.publications.linkedin, // published
+      journey.publications.x, // failed
+      journey.publications.followUp, // held by the release check
+    ].map((id) => JSON.stringify(p5.publication(id)));
+    const companyBBefore = JSON.stringify([...companyB.phase5.publications.values()]);
+
+    // The operator restores company A and runs publishing.publications.holdRestored (the mock's backdoor).
+    const moved = p5.holdRestored();
+    expect(moved.held).toEqual(
+      expect.arrayContaining([journey.publications.restoredWaiting, P5.publications.dispatching]),
+    );
+    expect(moved.outcomeUnknown).toEqual([journey.publications.restoredSent]);
+    expect(p5.publication(P5.publications.dispatching)).toMatchObject({
+      state: 'held',
+      holdReasons: ['restored_from_backup'],
+    });
+    expect(
+      [journey.publications.linkedin, journey.publications.x, journey.publications.followUp].map((id) =>
+        JSON.stringify(p5.publication(id)),
+      ),
+    ).toEqual(untouched);
+    expect(JSON.stringify([...companyB.phase5.publications.values()])).toBe(companyBBefore);
+
+    // The calendar: each affected row says its state in words, and the detail names the reason with its explanation.
+    await open(pathA(`calendar?day=${dayKey(2)}&publication=${journey.publications.restoredSent}`));
+    await expect.poll(publicationState, { timeout: 15_000 }).toContain('Outcome unknown');
+    const dayList = page.getByTestId('day-list');
+    const itemText = (id: string) => dayList.getByRole('listitem').filter({ hasText: id }).textContent();
+    expect(await itemText(journey.publications.restoredWaiting)).toContain('Held');
+    expect(await itemText(journey.publications.restoredSent)).toContain('Outcome unknown');
+    const detail = page.getByTestId('publication-detail');
+    const sentReason = (await detail.getByTestId('outcome-unknown-reason').textContent()) ?? '';
+    expect(sentReason).toContain('restored_from_backup');
+    expect(sentReason).toContain('it may already be live');
+    expect(await detail.textContent()).toContain('Nothing is re-sent until then');
+    // It is live on the channel: the person confirms it with its remote id (never a re-release).
+    expect(await detail.getByRole('button', { name: 'Release again' }).count()).toBe(0);
+    await detail.getByRole('button', { name: 'Reconcile' }).click();
+    const reconcile = page.getByRole('dialog', { name: 'Reconcile the outcome' });
+    await reconcile.getByLabel('What did you find?').click();
+    await page.getByRole('option', { name: /confirm published/ }).click();
+    await reconcile.getByLabel('Remote post id').fill('li_restored_1');
+    await reconcile.getByRole('button', { name: 'Record resolution' }).click();
+    await expect.poll(publicationState, { timeout: 15_000 }).toContain('Published');
+    expect(p5.publication(journey.publications.restoredSent)).toMatchObject({
+      state: 'published',
+      remotePostId: 'li_restored_1',
+      stateReason: 'human_confirmed',
+    });
+
+    // The waiting one was never sent: the person releases it again from the calendar's held action.
+    await dayList.getByRole('button').filter({ hasText: journey.publications.restoredWaiting }).click();
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get('publication'), { timeout: 15_000 })
+      .toBe(journey.publications.restoredWaiting);
+    await expect
+      .poll(() => detail.getByTestId('hold-reasons').textContent(), { timeout: 15_000 })
+      .toContain('restored_from_backup');
+    expect(await detail.getByTestId('hold-reasons').textContent()).toContain('it was never sent');
+    expect(await detail.textContent()).toContain('Held: a person needs to resolve it before it can publish');
+    await detail.getByRole('button', { name: 'Release again' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Release again' });
+    await dialog.getByLabel('Publish at').fill(localInput(2, 15));
+    await dialog.getByRole('button', { name: 'Release again' }).click();
+    await expect.poll(publicationState, { timeout: 15_000 }).toContain('Scheduled');
+    expect(p5.publication(journey.publications.restoredWaiting)).toMatchObject({
+      state: 'scheduled',
+      holdReasons: [],
+      stateReason: null,
+    });
   }, 60_000);
 
   it('switching to company B shows none of company A’s rows on any screen', async () => {

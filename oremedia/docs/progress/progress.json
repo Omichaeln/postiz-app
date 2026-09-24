@@ -25,8 +25,8 @@
         [
           "0.g2",
           "One fixture document round-trips save → reopen → render with pixel diff under threshold",
-          "open",
-          "Depends on the Phase 3 editor and render worker spike."
+          "complete",
+          "apps/worker-render/src/roundtrip.integration.test.ts: each fixture document is created, edited through operations.apply, reopened (snapshot equals the fixture) and rendered through the real activities and Chromium; the export matches its committed golden with 0 differing pixels (threshold: ≤ 0.1 % of pixels differing by more than 2 on any channel)."
         ],
         [
           "0.g3",
@@ -137,8 +137,8 @@
           "Editor bake-off on two real brand fixtures (Konva)",
           "production",
           "22 Phase 0",
-          "open",
-          "Scheduled with the Phase 3 editor spike (two fixture brands with different scripts and fonts)."
+          "complete",
+          "docs/spikes/editor-bake-off.md: Konva with the current adapter on two fixture brands (Latin/Karla, Arabic/Noto Naskh, both OFL fonts in the repo): shaping and direction, font pinning, overflow modes, protected elements, keyboard operation and export determinism, each with its test (packages/editor/src/bake-off.test.ts, apps/worker-render/src/bake-off.integration.test.ts; mutation-checked). Findings recorded as failing-by-design tests: mixed Arabic runs with tracking/justify and RTL justify (both need a MINOR renderer version — a product call); the static contrast gap was fixed. Devanagari and CJK not covered: no font in the repository."
         ],
         [
           "0.14",
@@ -192,8 +192,8 @@
         [
           "1.g4",
           "Migrations apply and roll forward on MySQL 8",
-          "in_progress",
-          "0000_init applies to a fresh MySQL 8.0.46 database (90 tables, 61 foreign keys, all FK targets indexed). Roll-forward of a second migration on a populated database will be exercised with the first Phase 2 schema change."
+          "complete",
+          "apps/worker-core/src/migration-roll-forward.integration.test.ts: migrate to 0001, seed two tenants, migrate to head (0002): every existing table byte-equal, new columns defaulted, new tables empty, and the migrated data works with the new code. packages/db immutability and retention-role tests run on the migrated schema."
         ]
       ],
       "items": [
@@ -498,8 +498,8 @@
           "observability: OpenTelemetry traces/metrics, Sentry, correlation IDs",
           "production",
           "3.1, 17.3",
-          "in_progress",
-          "OTel SDK bootstrap, metric names (spec 17.3) and Sentry init written; exporters gated on OTEL_EXPORTER_OTLP_ENDPOINT / SENTRY_DSN; not yet exercised against a collector"
+          "complete",
+          "OTel NodeSDK (traces + metrics over OTLP/HTTP), Sentry and pino with correlation ids. packages/observability/src/bootstrap.test.ts starts a local OTLP and Sentry receiver and proves a span reaches /v1/traces, a counter reaches /v1/metrics, and error events arrive without headers, cookies, body or query string (the beforeSend hook holds even with sendDefaultPii on; mutation-checked). Exporters are enabled by OTEL_EXPORTER_OTLP_ENDPOINT / SENTRY_DSN; pointing them at a hosted collector is deployment (R.5)."
         ],
         [
           "1.39",
@@ -544,8 +544,8 @@
         [
           "2.g1",
           "Ineligible assets never appear in search, agent context or render",
-          "in_progress",
-          "Search (findEligibleAssets) and authoriseUse verified by assets.integration.test.ts and the cross-tenant harness; the agent-context (Phase 4) and render (Phase 3) callers must go through those two entry points — verified once they exist."
+          "complete",
+          "apps/worker-core/src/asset-eligibility.integration.test.ts: an asset with expired rights, an ended grant or a non-approved state is absent from findEligibleAssets, from the resolved agent context and the prompt the model receives, and from assets.searchEligible; a render job naming it fails rights_ineligible without calling the renderer or writing an export. Mutation-checked."
         ],
         [
           "2.g2",
@@ -895,8 +895,8 @@
           "operations.propose: dry-run with preview render and diff; accept / modify / reject",
           "production",
           "11.4",
-          "in_progress",
-          "operations.propose: same stale check, guards, reduce and validation with no writes; returns the diff (changedElementIds, findings, blocking) plus a synchronous scene preview of the changed pages (rendererVersion, publishable:false) used by the studio overlay. Open: a worker-rendered raster preview needs a schema change (preview flag on render_jobs and storage for the proposed snapshot), which subagents may not make."
+          "complete",
+          "operations.propose dry-runs with the same guards and returns the diff plus a synchronous scene preview; behind the creative.preview_render flag (default off, rollout order in deploy-railway.md) it also queues a worker-rendered preview of the proposed snapshot (render_previews / preview_exports, migration 0002). A preview export is structurally never publishable: variants, approval binding, release and the publish media source read only rendered_exports (preview-render and preview-release integration tests, mutation-checked)."
         ],
         [
           "3.11",
@@ -1042,8 +1042,8 @@
           "Tenant model-routing policy checked before every call; private reasoning not stored",
           "critical",
           "12.7",
-          "in_progress",
-          "routing-policy.ts: Zod tenant policy (permitted vendors, regions, retention, data classes) asserted before every model call (assertRoutingAllowed); private reasoning is never stored or shown (runs.steps returns actions, redacted inputs, outputs and costs). Open: policies live behind a source hook in memory — the schema has no settings column for them (schema frozen this phase)."
+          "complete",
+          "Stored per-tenant routing policy (model_routing_policies, migration 0002) behind agents.routingPolicy.get/set (owner/admin, versioned, audited); assertRoutingAllowed reads the stored policy first. apps/api/src/routing-policy.integration.test.ts: a stored policy denying the configured model refuses agents.runs.start for that tenant only; a creator is refused; version conflicts enforced. Private reasoning is never stored."
         ],
         [
           "4.4",
@@ -1098,8 +1098,8 @@
           "Model-call recovery: persist provider job IDs before waiting; poll instead of resubmit",
           "production",
           "12.2",
-          "in_progress",
-          "provider-jobs.ts: provider job ids are persisted through a registered store before waiting and polled on retry (images.generate path). Open: the store is in-process until an image provider is configured."
+          "complete",
+          "Provider job ids are persisted (provider_jobs, keyed by run, step, tool and tool call id) before waiting and polled on retry; the durable store is registered in worker-core. apps/worker-core/src/provider-jobs.integration.test.ts: a worker dies after acceptance, a fresh composition retries and polls the same job (one submission, one charge); two calls in one step get two jobs. images.generate is not reachable from MCP (not in the MCP tool set and refused without a budget reservation), so the API keeps the in-memory default, documented beside the registration."
         ],
         [
           "4.11",
@@ -1760,7 +1760,7 @@
           "critical",
           "17.6",
           "in_progress",
-          "restore-single-tenant.md walked as a test (rows re-imported from a restore point, other tenant untouched, deletions after the restore point re-applied); the post-restore hold of scheduled/dispatching/processing publications is not implemented (no command exists yet) and the PITR restore itself needs a live database."
+          "publicationService.holdRestored (publishing.publications.holdRestored, owner/admin, idempotent, bounded batches with hasMore): scheduled and unsent dispatching rows go to held (restored_from_backup); processing and sent dispatching rows go to outcome_unknown and are reconciled against remote history (spec 14.3; 13.1 has no held → published move, so 17.6's \"moved to held\" applies literally only to unsent rows — interpretation recorded). The attempt is read with a locking read so a sentAt committed by the pre-send fence is never missed (two-connection test); a pre-send fence in publishOnce stops a restored or fenced-out run from sending. Rehearsed in runbooks.integration.test.ts: every in-flight row resolved, the live post reconciled as published with no second post, the other tenant untouched. Open: the PITR restore itself needs a live database."
         ],
         [
           "7.4",
@@ -1864,7 +1864,7 @@
           "critical",
           "17.5",
           "in_progress",
-          "deletionRequestWorkflowV1 on core with per-module deletion handlers registered at the composition root (assets objects and rows, creative/content/publishing/measurement/intelligence rows, credentials shredded, users anonymised, audit kept) and retentionSweepWorkflowV1 with dry run; apps/worker-core/src/deletion.integration.test.ts proves every tenant-scoped table is empty or anonymised, the other tenant untouched, second run no-op. Open: a retention database role with DELETE on insert-only tables, Temporal visibility and log deletion (operator actions recorded), bucket lifecycle."
+          "deletionRequestWorkflowV1 fan-out proves every tenant-scoped table empty or anonymised; retentionSweepWorkflowV1 runs its applyRetention activity on a separate retention database role (DATABASE_URL_RETENTION; DELETE only on the TTL tables; retention-role integration tests). Open: tenant deletion of insert-only tables still runs on the app role and is refused there (recorded in process-deletion-request.md); Temporal visibility and log deletion are operator actions; bucket lifecycle rules."
         ]
       ]
     },
@@ -2045,7 +2045,7 @@
           "production",
           "21.3",
           "in_progress",
-          "apps/web/e2e/a11y.ts: in-page audit of 12 WCAG 2.2 rules (names, labels, colour-only status, 1.4.3 contrast, headings, landmarks, tabindex, aria references, dialog labels, 2.5.8 target size, 1.4.10 reflow) plus keyboard-path (2.1.1, 2.4.7, 2.4.11) and dialog focus-trap checks; a non-vacuity test seeds one violation per rule. a11y.e2e.test.ts (87) runs every screen in both themes at several widths; fixes: --status-warning darkened to #8f5c00, calendar opacity, input focus-within, header wrap, review portal pre-paint theme. Open: axe-core is not a dependency, so this is a focused audit not a full one; toasts can obscure focus at phone width (2.4.11) and are not yet fixed."
+          "apps/web/e2e/a11y.ts audits 12 WCAG 2.2 rules plus keyboard paths and dialog focus traps on every screen in both themes at several widths (91 tests, non-vacuity test seeds each violation). Toasts now move away from the focused control (2.4.11), pause on hover/focus, announce politely and close with Escape returning focus; tested at 320 and 390 px and mutation-checked. Open: axe-core is not a dependency, so this is a focused automated audit; a manual WCAG 2.2 AA review has not been done."
         ],
         [
           "F.6",
@@ -2084,7 +2084,7 @@
           "critical",
           "19.1",
           "in_progress",
-          "One fixture set across surfaces: public REST /v1 (26 routes) calls the tRPC procedure with the same context, so envelope, tenant selection, rate limit, idempotency replay and audit are identical; read parity REST == tRPC per route; per-key scopes apply to tRPC, REST and MCP; a scoped, granted key writes through REST at its effective autonomy (201) and an assist-only key is refused (403) (apps/api integration 47/47). Open: MCP tool calls take no Idempotency-Key (no replay protection); OAuth 2.1 tokens (spec 7.6) are not implemented; MCP success paths for start run are tested only for refusals."
+          "One fixture set across surfaces: REST /v1 (26 routes) calls each tRPC procedure with the same context (envelope, tenancy, rate limit, idempotency, audit identical); read parity per route; per-key scopes on tRPC, REST and MCP; keys write at their effective autonomy. MCP write tools now require an Idempotency-Key and replay, refuse reuse and report in-progress exactly as REST (mcp.integration.test.ts 25 tests, mutation-checked); MCP success paths for start run, create brief, request review and propose operations are tested. Open: OAuth 2.1 tokens (spec 7.6) are not implemented."
         ],
         [
           "T.4",
@@ -2124,15 +2124,15 @@
           "critical",
           "19.1",
           "in_progress",
-          "apps/web/e2e/journey.e2e.test.ts (9 tests, built app in Chromium at phone width): two companies and roles, create → variants → request review → approve → schedule to two channels, partial failure with outcome_unknown reconciled in the UI, post-approval edit invalidates and the release is held (approval_matches), company B sees none of A, brand-restricted creator gets NOT_FOUND. Open: it runs against the in-process mock transport, not the deployed stack; restore is exercised at the service level (runbooks) but not in the browser journey."
+          "apps/web/e2e/journey.e2e.test.ts (10 tests, built app in Chromium at phone width): two companies and roles, create → review → approve → schedule to two channels, partial failure reconciled, post-approval edit invalidates and holds, restore and reconcile (unsent posts held and released again, the sent post shown as outcome unknown and confirmed through Reconcile), company isolation and brand restriction. Open: it runs against the in-process mock transport, not a deployed stack."
         ],
         [
           "T.9",
           "Operational: burst load, queue fairness, provider outage, secret redaction, backup restore",
           "production",
           "19.1",
-          "open",
-          ""
+          "in_progress",
+          "apps/worker-core/src/operational.integration.test.ts: burst (40 publications across 4 tenants, all published), queue fairness (a noisy tenant cannot starve a quiet one; mutation-checked against oldest-first ordering), provider outage before send (retries with no sentAt, one post after recovery) and failures at and after send (outcome_unknown reconciled, one post); secret redaction on every outage path (secret-scan.integration.test.ts); restore via the rehearsal and 7.3. Open: staging k6 at 2–3× peak, PITR restore, real provider outages and Temporal task-queue fairness under load need a live environment."
         ],
         [
           "T.10",
@@ -2154,8 +2154,8 @@
           "IDOR/BOLA: cross-tenant harness across tRPC, REST, MCP, agent tools, workers, exports",
           "critical",
           "18",
-          "in_progress",
-          "pnpm test:cross-tenant 208/208 with fixture coverage enforced per surface: every tRPC procedure, every REST /v1 route, every MCP tool and every Release 1 agent tool (strict, no known gaps) is called as tenant A with tenant B ids and B is unchanged; exports and portfolio queries covered by export-disclosure.integration.test.ts (S.8). Open: worker activities are exercised per module (render inputs, publishing, secret scan) but are not enumerated by the harness the way procedures are."
+          "complete",
+          "pnpm test:cross-tenant 278/278 with fixture coverage enforced per surface: every tRPC procedure (148), REST route (26), MCP tool (8), agent tool (16) and every Temporal activity registered by worker-core, worker-ingest and worker-render is called with tenant A context and tenant B ids and must refuse or no-op with every row of every tenant-scoped table of B unchanged; a new procedure, route, tool or activity without a fixture fails the harness. Exports and portfolio queries: export-disclosure.integration.test.ts. Limit recorded: object-store contents are guarded by tenant-prefixed keys and storeExport key checks rather than snapshotted."
         ],
         [
           "S.2",
@@ -2218,8 +2218,8 @@
           "Runaway cost: parallel overspend, provider timeout, retry-after-acceptance",
           "critical",
           "18",
-          "in_progress",
-          "Parallel overspend (agents.integration.test.ts); provider timeout after acceptance polls the same job with one submission and a tool timeout never resubmits (packages/ai/src/provider-jobs.test.ts); timeout-after-send is never retried (io.test.ts, publication workflow tests). Open: an activity retry charges budgets.consume again (over-counts cost, never overspends), and two images.generate calls in one model step share one provider-job key."
+          "complete",
+          "Parallel overspend (agents.integration.test.ts); a charge is idempotent per tool call (usage_ledger.idempotency_key under the reservation row lock), so a retried activity is charged once while distinct parallel calls each charge (budgets.integration.test.ts); each images.generate call gets its own provider job and a retry polls rather than resubmits (provider-jobs tests); timeout after send is never retried (io.test.ts, publication workflow tests). All mutation-checked."
         ],
         [
           "S.10",

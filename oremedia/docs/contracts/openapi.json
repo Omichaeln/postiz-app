@@ -443,6 +443,75 @@
         }
       }
     },
+    "/trpc/agents.routingPolicy.get": {
+      "get": {
+        "operationId": "agents.routingPolicy.get",
+        "x-trpc-type": "query"
+      }
+    },
+    "/trpc/agents.routingPolicy.set": {
+      "post": {
+        "operationId": "agents.routingPolicy.set",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "policy": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "defaultModel": {
+                        "type": "string"
+                      },
+                      "permittedVendors": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": ["anthropic", "fake"]
+                        }
+                      },
+                      "permittedRegions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "retention": {
+                        "type": "string",
+                        "enum": ["zero", "standard_30d"]
+                      },
+                      "dataClasses": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": ["brand_content", "customer_voice", "pii"]
+                        }
+                      },
+                      "deniedModels": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["schemaVersion", "defaultModel", "permittedVendors"]
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["policy"]
+              }
+            }
+          }
+        }
+      }
+    },
     "/trpc/agents.runs.approveProposal": {
       "post": {
         "operationId": "agents.runs.approveProposal",
@@ -3308,6 +3377,18 @@
                   },
                   "documentId": {
                     "type": "string"
+                  },
+                  "previewRender": {
+                    "type": "object",
+                    "properties": {
+                      "formatKeys": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["formatKeys"]
                   }
                 },
                 "required": ["baseRevisionId", "operations", "summary", "origin", "documentId"]
@@ -5168,6 +5249,30 @@
                   }
                 },
                 "required": ["publicationId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/publishing.publications.holdRestored": {
+      "post": {
+        "operationId": "publishing.publications.holdRestored",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "limit": {
+                    "type": "number"
+                  }
+                },
+                "required": []
               }
             }
           }
@@ -8094,6 +8199,64 @@
           "required": ["tenantId"]
         }
       },
+      "agents.routingPolicy.get": {
+        "type": "query",
+        "input": null
+      },
+      "agents.routingPolicy.set": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "policy": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "const": 1
+                },
+                "defaultModel": {
+                  "type": "string"
+                },
+                "permittedVendors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["anthropic", "fake"]
+                  }
+                },
+                "permittedRegions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "retention": {
+                  "type": "string",
+                  "enum": ["zero", "standard_30d"]
+                },
+                "dataClasses": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["brand_content", "customer_voice", "pii"]
+                  }
+                },
+                "deniedModels": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["schemaVersion", "defaultModel", "permittedVendors"]
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": ["policy"]
+        }
+      },
       "agents.runs.approveProposal": {
         "type": "mutation",
         "input": {
@@ -10434,6 +10597,18 @@
             },
             "documentId": {
               "type": "string"
+            },
+            "previewRender": {
+              "type": "object",
+              "properties": {
+                "formatKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["formatKeys"]
             }
           },
           "required": ["baseRevisionId", "operations", "summary", "origin", "documentId"]
@@ -11824,6 +11999,21 @@
             }
           },
           "required": ["publicationId"]
+        }
+      },
+      "publishing.publications.holdRestored": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "number"
+            }
+          },
+          "required": []
         }
       },
       "publishing.publications.list": {

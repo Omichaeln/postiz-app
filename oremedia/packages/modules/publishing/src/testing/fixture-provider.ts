@@ -72,6 +72,12 @@ export type PublishBehaviour =
   | { kind: 'reject'; code?: string }
   | { kind: 'before_send_failure' }
   | { kind: 'after_send_failure' }
+  /**
+   * The platform is down at the send boundary: the post-creating request goes through the real ProviderIO to a
+   * loopback port nobody listens on (connection refused). The query carries the access token so a test can prove the
+   * failure is logged and recorded without it.
+   */
+  | { kind: 'unreachable' }
   /** The platform records the post, then the response is lost (crash after send). */
   | { kind: 'crash_after_send' };
 
@@ -101,6 +107,18 @@ function fixtureEndpoint(): Promise<string> {
     server.listen(0, '127.0.0.1', () =>
       resolve(`http://127.0.0.1:${(server.address() as AddressInfo).port}`),
     );
+  }));
+}
+
+let closedPort: Promise<number> | null = null;
+/** A loopback port that was bound and released, so a connection to it is refused. */
+function unreachablePort(): Promise<number> {
+  return (closedPort ??= new Promise<number>((resolve) => {
+    const server = http.createServer();
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo;
+      server.close(() => resolve(port));
+    });
   }));
 }
 
@@ -160,6 +178,12 @@ export class FixtureProviderAdapter implements ProviderAdapter {
       throw new ProviderTransportError(
         Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }),
         'before_send',
+      );
+    if (b.kind === 'unreachable')
+      await io.request(
+        `http://127.0.0.1:${await unreachablePort()}/posts?access_token=${encodeURIComponent(creds.accessToken)}`,
+        { method: 'POST', body: JSON.stringify({ idempotencyKey: req.idempotencyKey }) },
+        { mutation: true },
       );
     await io.request(
       `${await fixtureEndpoint()}/posts`,

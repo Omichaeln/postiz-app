@@ -61,12 +61,14 @@ import { RENDERER_VERSION } from '@oremedia/editor/renderer/version';
 import { validateAgainstBrand } from '@oremedia/editor/validate';
 import { policy } from '@oremedia/module-access';
 import { brandService } from '@oremedia/module-brand';
-import { audit, outbox } from '@oremedia/module-operations';
+import { audit, featureFlag, outbox } from '@oremedia/module-operations';
 import {
   CreativeDocumentRepository,
   CreativeRevisionRepository,
   ElementCommentRepository,
+  PreviewExportRepository,
   RenderJobRepository,
+  RenderPreviewRepository,
   RenderedExportRepository,
   TemplateRepository,
   TemplateVersionRepository,
@@ -76,6 +78,8 @@ const documentsRepo = new CreativeDocumentRepository();
 const revisionsRepo = new CreativeRevisionRepository();
 const renderJobsRepo = new RenderJobRepository();
 const exportsRepo = new RenderedExportRepository();
+const previewsRepo = new RenderPreviewRepository();
+const previewExportsRepo = new PreviewExportRepository();
 const commentsRepo = new ElementCommentRepository();
 const templatesRepo = new TemplateRepository();
 const templateVersionsRepo = new TemplateVersionRepository();
@@ -84,6 +88,8 @@ type DocumentRow = Awaited<ReturnType<typeof documentsRepo.getById>>;
 type RevisionRow = Awaited<ReturnType<typeof revisionsRepo.getById>>;
 type RenderJobRow = Awaited<ReturnType<typeof renderJobsRepo.getById>>;
 type ExportRow = Awaited<ReturnType<typeof exportsRepo.getById>>;
+type PreviewRow = Awaited<ReturnType<typeof previewsRepo.getById>>;
+type PreviewExportRow = Awaited<ReturnType<typeof previewExportsRepo.getById>>;
 type CommentRow = Awaited<ReturnType<typeof commentsRepo.getById>>;
 type TemplateRow = Awaited<ReturnType<typeof templatesRepo.getById>>;
 type TemplateVersionRow = Awaited<ReturnType<typeof templateVersionsRepo.getById>>;
@@ -449,12 +455,12 @@ async function evaluateBatch(
 export const PREVIEW_MAX_EDGE_PX = 320;
 
 /**
- * Spec 11.4 "returns a preview render and diff without committing". Worker renders are bound to committed revisions
- * (render_jobs.revision_id references creative_revisions) and run asynchronously on task queue `render`, so a
- * dry run cannot enqueue one for a snapshot that has no revision. The preview is therefore synchronous and
- * low-resolution: the proposed snapshot drawn by the same scene code the studio and the render worker share
- * (packages/editor/src/renderer, pinned by rendererVersion) at `scale`, for the pages the batch touched. It is never
- * an export and can never be published. Pages whose content did not change are left out.
+ * Spec 11.4 "returns a preview render and diff without committing". The synchronous preview is low-resolution: the
+ * proposed snapshot drawn by the same scene code the studio and the render worker share (packages/editor/src/renderer,
+ * pinned by rendererVersion) at `scale`, for the pages the batch touched. When the caller asks for `previewRender`,
+ * the worker also renders the proposed snapshot (a preview render job against the committed base revision, the
+ * snapshot kept in render_previews); its output lands in preview_exports, never in rendered_exports, so it is never
+ * publishable. Pages whose content did not change are left out of the scene preview.
  */
 function previewOf(base: CreativeDocumentV1, next: CreativeDocumentV1) {
   const basePages = new Map(base.pages.map((p) => [p.id, hashCanonical(p)]));
@@ -528,7 +534,10 @@ const toCommentDto = (c: CommentRow) => ({
   updatedAt: c.updatedAt.toISOString(),
   version: c.version,
 });
-/** Storage keys and hashes only: delivery is the assets media endpoint, never a URL from here. */
+/**
+ * Storage keys and hashes only: delivery is the assets media endpoint, never a URL from here. `publishable` is
+ * false for a preview export (spec 11.4): it can never be selected for a channel variant, bound or released.
+ */
 const toExportDto = (e: ExportRow) => ({
   id: e.id,
   revisionId: e.revisionId,
@@ -543,15 +552,38 @@ const toExportDto = (e: ExportRow) => ({
   rendererVersion: e.rendererVersion,
   manifest: RenderManifest.parse(e.manifest),
   validation: RenderValidationResult.parse(e.validation),
+  publishable: true,
+  createdAt: e.createdAt.toISOString(),
+});
+/** A preview export in the same shape; its revisionId is the committed base the proposal was made against. */
+const toPreviewExportDto = (e: PreviewExportRow, preview: PreviewRow): ReturnType<typeof toExportDto> => ({
+  id: e.id,
+  revisionId: preview.baseRevisionId,
+  pageId: e.pageId,
+  formatKey: e.formatKey,
+  mime: e.mime,
+  width: e.width,
+  height: e.height,
+  bytes: e.bytes,
+  storageKey: e.storageKey,
+  contentHash: e.contentHash,
+  rendererVersion: e.rendererVersion,
+  manifest: RenderManifest.parse(e.manifest),
+  validation: RenderValidationResult.parse(e.validation),
+  publishable: false,
   createdAt: e.createdAt.toISOString(),
 });
 const exportIdsOf = (j: RenderJobRow) => StringList.parse(j.exportIds ?? []);
 /** Exports in the order the worker recorded them (render_jobs.export_ids): ids minted in the same millisecond do not sort by time. */
-const orderedExports = (exportIds: readonly string[], exports: ExportRow[]) => {
+const orderedExports = <E extends { id: string }>(exportIds: readonly string[], exports: E[]) => {
   const byId = new Map(exports.map((e) => [e.id, e]));
-  return exportIds.map((id) => byId.get(id)).filter((e): e is ExportRow => e !== undefined);
+  return exportIds.map((id) => byId.get(id)).filter((e): e is E => e !== undefined);
 };
-const toRenderJobDto = (j: RenderJobRow, exports: ExportRow[]) => ({
+const toRenderJobDto = (
+  j: RenderJobRow,
+  exports: Array<ReturnType<typeof toExportDto>>,
+  preview: PreviewRow | null = null,
+) => ({
   id: j.id,
   brandId: j.brandId,
   revisionId: j.revisionId,
@@ -562,11 +594,90 @@ const toRenderJobDto = (j: RenderJobRow, exports: ExportRow[]) => ({
   requestedByKind: j.requestedByKind,
   requestedById: j.requestedById,
   exportIds: exportIdsOf(j),
-  exports: orderedExports(exportIdsOf(j), exports).map(toExportDto),
+  exports: orderedExports(exportIdsOf(j), exports),
+  /** Set for a proposal preview: the proposed snapshot's hash; its exports are never publishable. */
+  preview: preview ? { contentHash: preview.contentHash, baseRevisionId: preview.baseRevisionId } : null,
   createdAt: j.createdAt.toISOString(),
   updatedAt: j.updatedAt.toISOString(),
   version: j.version,
 });
+
+/** The job's exports as the read returns them: preview_exports for a preview job, rendered_exports otherwise. */
+async function exportsOfJob(job: RenderJobRow, preview: PreviewRow | null, tx?: Tx) {
+  return preview
+    ? (await previewExportsRepo.listByIds(job.brandId, exportIdsOf(job), tx)).map((e) =>
+        toPreviewExportDto(e, preview),
+      )
+    : (await exportsRepo.listByIds(job.brandId, exportIdsOf(job), tx)).map(toExportDto);
+}
+
+/**
+ * Spec 11.5: one render job for a set of formats, audited and started through the outbox (renderJobWorkflowV1).
+ * A preview job (spec 11.4) carries the proposed snapshot next to it; its revision is the committed base.
+ */
+async function queueRenderJob(
+  actor: ResolvedActor,
+  doc: DocumentRow,
+  revision: RevisionRow,
+  requested: readonly string[],
+  tx: Tx,
+  preview: { snapshot: CreativeDocumentV1; contentHash: string } | null = null,
+) {
+  const formatKeys = [...new Set(requested)];
+  const unknown = formatKeys.filter((k) => FORMAT_DEFINITIONS[k] === undefined);
+  if (unknown.length)
+    throw new ValidationFailedError(
+      unknown.map((k) => ({ path: 'formatKeys', issue: `unknown format ${k}` })),
+    );
+  const id = newId('renderJob');
+  await renderJobsRepo.create(
+    {
+      id,
+      brandId: doc.brandId,
+      revisionId: revision.id,
+      formatKeys,
+      state: 'pending',
+      attempts: 0,
+      error: null,
+      requestedByKind: requesterKindOf(actor),
+      requestedById: actor.id,
+      exportIds: null,
+    },
+    tx,
+  );
+  if (preview)
+    await previewsRepo.create(
+      {
+        id: newId('renderPreview'),
+        brandId: doc.brandId,
+        renderJobId: id,
+        baseRevisionId: revision.id,
+        snapshot: preview.snapshot,
+        contentHash: preview.contentHash,
+      },
+      tx,
+    );
+  await audit.record(actorRef(actor), 'creative.render.request', { type: 'render_job', id }, 'allowed', tx, {
+    brandId: doc.brandId,
+    revisionId: revision.id,
+    ...(preview ? { scope: 'preview' } : {}),
+  });
+  await outbox.add(
+    'creative.render_requested',
+    { type: 'render_job', id, version: 0 },
+    {
+      renderJobId: id,
+      documentId: doc.id,
+      revisionId: revision.id,
+      formatKeys: formatKeys.join(','),
+      actorKind: actor.kind,
+      actorId: actor.id,
+    },
+    tx,
+    { brandId: doc.brandId },
+  );
+  return { renderJobId: id, state: 'pending' as const, version: 0 };
+}
 const toTemplateDto = (t: TemplateRow) => ({
   id: t.id,
   brandId: t.brandId,
@@ -788,7 +899,7 @@ export const creativeService = {
       tx: Tx,
       opts: ActorOptions = {},
     ) {
-      const { documentId, ...batch } = OperationsPropose.parse(input);
+      const { documentId, previewRender, ...batch } = OperationsPropose.parse(input);
       const doc = await documentsRepo.getById(documentId, tx);
       await policy.assert(actor, 'creative.edit', documentResource(doc), opts, tx);
       assertOrigin(actor, batch.origin);
@@ -800,6 +911,21 @@ export const creativeService = {
         contentHash,
         changedElementIds: changed,
       } = await evaluateBatch(actor, doc, base, batch, tx);
+      let renderJobId: string | null = null;
+      // Behind `creative.preview_render` (default off) until every worker-render is preview-aware: with the flag
+      // off the proposal keeps its scene preview only and nothing is queued (docs/runbooks/deploy-railway.md).
+      if (
+        previewRender &&
+        (await featureFlag.isEnabled('creative.preview_render', requireTenant().tenantId, tx))
+      ) {
+        // Nothing is committed to the document: the job renders the proposed snapshot next to the base revision.
+        await policy.assert(actor, 'creative.render', documentResource(doc), opts, tx);
+        const queued = await queueRenderJob(actor, doc, base, previewRender.formatKeys, tx, {
+          snapshot: next,
+          contentHash,
+        });
+        renderJobId = queued.renderJobId;
+      }
       return {
         baseRevisionId: base.id,
         snapshot: next,
@@ -807,7 +933,10 @@ export const creativeService = {
         findings,
         changedElementIds: changed,
         blocking: findings.some(isBlocking),
-        preview: previewOf(CreativeDocumentV1.parse(base.snapshot), next),
+        preview: {
+          ...previewOf(CreativeDocumentV1.parse(base.snapshot), next),
+          ...(renderJobId ? { renderJobId } : {}), // the worker preview render, when one was queued
+        },
       };
     },
   },
@@ -824,51 +953,7 @@ export const creativeService = {
       const doc = await documentsRepo.getById(parsed.documentId, tx);
       await policy.assert(actor, 'creative.render', documentResource(doc), opts, tx);
       const revision = await loadRevision(doc, parsed.revisionId, tx);
-      const formatKeys = [...new Set(parsed.formatKeys)];
-      const unknown = formatKeys.filter((k) => FORMAT_DEFINITIONS[k] === undefined);
-      if (unknown.length)
-        throw new ValidationFailedError(
-          unknown.map((k) => ({ path: 'formatKeys', issue: `unknown format ${k}` })),
-        );
-      const id = newId('renderJob');
-      await renderJobsRepo.create(
-        {
-          id,
-          brandId: doc.brandId,
-          revisionId: revision.id,
-          formatKeys,
-          state: 'pending',
-          attempts: 0,
-          error: null,
-          requestedByKind: requesterKindOf(actor),
-          requestedById: actor.id,
-          exportIds: null,
-        },
-        tx,
-      );
-      await audit.record(
-        actorRef(actor),
-        'creative.render.request',
-        { type: 'render_job', id },
-        'allowed',
-        tx,
-        { brandId: doc.brandId, revisionId: revision.id },
-      );
-      await outbox.add(
-        'creative.render_requested',
-        { type: 'render_job', id, version: 0 },
-        {
-          renderJobId: id,
-          documentId: doc.id,
-          revisionId: revision.id,
-          formatKeys: formatKeys.join(','),
-          actorKind: actor.kind,
-          actorId: actor.id,
-        },
-        tx,
-        { brandId: doc.brandId },
-      );
-      return { renderJobId: id, state: 'pending' as const, version: 0 };
+      return queueRenderJob(actor, doc, revision, parsed.formatKeys, tx);
     },
 
     /**
@@ -893,7 +978,24 @@ export const creativeService = {
       const revision = await revisionsRepo.getById(job.revisionId, tx);
       const doc = await documentsRepo.getById(revision.documentId, tx);
       await policy.assert(actor, 'creative.read', documentResource(doc), {}, tx);
-      return toRenderJobDto(job, await exportsRepo.listByIds(job.brandId, exportIdsOf(job), tx));
+      const preview = await previewsRepo.findForJob(job.id, tx);
+      return toRenderJobDto(job, await exportsOfJob(job, preview, tx), preview);
+    },
+
+    /**
+     * Render worker: the proposed snapshot a preview job draws (null for a job that renders its committed revision).
+     * Re-checks creative.read like the revision read it stands in for.
+     */
+    async previewSource(actor: ResolvedActor, input: z.infer<typeof RenderGet>, tx?: Tx) {
+      const parsed = RenderGet.parse(input);
+      const job = await renderJobsRepo.getById(parsed.renderJobId, tx);
+      const revision = await revisionsRepo.getById(job.revisionId, tx);
+      const doc = await documentsRepo.getById(revision.documentId, tx);
+      await policy.assert(actor, 'creative.read', documentResource(doc), {}, tx);
+      const preview = await previewsRepo.findForJob(job.id, tx);
+      if (!preview) return null;
+      const snapshot = CreativeDocumentV1.parse(preview.snapshot);
+      return { snapshot, contentHash: preview.contentHash, brandVersionId: snapshot.brandVersionId };
     },
 
     /** Render worker (Phase 3 render stream): the job moves only by renderJobMachine; the worker never sets a state string. */
@@ -922,7 +1024,9 @@ export const creativeService = {
       const job = await renderJobsRepo.getById(parsed.renderJobId, tx);
       const toState = transition(renderJobMachine, job.state, 'succeed', 'renderJobId');
       const revision = await revisionsRepo.getById(job.revisionId, tx);
-      const pageIds = new Set(CreativeDocumentV1.parse(revision.snapshot).pages.map((p) => p.id));
+      const preview = await previewsRepo.findForJob(job.id, tx);
+      const drawn = CreativeDocumentV1.parse(preview ? preview.snapshot : revision.snapshot);
+      const pageIds = new Set(drawn.pages.map((p) => p.id));
       const formats = new Set(StringList.parse(job.formatKeys));
       const details: ErrorDetail[] = [];
       parsed.exports.forEach((e, i) => {
@@ -934,8 +1038,11 @@ export const creativeService = {
       if (details.length) throw new ValidationFailedError(details);
       const exportIds: string[] = [];
       for (const e of parsed.exports) {
-        const id = newId('renderedExport');
-        await exportsRepo.create({ id, brandId: job.brandId, revisionId: revision.id, ...e }, tx);
+        // A preview's output is never a rendered export: it cannot be selected, bound or published (spec 11.4).
+        const id = newId(preview ? 'previewExport' : 'renderedExport');
+        if (preview)
+          await previewExportsRepo.create({ id, brandId: job.brandId, renderJobId: job.id, ...e }, tx);
+        else await exportsRepo.create({ id, brandId: job.brandId, revisionId: revision.id, ...e }, tx);
         exportIds.push(id);
       }
       await renderJobsRepo.update(job.id, job.version, { state: toState, exportIds, error: null }, tx);

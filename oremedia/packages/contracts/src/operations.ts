@@ -42,6 +42,7 @@ export const FeatureFlagKey = z.enum([
   'mandates.managed_autopublish',
   'intelligence.brand_analyst',
   'experiments.randomised',
+  'creative.preview_render',
 ]);
 export type FeatureFlagKey = z.infer<typeof FeatureFlagKey>;
 

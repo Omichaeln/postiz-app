@@ -7,6 +7,7 @@ import {
   PublicationDeleteRemote,
   PublicationEvidence,
   PublicationGet,
+  PublicationHoldRestored,
   PublicationList,
   ReconcileCommand,
   RescheduleCommand,
@@ -76,6 +77,18 @@ export const publishingRouter = router({
       .input(ReconcileCommand)
       .mutation(({ ctx, input }) =>
         idempotent(mutationCtx(ctx, 72), (tx) => publicationService.reconcile(ctx.tenant.actor, input, tx)),
+      ),
+    /**
+     * Runbook "restore a single tenant", step 5 (spec 17.6): the restored tenant's (or one brand's) in-flight
+     * publications are held, or handed to reconciliation when their attempt was sent; a tenant admin's command, one
+     * bounded batch per call (repeat while hasMore).
+     */
+    holdRestored: tenantMutation
+      .input(PublicationHoldRestored)
+      .mutation(({ ctx, input }) =>
+        idempotent(mutationCtx(ctx, 72), (tx) =>
+          publicationService.holdRestored(ctx.tenant.actor, input, tx),
+        ),
       ),
     deleteRemote: tenantMutation
       .input(PublicationDeleteRemote)

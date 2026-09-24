@@ -134,7 +134,12 @@ export const usageLedger = mysqlTable(
     sourceRef: varchar('source_ref', { length: 200 }).notNull(),
     reservationId: ref('reservation_id'),
     periodKey: varchar('period_key', { length: 16 }).notNull(),
+    /** One charge per key (a tool call's identity): a retried activity finds its charge instead of charging again. */
+    idempotencyKey: varchar('idempotency_key', { length: 200 }),
     createdAt: createdAt(),
   },
-  (t) => [index('ix_usage_period').on(t.tenantId, t.brandId, t.periodKey, t.kind)],
+  (t) => [
+    index('ix_usage_period').on(t.tenantId, t.brandId, t.periodKey, t.kind),
+    uniqueIndex('uq_usage_idempotency').on(t.tenantId, t.idempotencyKey),
+  ],
 );

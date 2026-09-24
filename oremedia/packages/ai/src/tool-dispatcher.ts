@@ -8,7 +8,7 @@ import { policy } from '@oremedia/module-access';
 import { budgets } from '@oremedia/module-billing';
 import { audit } from '@oremedia/module-operations';
 import type { ContextSnapshot } from './context-resolver';
-import { providerJobs, type ProviderJobStore } from './provider-jobs';
+import { registeredProviderJobStore, type ProviderJobStore } from './provider-jobs';
 import { redactForRecord } from './redact';
 import {
   ProposalRequest,
@@ -63,8 +63,25 @@ export interface DispatchOutcome {
 }
 
 export function defaultDispatchDeps(registry: ToolRegistry): DispatchDeps {
-  return { registry, policy, audit, budgets, services: defaultToolServices(), providerJobs: providerJobs() };
+  return {
+    registry,
+    policy,
+    audit,
+    budgets,
+    services: defaultToolServices(),
+    providerJobs: registeredProviderJobStore,
+  };
 }
+
+/**
+ * The charge key of one tool call (usage_ledger.idempotency_key): run, step and the model's tool_use id, hashed so
+ * a provider's id length never matters. A retried activity for the same call charges once; distinct calls, even of
+ * the same tool in the same step, each charge.
+ */
+export const toolCallChargeKey = (
+  run: Pick<AgentRunContext, 'runId' | 'stepId'>,
+  call: ModelToolCall,
+): string => `tool_call:${hashCanonical({ runId: run.runId, stepId: run.stepId, toolCallId: call.id })}`;
 
 const DEFAULT_TOOL_TIMEOUT_MS = 60_000;
 
@@ -200,7 +217,8 @@ export async function dispatchToolDetailed(
         'call',
         def.costEstimateMicros(parsed.data),
         run.stepId,
-      ); // throws BudgetExhausted: the run ends with budget_exhausted
+        toolCallChargeKey(run, call),
+      ); // throws BudgetExhausted: the run ends with budget_exhausted; charged once per tool call
     }
 
     try {
@@ -211,6 +229,7 @@ export async function dispatchToolDetailed(
         withTimeout(
           def.run(parsed.data, {
             run,
+            toolCallId: call.id,
             actor: run.principal,
             snapshot: run.snapshot,
             services: deps.services,

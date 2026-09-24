@@ -13,6 +13,7 @@ import {
   PublicationDeleteRemote,
   PublicationEvidence,
   PublicationGet,
+  PublicationHoldRestored,
   PublicationList,
   ReconcileCommand,
   RescheduleCommand,
@@ -32,6 +33,7 @@ import {
   actorRef,
   forRelease,
   publicationWorkflowId,
+  reconcileWorkflowId,
   toAttemptDto,
   toEvidenceDto,
   toPublicationDto,
@@ -70,6 +72,9 @@ const publicationResource = (p: PublicationRow) => ({
   channelId: p.channelConnectionId,
   state: p.state,
 });
+
+/** Spec 17.6 restore rule: the state (and hold) reason of a publication moved by holdRestored. */
+const RESTORED_FROM_BACKUP = 'restored_from_backup';
 
 /** In-flight states (spec 13.5): a cancel cannot be honoured by the row; the workflow is signalled instead. */
 const IN_FLIGHT: ReadonlySet<PublicationState> = new Set(['dispatching', 'processing', 'outcome_unknown']);
@@ -427,6 +432,103 @@ export const publicationService = {
       flagged.push(row.id);
     }
     return { held: [] as string[], flagged, unchanged: [] as string[] };
+  },
+
+  /**
+   * Spec 17.6 restore rule (runbook "restore a single tenant", step 5): the tenant's (or one brand's) restored
+   * in-flight publications stop before anything fires from restored state, and each is reconciled against remote
+   * history before it is released. A tenant admin's command (billing.manage, like the kill switch; never an agent),
+   * audited and announced per row as the other holds and outcome moves are.
+   *
+   * Per row, through the machine: `scheduled`, or `dispatching` whose current attempt has no sentAt (never sent,
+   * spec 14.3), → `held` (restored_from_backup) for a person to release or cancel. `processing`, or `dispatching`
+   * with sentAt (it may be live on the channel), → `outcome_unknown` (poll_unknown / ambiguous_failure, the moves
+   * worker loss takes) with a reconcile request, so the reconciliation workflow finds it (→ published) or proves it
+   * absent (→ retry_eligible, released only by a person) or hands it to a person (→ held), and
+   * publishing.publications.reconcile can confirm it either way. The attempt is read with a lock after the row lock
+   * (the pre-send fence's order), so a sentAt the fence committed while this waited is seen.
+   *
+   * A claimed row's fencing token is bumped. The run still holding the old claim is refused with VALIDATION_FAILED
+   * (stale_fencing_token) wherever it presents the token (evaluateRelease, openAttempt, publishOnce and its pre-send
+   * fence, so sentAt never commits and nothing is sent, checkStatus, finalize). markProcessing, markPublished and
+   * markOutcomeUnknown carry no token: on a held row they fail with VALIDATION_FAILED because held has no matching
+   * transition (markFailed returns the row unchanged); the activity layer turns VALIDATION_FAILED into a
+   * non-retryable failure, so that run's workflow fails once, without retries, and leaves the row as set here. On an
+   * outcome_unknown row, a late accepted response is still recorded (reconcile_found). A waiting run re-reads a row
+   * that is no longer scheduled and ends.
+   *
+   * Bounded: one call moves at most `limit` rows in its (the caller's) transaction and reports them; `hasMore` asks
+   * for another call. Idempotent: a moved row is no longer in flight, so a repeat, or a re-run after a partial one,
+   * moves only what is still (or newly) in flight.
+   */
+  async holdRestored(actor: ResolvedActor, input: z.input<typeof PublicationHoldRestored>, tx: Tx) {
+    const cmd = PublicationHoldRestored.parse(input);
+    const { tenantId } = requireTenant();
+    await policy.assert(actor, 'billing.manage', { type: 'tenant', tenantId, id: tenantId }, {}, tx);
+    if (cmd.brandId) await assertBrandExists(cmd.brandId, tx); // foreign or unknown → NOT_FOUND
+    const rows = await publicationsRepo.lockInFlightForRestore(cmd.brandId, cmd.limit + 1, tx);
+    const held: string[] = [];
+    const outcomeUnknown: string[] = [];
+    for (const row of rows.slice(0, cmd.limit)) {
+      const claimed = row.state !== 'scheduled';
+      const attempt = claimed ? await attemptsRepo.lockByFence(row.id, row.fencingToken, tx) : null;
+      const fence = claimed ? { fencingToken: row.fencingToken + 1 } : {};
+      if (row.state === 'processing' || attempt?.sentAt) {
+        const toState = transition(
+          row.state,
+          row.state === 'processing' ? 'poll_unknown' : 'ambiguous_failure',
+          'publicationId',
+        );
+        if (attempt && !attempt.finishedAt)
+          await attemptsRepo.recordOutcome(
+            attempt.id,
+            {
+              outcome: 'unknown',
+              errorCode: RESTORED_FROM_BACKUP,
+              errorDetail: null,
+              remoteJobId: null,
+              remotePostId: null,
+              pendingState: null,
+            },
+            new Date(),
+            tx,
+          );
+        await publicationsRepo.update(
+          row.id,
+          row.version,
+          { state: toState, stateReason: RESTORED_FROM_BACKUP, ...fence },
+          tx,
+        );
+        await recordStateChange(actor, 'publication.outcome_unknown', row, toState, RESTORED_FROM_BACKUP, tx);
+        const connection = await connectionsRepo.getById(row.channelConnectionId, tx);
+        await outbox.add(
+          'publication.reconcile_requested',
+          { type: 'publication', id: row.id, version: row.version + 1 },
+          {
+            publicationId: row.id,
+            attemptId: attempt?.id ?? null,
+            providerKey: connection.providerKey,
+            workflowId: reconcileWorkflowId(row.id, row.version + 1),
+            actorKind: row.scheduledByKind,
+            actorId: row.scheduledById,
+          },
+          tx,
+          { brandId: row.brandId },
+        );
+        outcomeUnknown.push(row.id);
+        continue;
+      }
+      const toState = transition(row.state, 'restored_from_backup', 'publicationId');
+      await publicationsRepo.update(
+        row.id,
+        row.version,
+        { state: toState, stateReason: RESTORED_FROM_BACKUP, holdReasons: [RESTORED_FROM_BACKUP], ...fence },
+        tx,
+      );
+      await recordStateChange(actor, 'publication.hold', row, toState, RESTORED_FROM_BACKUP, tx);
+      held.push(row.id);
+    }
+    return { held, outcomeUnknown, hasMore: rows.length > cmd.limit };
   },
 
   /**

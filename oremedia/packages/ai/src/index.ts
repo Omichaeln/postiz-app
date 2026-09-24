@@ -69,6 +69,7 @@ export {
 export {
   dispatchTool,
   dispatchToolDetailed,
+  toolCallChargeKey,
   defaultDispatchDeps,
   assertNoExternalTools,
   ToolDeniedError,
@@ -83,6 +84,10 @@ export {
   MemoryProviderJobStore,
   registerProviderJobStore,
   providerJobs,
+  registeredProviderJobStore,
+  type ProviderJob,
+  type ProviderJobKey,
+  type ProviderJobStatus,
   type ProviderJobStore,
 } from './provider-jobs';
 export * from './tools';

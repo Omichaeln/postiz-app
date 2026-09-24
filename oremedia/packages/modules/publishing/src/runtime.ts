@@ -647,9 +647,20 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
         result = await credentialBroker.withCredentials(tenantId, connection.id, async (creds) => {
           // The ledger commits sentAt immediately before the first mutation leaves (not before reads, media fetches
           // or the rate limiter), so a failure proven before it is retried with backoff (spec 14.3).
+          // The pre-send fence: sentAt commits under the row lock only while the row is still dispatching under this
+          // attempt's token, so a move that committed first (a restore hold, worker loss declared by the sweeper, a
+          // re-release to a newer claim) stops the send; a throw here aborts the request as before_send.
           const io: ProviderIO = providerIO(adapter.key, tenantId, hooks, async () => {
             hooks?.heartbeat(`publish:${attemptId}:before_send`);
-            await withTransaction((tx) => attemptsRepo.markSent(attemptId, now(), tx));
+            await withTransaction(async (tx) => {
+              const locked = await publicationsRepo.lock(row.id, tx);
+              if (locked.state !== 'dispatching')
+                throw new ValidationFailedError([
+                  { path: 'publicationId', issue: `send_in_state:${locked.state}` },
+                ]);
+              assertFence(locked, attempt.fencingToken);
+              await attemptsRepo.markSent(attemptId, now(), tx);
+            });
           });
           try {
             return fromOutcome(attemptId, await adapter.publish(req, creds, io));

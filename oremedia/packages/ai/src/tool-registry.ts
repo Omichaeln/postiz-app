@@ -11,6 +11,8 @@ import type { AgentRunContext } from './tool-dispatcher';
 /** What a tool receives besides its parsed input: the run, the principal, the pinned context and the services. */
 export interface ToolContext {
   run: AgentRunContext;
+  /** This call's identity within the step: the model's tool_use id (ModelToolCall.id). */
+  toolCallId: string;
   actor: ResolvedActorServicePrincipal;
   snapshot: ContextSnapshot | null;
   services: ToolServices;

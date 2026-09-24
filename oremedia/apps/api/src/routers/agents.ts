@@ -1,4 +1,11 @@
-import { RunApproveProposal, RunCancel, RunGet, RunStart, RunSteps } from '@oremedia/contracts/agents';
+import {
+  RoutingPolicySet,
+  RunApproveProposal,
+  RunCancel,
+  RunGet,
+  RunStart,
+  RunSteps,
+} from '@oremedia/contracts/agents';
 import { agentsService } from '@oremedia/module-agents';
 import { idempotent } from '@oremedia/module-operations';
 import { router, tenantMutation, tenantQuery, type MutationCtx } from '../trpc';
@@ -29,6 +36,15 @@ export const agentsRouter = router({
       .input(RunApproveProposal)
       .mutation(({ ctx, input }) =>
         idempotent(mutationCtx(ctx), (tx) => agentsService.runs.approveProposal(ctx.tenant.actor, input, tx)),
+      ),
+  }),
+  /** Spec 12.7 tenant model-routing policy: read and replaced by a tenant administrator (billing.manage). */
+  routingPolicy: router({
+    get: tenantQuery.query(({ ctx }) => agentsService.routingPolicy.get(ctx.tenant.actor)),
+    set: tenantMutation
+      .input(RoutingPolicySet)
+      .mutation(({ ctx, input }) =>
+        idempotent(mutationCtx(ctx), (tx) => agentsService.routingPolicy.set(ctx.tenant.actor, input, tx)),
       ),
   }),
 });

@@ -249,3 +249,32 @@ export const RunApproveProposal = z.object({
   /** `modify` only: the batch the person applies in place of the proposal (validated by the creative module). */
   batch: z.unknown().optional(),
 });
+
+// ---- tenant model-routing policy (spec 12.7) ----
+
+/** Model vendors a tenant can permit. `fake` is the deterministic test adapter. */
+export const ModelVendor = z.enum(['anthropic', 'fake']);
+export type ModelVendor = z.infer<typeof ModelVendor>;
+
+/**
+ * Spec 12.7: tenant model-routing policy (permitted vendors, regions, retention, data classes), checked before
+ * EVERY model call. Stored per tenant as a versioned document (model_routing_policies).
+ */
+export const ModelRoutingPolicy = z.object({
+  schemaVersion: z.literal(1),
+  defaultModel: z.string().min(1).max(120),
+  permittedVendors: z.array(ModelVendor).min(1),
+  /** Inference regions the tenant permits; [] = any region the vendor offers. */
+  permittedRegions: z.array(z.string().max(40)).default([]),
+  retention: z.enum(['zero', 'standard_30d']).default('standard_30d'),
+  dataClasses: z.array(z.enum(['brand_content', 'customer_voice', 'pii'])).default(['brand_content']),
+  deniedModels: z.array(z.string().max(120)).default([]),
+});
+export type ModelRoutingPolicy = z.infer<typeof ModelRoutingPolicy>;
+
+/** agents.routingPolicy.set: the whole versioned document, with optimistic concurrency. */
+export const RoutingPolicySet = z.object({
+  policy: ModelRoutingPolicy,
+  /** The stored row's version; omitted only when the tenant has no stored policy yet. */
+  expectedVersion: z.number().int().min(0).optional(),
+});

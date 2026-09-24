@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import {
+  ModelRoutingPolicy,
+  RoutingPolicySet,
   RunApproveProposal,
   RunCancel,
   RunGet,
@@ -33,9 +35,15 @@ import { budgets, entitlements } from '@oremedia/module-billing';
 import { brandService } from '@oremedia/module-brand';
 import { audit, killSwitch, outbox } from '@oremedia/module-operations';
 import { runWorkflowId } from './outbox-routes';
-import { AgentRunRepository, AgentStepRepository, ToolInvocationRepository } from './repositories';
+import {
+  AgentRunRepository,
+  AgentStepRepository,
+  ModelRoutingPolicyRepository,
+  ToolInvocationRepository,
+} from './repositories';
 
 const runsRepo = new AgentRunRepository();
+const routingPoliciesRepo = new ModelRoutingPolicyRepository();
 const stepsRepo = new AgentStepRepository();
 const invocationsRepo = new ToolInvocationRepository();
 const principalsRepo = new ServicePrincipalRepository();
@@ -43,6 +51,8 @@ const principalsRepo = new ServicePrincipalRepository();
 type RunRow = Awaited<ReturnType<typeof runsRepo.getById>>;
 
 const actorRef = (actor: ResolvedActor) => ({ kind: actor.kind, id: actor.id });
+const tenantResource = (tenantId: string) => ({ type: 'tenant', tenantId, id: tenantId });
+
 const brandResource = (run: RunRow) => ({
   type: 'agent_run',
   tenantId: run.tenantId,
@@ -340,6 +350,62 @@ export const agentsService = {
         { brandId: run.brandId },
       );
       return { runId: run.id, stepId: parsed.stepId, decision: parsed.decision, appliedRevisionId };
+    },
+  },
+
+  /**
+   * Spec 12.7: the tenant's model-routing policy (permitted vendors, regions, retention, data classes), stored per
+   * tenant and read by assertRoutingAllowed before every model call through the source the composition root
+   * registers (storedFor). Reading and changing it is a tenant administration action (billing.manage: vendor, retention and cost are commercial terms; agents never); every change is audited.
+   */
+  routingPolicy: {
+    async get(actor: ResolvedActor, tx?: Tx) {
+      const { tenantId } = requireTenant();
+      await policy.assert(actor, 'billing.manage', tenantResource(tenantId), {}, tx);
+      const row = await routingPoliciesRepo.current(tx);
+      return row
+        ? { policy: ModelRoutingPolicy.parse(row.document), version: row.version, stored: true as const }
+        : { policy: null, version: null, stored: false as const };
+    },
+
+    async set(actor: ResolvedActor, input: z.input<typeof RoutingPolicySet>, tx: Tx) {
+      const parsed = RoutingPolicySet.parse(input);
+      const { tenantId } = requireTenant();
+      await policy.assert(actor, 'billing.manage', tenantResource(tenantId), {}, tx);
+      const row = await routingPoliciesRepo.current(tx);
+      const values = { document: parsed.policy, updatedByKind: actor.kind, updatedById: actor.id };
+      let version: number;
+      if (row) {
+        if (parsed.expectedVersion === undefined)
+          throw new ValidationFailedError([{ path: 'expectedVersion', issue: 'required' }]);
+        await routingPoliciesRepo.update(row.id, parsed.expectedVersion, values, tx); // CONFLICT on a stale version
+        version = parsed.expectedVersion + 1;
+      } else {
+        await routingPoliciesRepo.create({ id: newId('modelRoutingPolicy'), ...values }, tx);
+        version = 0;
+      }
+      await audit.record(
+        actorRef(actor),
+        'agent.routing_policy.set',
+        { type: 'tenant', id: tenantId },
+        'allowed',
+        tx,
+        // The document is the stored row (like brand.versions.update, only the version is audited); no outbox
+        // event: nothing consumes a change, assertRoutingAllowed reads the row on every check (as killSwitch.set).
+        row ? { expectedVersion: parsed.expectedVersion } : undefined,
+      );
+      return { policy: parsed.policy, version };
+    },
+
+    /**
+     * The stored policy as assertRoutingAllowed reads it (the RoutingPolicySource the composition root registers).
+     * Only inside the same tenant's context: a check for another tenant is refused, never answered with a default.
+     */
+    async storedFor(tenantId: string): Promise<ModelRoutingPolicy | null> {
+      if (requireTenant().tenantId !== tenantId)
+        throw new PolicyDeniedError('tenant_mismatch', 'Routing policy is read in its own tenant only');
+      const row = await routingPoliciesRepo.current();
+      return row ? ModelRoutingPolicy.parse(row.document) : null;
     },
   },
 };

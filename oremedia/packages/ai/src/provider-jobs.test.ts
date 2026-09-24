@@ -3,7 +3,12 @@ import type { ModelToolCall } from '@oremedia/contracts/agents';
 import type { ResolvedActorServicePrincipal } from '@oremedia/contracts/policy';
 import type { TenantContext, Tx } from '@oremedia/db';
 import { MemoryProviderJobStore } from './provider-jobs';
-import { dispatchToolDetailed, type AgentRunContext, type DispatchDeps } from './tool-dispatcher';
+import {
+  dispatchToolDetailed,
+  toolCallChargeKey,
+  type AgentRunContext,
+  type DispatchDeps,
+} from './tool-dispatcher';
 import { createReleaseOneRegistry } from './tools';
 import type { ImageGenerator, ToolServices } from './tools/services';
 
@@ -58,6 +63,7 @@ const DONE = {
 function harness(poll: ImageGenerator['poll']) {
   const submits: string[] = [];
   const polls: string[] = [];
+  const charges: Array<{ sourceRef: string; idempotencyKey: string | undefined }> = [];
   const generator: ImageGenerator = {
     provider: 'fake-images',
     async submit(input) {
@@ -73,12 +79,16 @@ function harness(poll: ImageGenerator['poll']) {
     registry: createReleaseOneRegistry(),
     policy: { decide: async () => ({ allowed: true, reason: 'ok' }) },
     audit: { record: async () => 'aud_1' },
-    budgets: { consume: async () => undefined },
+    budgets: {
+      consume: async (_r, _b, _k, _q, _u, _c, sourceRef, idempotencyKey) => {
+        charges.push({ sourceRef, idempotencyKey });
+      },
+    },
     services: { images: generator } as unknown as ToolServices,
     providerJobs: new MemoryProviderJobStore(),
     transaction: (fn) => fn({} as Tx),
   };
-  return { deps, submits, polls };
+  return { deps, submits, polls, charges };
 }
 
 describe('images.generate through provider jobs: retry after acceptance polls, never resubmits', () => {
@@ -131,5 +141,49 @@ describe('images.generate through provider jobs: retry after acceptance polls, n
     await dispatchToolDetailed(call, run('step_4'), h.deps);
     await dispatchToolDetailed(call, run('step_5'), h.deps);
     expect(h.submits).toHaveLength(2);
+  });
+
+  it('two images.generate calls in one model step each get their own job; a retry of either polls its own', async () => {
+    let failFirstPolls = 2;
+    const h = harness(async () => {
+      if (failFirstPolls > 0) {
+        failFirstPolls -= 1;
+        throw Object.assign(new Error('provider poll timed out'), { code: 'ETIMEDOUT' });
+      }
+      return DONE;
+    });
+    const first: ModelToolCall = { ...call, id: 'toolu_img_a' };
+    const second: ModelToolCall = { ...call, id: 'toolu_img_b', arguments: { prompt: 'winter storefront' } };
+    await expect(dispatchToolDetailed(first, run('step_6'), h.deps)).rejects.toThrow(/timed out/);
+    await expect(dispatchToolDetailed(second, run('step_6'), h.deps)).rejects.toThrow(/timed out/);
+    expect(h.submits).toEqual(['autumn storefront', 'winter storefront']); // two calls, two jobs
+    const retriedSecond = await dispatchToolDetailed(second, run('step_6'), h.deps);
+    const retriedFirst = await dispatchToolDetailed(first, run('step_6'), h.deps);
+    expect(retriedSecond.result).toMatchObject({ kind: 'ok', output: { jobId: 'job_2' } });
+    expect(retriedFirst.result).toMatchObject({ kind: 'ok', output: { jobId: 'job_1' } });
+    expect(h.submits).toHaveLength(2); // the retries submitted nothing
+    expect(h.polls).toEqual(['job_1', 'job_2', 'job_2', 'job_1']);
+  });
+
+  it('every charge carries the tool call identity: a retry repeats its key, a distinct call in the same step does not', async () => {
+    let first = true;
+    const h = harness(async () => {
+      if (first) {
+        first = false;
+        throw Object.assign(new Error('provider poll timed out'), { code: 'ETIMEDOUT' });
+      }
+      return DONE;
+    });
+    const a: ModelToolCall = { ...call, id: 'toolu_img_c' };
+    const b: ModelToolCall = { ...call, id: 'toolu_img_d' };
+    await expect(dispatchToolDetailed(a, run('step_7'), h.deps)).rejects.toThrow(/timed out/);
+    await dispatchToolDetailed(a, run('step_7'), h.deps); // the retried activity
+    await dispatchToolDetailed(b, run('step_7'), h.deps);
+    const keyA = toolCallChargeKey(run('step_7'), a);
+    const keyB = toolCallChargeKey(run('step_7'), b);
+    expect(h.charges.map((c) => c.idempotencyKey)).toEqual([keyA, keyA, keyB]);
+    expect(keyA).not.toBe(keyB);
+    expect(keyA).not.toBe(toolCallChargeKey(run('step_8'), a)); // the same tool_use id in another step
+    expect(keyA.length).toBeLessThanOrEqual(200); // usage_ledger.idempotency_key
   });
 });

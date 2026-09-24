@@ -81,6 +81,17 @@ export const FLAG_DEFINITIONS: readonly FlagDefinition[] = [
     successMetric: 'one randomised experiment analysed end to end per pilot brand',
     enabledDefault: false,
   },
+  {
+    // Rolling-deploy guard: an older worker-render would render a preview job's committed base revision into
+    // publishable rendered_exports. Enabled only once every worker-render runs the preview-aware build
+    // (docs/runbooks/deploy-railway.md).
+    key: 'creative.preview_render',
+    owner: 'creative',
+    removalDate: '2027-03-31',
+    successMetric:
+      'every worker-render on the preview-aware build; zero preview jobs writing rendered_exports',
+    enabledDefault: false,
+  },
 ];
 
 class FlagRepository extends PlatformRepository {

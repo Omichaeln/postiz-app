@@ -30,6 +30,9 @@ const PUBLICATION_TABLE: Array<[string, PublicationEvent, string]> = [
   ['retry_eligible', 'reschedule', 'scheduled'],
   ['held', 'hold_resolved_schedule', 'scheduled'],
   ['held', 'hold_resolved_cancel', 'cancelled'],
+  // Spec 17.6 restore rule: only the in-flight states that can still be unsent; never a terminal or a hold-resolving one.
+  ['scheduled', 'restored_from_backup', 'held'],
+  ['dispatching', 'restored_from_backup', 'held'],
 ];
 
 describe('publication state machine', () => {
@@ -54,6 +57,21 @@ describe('publication state machine', () => {
     for (const s of ['published', 'failed', 'cancelled'] as const) {
       for (const e of publicationMachine.events) expect(publicationMachine.can(s, e)).toBe(false);
     }
+  });
+  it('the restore hold applies only to scheduled and dispatching (spec 17.6); a sent row goes to reconciliation', () => {
+    const from = publicationMachine.states.filter((s) => publicationMachine.can(s, 'restored_from_backup'));
+    expect(from.sort()).toEqual(['dispatching', 'scheduled']);
+    // processing was always sent: it can only go to outcome_unknown (spec 14.3), never to held and later a re-send.
+    // outcome_unknown and retry_eligible already wait for reconciliation or a person; held stays held.
+    for (const s of ['processing', 'outcome_unknown', 'retry_eligible', 'held'] as const)
+      expect(publicationMachine.can(s, 'restored_from_backup')).toBe(false);
+    // The moves a restored, possibly-live row takes are the existing 13.1 ones, and held never reaches published.
+    expect(publicationMachine.transition('dispatching', 'ambiguous_failure')).toBe('outcome_unknown');
+    expect(publicationMachine.transition('processing', 'poll_unknown')).toBe('outcome_unknown');
+    expect(publicationMachine.events.filter((e) => publicationMachine.can('held', e)).sort()).toEqual([
+      'hold_resolved_cancel',
+      'hold_resolved_schedule',
+    ]);
   });
   it('outcome_unknown never transitions by a retry event', () => {
     expect(publicationMachine.can('outcome_unknown', 'retryable_pre_send')).toBe(false);

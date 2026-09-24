@@ -171,6 +171,7 @@ export function registerDeletionHandlers(): void {
         [assetsSchema.assetDerivatives, assetsSchema.assetDerivatives.storageKey],
         [assetsSchema.uploadIntents, assetsSchema.uploadIntents.storageKey],
         [creativeSchema.renderedExports, creativeSchema.renderedExports.storageKey],
+        [creativeSchema.previewExports, creativeSchema.previewExports.storageKey],
       ] as const;
       const { tenantId } = requireTenant();
       const keys = new Set<string>();

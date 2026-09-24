@@ -7,7 +7,9 @@ import {
   creativeDocuments,
   creativeRevisions,
   elementComments,
+  previewExports,
   renderJobs,
+  renderPreviews,
   renderedExports,
   templateVersions,
   templates,
@@ -117,6 +119,51 @@ export class RenderedExportRepository extends BrandScopedRepository<typeof rende
       .from(renderedExports)
       .where(this.brandScope(brandId, inArray(renderedExports.id, ids.slice(0, ID_LIST_MAX))))
       .orderBy(asc(renderedExports.id));
+  }
+}
+
+/**
+ * The proposed snapshot a preview render job draws (spec 11.4 proposal preview): one row per preview job, written
+ * with the job, never updated. A render job with a row here is a preview job.
+ */
+export class RenderPreviewRepository extends BrandScopedRepository<typeof renderPreviews> {
+  constructor() {
+    super(renderPreviews);
+  }
+  async create(values: Omit<typeof renderPreviews.$inferInsert, 'tenantId'>, tx: Tx) {
+    await this.insertBrandScoped(values, tx);
+  }
+  async findForJob(renderJobId: string, tx?: Tx) {
+    const rows = await this.conn(tx)
+      .select()
+      .from(renderPreviews)
+      .where(this.scope(eq(renderPreviews.renderJobId, renderJobId)))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    this.assertBrandAccess(row.brandId);
+    return row;
+  }
+}
+
+/**
+ * A preview render's output. Never a rendered export: approvals, channel variants and releases resolve only
+ * RenderedExportRepository ids, so nothing here can be selected, bound or published.
+ */
+export class PreviewExportRepository extends BrandScopedRepository<typeof previewExports> {
+  constructor() {
+    super(previewExports);
+  }
+  async create(values: Omit<typeof previewExports.$inferInsert, 'tenantId'>, tx: Tx) {
+    await this.insertBrandScoped(values, tx);
+  }
+  async listByIds(brandId: string, ids: readonly string[], tx?: Tx) {
+    if (ids.length === 0) return [];
+    return this.conn(tx)
+      .select()
+      .from(previewExports)
+      .where(this.brandScope(brandId, inArray(previewExports.id, ids.slice(0, ID_LIST_MAX))))
+      .orderBy(asc(previewExports.id));
   }
 }
 

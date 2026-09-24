@@ -9,6 +9,7 @@ import {
   varchar,
 } from 'drizzle-orm/mysql-core';
 import { brandId, createdAt, hash, id, micros, ref, tenantId, ts, updatedAt, version } from './_columns';
+import { tenants } from './access';
 import { brands } from './brand';
 
 export const agentRuns = mysqlTable(
@@ -102,4 +103,65 @@ export const toolInvocations = mysqlTable(
     createdAt: createdAt(),
   },
   (t) => [index('ix_tool_invocation_run').on(t.tenantId, t.runId, t.createdAt)],
+);
+
+/**
+ * Spec 12.2 model-call recovery: a generation provider's job id, persisted (committed on its own, outside the tool's
+ * unit of work) before the activity waits, so a retried activity on any worker polls the same job instead of
+ * submitting a second, billable one. One row per tool call: run + step + tool + the model's tool_use id.
+ */
+export const providerJobs = mysqlTable(
+  'provider_jobs',
+  {
+    id: id(),
+    tenantId: tenantId(),
+    brandId: brandId(),
+    runId: ref('run_id').notNull(),
+    stepId: ref('step_id').notNull(),
+    toolName: varchar('tool_name', { length: 80 }).notNull(),
+    toolCallId: varchar('tool_call_id', { length: 128 }).notNull(),
+    provider: varchar('provider', { length: 40 }).notNull(),
+    providerJobId: varchar('provider_job_id', { length: 200 }).notNull(),
+    status: mysqlEnum('status', ['submitted', 'succeeded', 'failed']).notNull().default('submitted'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    version: version(),
+  },
+  (t) => [
+    uniqueIndex('uq_provider_job_call').on(t.tenantId, t.runId, t.stepId, t.toolName, t.toolCallId),
+    uniqueIndex('uq_provider_job_tbi').on(t.tenantId, t.brandId, t.id),
+    index('ix_provider_job_run').on(t.tenantId, t.brandId, t.runId),
+    foreignKey({
+      columns: [t.tenantId, t.brandId, t.runId],
+      foreignColumns: [agentRuns.tenantId, agentRuns.brandId, agentRuns.id],
+      name: 'fk_provider_job_run',
+    }),
+  ],
+);
+
+/**
+ * Spec 12.7 tenant model-routing policy (permitted vendors, regions, retention, data classes), one row per tenant,
+ * read before every model call. The document is a versioned ModelRoutingPolicy (packages/contracts agents),
+ * validated on read and write; no row = the platform policy applies.
+ */
+export const modelRoutingPolicies = mysqlTable(
+  'model_routing_policies',
+  {
+    id: id(),
+    tenantId: tenantId(),
+    document: json('document').$type<Record<string, unknown>>().notNull(),
+    updatedByKind: varchar('updated_by_kind', { length: 30 }).notNull(),
+    updatedById: ref('updated_by_id').notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    version: version(),
+  },
+  (t) => [
+    uniqueIndex('uq_model_routing_policy_tenant').on(t.tenantId),
+    foreignKey({
+      columns: [t.tenantId],
+      foreignColumns: [tenants.id],
+      name: 'fk_model_routing_policy_tenant',
+    }),
+  ],
 );

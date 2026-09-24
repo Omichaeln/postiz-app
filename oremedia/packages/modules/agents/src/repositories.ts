@@ -1,8 +1,14 @@
 import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { NotFoundError } from '@oremedia/contracts/errors';
 import type { Page, PageRequest } from '@oremedia/contracts/pagination';
-import { BrandScopedRepository, TenantScopedRepository, type Tx } from '@oremedia/db';
-import { agentRuns, agentSteps, toolInvocations } from '@oremedia/db/schema/agents';
+import { BrandScopedRepository, TenantScopedRepository, requireTenant, type Tx } from '@oremedia/db';
+import {
+  agentRuns,
+  agentSteps,
+  modelRoutingPolicies,
+  providerJobs,
+  toolInvocations,
+} from '@oremedia/db/schema/agents';
 import { decodeCursor, encodeCursor } from '@oremedia/module-operations';
 
 export class AgentRunRepository extends BrandScopedRepository<typeof agentRuns> {
@@ -143,5 +149,71 @@ export class ToolInvocationRepository extends TenantScopedRepository<typeof tool
       .orderBy(desc(toolInvocations.id))
       .limit(1);
     return rows[0] ?? null;
+  }
+}
+
+/** One provider job per tool call (run, step, tool, tool_use id); spec 12.2 model-call recovery. */
+export class ProviderJobRepository extends BrandScopedRepository<typeof providerJobs> {
+  constructor() {
+    super(providerJobs);
+  }
+  private callScope(key: { runId: string; stepId: string; toolName: string; toolCallId: string }) {
+    return this.scope(
+      and(
+        eq(providerJobs.runId, key.runId),
+        eq(providerJobs.stepId, key.stepId),
+        eq(providerJobs.toolName, key.toolName),
+        eq(providerJobs.toolCallId, key.toolCallId),
+      ),
+    );
+  }
+  async findForCall(key: { runId: string; stepId: string; toolName: string; toolCallId: string }, tx?: Tx) {
+    const rows = await this.conn(tx).select().from(providerJobs).where(this.callScope(key)).limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    this.assertBrandAccess(row.brandId);
+    return row;
+  }
+  /** Inserts the call's job; a concurrent insert for the same call keeps the first row (uq_provider_job_call). */
+  async createIfAbsent(
+    values: Omit<typeof providerJobs.$inferInsert, 'tenantId'> & { brandId: string },
+    tx?: Tx,
+  ) {
+    this.assertBrandAccess(values.brandId);
+    const { tenantId } = requireTenant();
+    await this.conn(tx)
+      .insert(providerJobs)
+      .values({ ...values, tenantId })
+      .onDuplicateKeyUpdate({ set: { tenantId: sql`${providerJobs.tenantId}` } });
+  }
+  async update(
+    id: string,
+    expectedVersion: number,
+    values: Partial<typeof providerJobs.$inferInsert>,
+    tx?: Tx,
+  ) {
+    await this.updateScoped(id, expectedVersion, values, tx);
+  }
+}
+
+/** The tenant's model-routing policy row (spec 12.7): at most one per tenant. */
+export class ModelRoutingPolicyRepository extends TenantScopedRepository<typeof modelRoutingPolicies> {
+  constructor() {
+    super(modelRoutingPolicies);
+  }
+  async current(tx?: Tx) {
+    const rows = await this.conn(tx).select().from(modelRoutingPolicies).where(this.scope()).limit(1);
+    return rows[0] ?? null;
+  }
+  async create(values: Omit<typeof modelRoutingPolicies.$inferInsert, 'tenantId'>, tx?: Tx) {
+    await this.insertScoped(values, tx);
+  }
+  async update(
+    id: string,
+    expectedVersion: number,
+    values: Partial<typeof modelRoutingPolicies.$inferInsert>,
+    tx?: Tx,
+  ) {
+    await this.updateScoped(id, expectedVersion, values, tx);
   }
 }

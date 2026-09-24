@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { BudgetExhaustedError } from '@oremedia/contracts/errors';
+import { BudgetExhaustedError, NotFoundError } from '@oremedia/contracts/errors';
 import { TenantScopedRepository, requireTenant, withTransaction, type Tx } from '@oremedia/db';
 import { budgetReservations, spendLimits, usageLedger } from '@oremedia/db/schema/billing';
 import { newId } from '@oremedia/domain/ids';
@@ -71,6 +71,17 @@ class ReservationRepository extends TenantScopedRepository<typeof budgetReservat
       .where(this.scope(where));
     return Number(rows[0]?.total ?? 0);
   }
+  /** SELECT ... FOR UPDATE: concurrent charges against one reservation serialise on its row. */
+  async lock(id: string, tx: Tx) {
+    const rows = await tx
+      .select()
+      .from(budgetReservations)
+      .where(this.scope(eq(budgetReservations.id, id)))
+      .for('update');
+    const row = rows[0];
+    if (!row) throw new NotFoundError('BudgetReservation', id);
+    return row;
+  }
   async byRun(runId: string, tx?: Tx) {
     const rows = await this.conn(tx)
       .select()
@@ -98,6 +109,14 @@ class LedgerRepository extends TenantScopedRepository<typeof usageLedger> {
   }
   async append(values: Omit<typeof usageLedger.$inferInsert, 'tenantId'>, tx?: Tx) {
     await this.insertScoped(values, tx);
+  }
+  async findByIdempotencyKey(idempotencyKey: string, tx?: Tx) {
+    const rows = await this.conn(tx)
+      .select()
+      .from(usageLedger)
+      .where(this.scope(eq(usageLedger.idempotencyKey, idempotencyKey)))
+      .limit(1);
+    return rows[0] ?? null;
   }
 }
 
@@ -156,6 +175,8 @@ export const budgets = {
   /**
    * Records consumption per model or tool call. Cost already incurred is always ledgered; when the reservation
    * is exceeded the ledger entry commits first and the run then ends with budget_exhausted (spec 12.6).
+   * With an idempotency key (a tool call's identity) the charge happens once: a retried activity for the same call
+   * finds its ledger entry and charges nothing more, but is still refused once the reservation is closed or spent.
    */
   async consume(
     reservationId: string,
@@ -165,10 +186,13 @@ export const budgets = {
     unit: string,
     costMicros: number,
     sourceRef: string,
+    idempotencyKey?: string,
   ): Promise<void> {
     const exceeded = await withTransaction(async (tx) => {
-      const r = await reservations.getById(reservationId, tx);
+      const r = await reservations.lock(reservationId, tx);
       if (r.state !== 'held') throw new BudgetExhaustedError('reservation_closed');
+      if (idempotencyKey && (await ledger.findByIdempotencyKey(idempotencyKey, tx)))
+        return r.consumedMicros > r.reservedMicros; // already charged under the reservation lock
       const consumed = r.consumedMicros + costMicros;
       await reservations.update(r.id, r.version, { consumedMicros: consumed }, tx);
       await ledger.append(
@@ -182,6 +206,7 @@ export const budgets = {
           sourceRef,
           reservationId,
           periodKey: monthKey(),
+          idempotencyKey: idempotencyKey ?? null,
         },
         tx,
       );

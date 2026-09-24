@@ -59,7 +59,7 @@ import {
   registerVariantSource,
 } from '@oremedia/module-publishing';
 import { createLogger } from '@oremedia/observability';
-import { ProviderRegistry } from '@oremedia/providers';
+import { ProviderRegistry, ProviderTransportError } from '@oremedia/providers';
 import { runAgentRun, type AgentRunHost } from '@oremedia/workflows/agent-run.workflow.v1';
 import { runPublication, type PublicationHost } from '@oremedia/workflows/publication.workflow.v1';
 import { composeModules } from './composition';
@@ -458,6 +458,133 @@ describe('secret scan across model, events, audit, logs and workflow history (wo
     expect(await tdb.db.select().from(toolInvocations).where(eq(toolInvocations.runId, runId))).toHaveLength(
       2,
     );
+  });
+
+  it('outage paths: a refused connection before send, a reset after send and a send stopped by the pre-send fence are recorded and logged, with provider errors that echo the access token', async () => {
+    const runtime = createPublishingRuntime();
+    const control = record('publishControl', createPublishControlActivities(runtime.control));
+    const provider = record('publishProvider', createPublishProviderActivities(runtime.provider));
+    const schedulePublication = async (text: string) => {
+      const id = newId('cv');
+      variants.set(id, {
+        id,
+        tenantId,
+        brandId,
+        contentPackageId: 'pkg_scan',
+        contentRevisionId: `pr_${id.slice(3)}`,
+        channelConnectionId: connectionId,
+        text,
+        altTexts: [],
+        settings: {},
+        exportIds: [],
+        exportHashes: [],
+        version: 0,
+      });
+      return (
+        await run((tx) =>
+          publicationService.schedule(
+            owner(tenantId),
+            {
+              channelVariantId: id,
+              scheduledFor: new Date(Date.now() - 1000).toISOString(),
+              authority: 'approval',
+              approvalId: 'apr_scan',
+            },
+            tx,
+          ),
+        )
+      ).id;
+    };
+    const input = (id: string): PublicationWorkflowInputV1 => ({
+      tenantId,
+      actor: { kind: 'user', id: USER },
+      correlationId: 'corr_secret_scan',
+      publicationId: id,
+    });
+    let skew = 0; // the pre-send retry waits out its backoff on a virtual clock
+    const host: PublicationHost = {
+      workflowId: 'pub:outage',
+      runId: '11111111-2222-3333-4444-666666666666',
+      cancelRequested: () => false,
+      takeRescheduled: () => false,
+      now: () => Date.now() + skew,
+      waitForSignal: async (ms) => {
+        skew += ms;
+      },
+      sleep: async () => undefined,
+      providerActivities: () => ({ publish: provider, lookup: provider }),
+    };
+    const original = fixture.publish.bind(fixture);
+    // The fixture accepts only the token it granted; the refresh above rotated it, so it grants the live one.
+    const live = async (...args: Parameters<FixtureProviderAdapter['publish']>) => {
+      fixture.grant = { ...fixture.grant, credentials: { ...args[1] } };
+      return original(...args);
+    };
+    const echo = (message: string, code: string, token: string) =>
+      Object.assign(new Error(`${message} (Authorization: Bearer ${token}; ?access_token=${token})`), {
+        code,
+      });
+    let calls = 0;
+    fixture.publish = async (req, creds, io) => {
+      calls += 1;
+      if (calls === 1)
+        throw new ProviderTransportError(
+          echo('connect ECONNREFUSED', 'ECONNREFUSED', creds.accessToken),
+          'before_send',
+        );
+      await live(req, creds, io); // the post lands; the response is lost
+      throw new ProviderTransportError(echo('socket hang up', 'ECONNRESET', creds.accessToken), 'after_send');
+    };
+    const outage = await schedulePublication('Secret scan outage publication');
+    try {
+      await runPublication(control, input(outage), host);
+    } finally {
+      fixture.publish = original;
+    }
+    const attempts = await tdb.db
+      .select()
+      .from(publicationAttempts)
+      .where(eq(publicationAttempts.publicationId, outage));
+    expect(attempts.map((a) => [a.outcome, a.sentAt === null])).toEqual([
+      ['retryable_error', true],
+      ['unknown', false],
+    ]);
+    expect((await tdb.db.select().from(publications).where(eq(publications.id, outage)))[0]).toMatchObject({
+      state: 'published',
+    });
+    expect(fixture.posts.filter((p) => p.text === 'Secret scan outage publication')).toHaveLength(1);
+    // The pre-send fence: a hold that commits while the adapter is on its way stops the send (logged, not sent).
+    const fenced = await schedulePublication('Secret scan fenced publication');
+    fixture.publish = async (req, creds, io) => {
+      await run((tx) => publicationService.holdRestored(owner(tenantId), { brandId: null }, tx));
+      return live(req, creds, io);
+    };
+    try {
+      await runPublication(control, input(fenced), host);
+    } finally {
+      fixture.publish = original;
+    }
+    expect((await tdb.db.select().from(publications).where(eq(publications.id, fenced)))[0]).toMatchObject({
+      state: 'held',
+    });
+    expect(fixture.posts.filter((p) => p.text === 'Secret scan fenced publication')).toHaveLength(0);
+    expect(logLines.some((l) => l.includes('provider request aborted before send'))).toBe(true);
+    // The platform is down at the send boundary (a real refused connection through ProviderIO, the token in the
+    // request URL): sentAt was committed, so it is never blindly retried; reconciliation proves absence.
+    fixture.behaviour = { kind: 'unreachable' };
+    fixture.grant = { ...fixture.grant, credentials: { ...fixture.grant.credentials } };
+    fixture.publish = live;
+    const down = await schedulePublication('Secret scan unreachable publication');
+    try {
+      await runPublication(control, input(down), host);
+    } finally {
+      fixture.publish = original;
+      fixture.behaviour = { kind: 'accept' };
+    }
+    expect((await tdb.db.select().from(publications).where(eq(publications.id, down)))[0]).toMatchObject({
+      state: 'retry_eligible',
+    });
+    expect(logLines.some((l) => l.includes('provider request failed'))).toBe(true);
   });
 
   it('the secrets appear nowhere: model requests, outbox, audit, logs, workflow history, agent rows, evidence, credential rows', async () => {

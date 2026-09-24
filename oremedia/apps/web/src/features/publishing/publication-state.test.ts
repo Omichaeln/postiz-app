@@ -9,6 +9,7 @@ import {
   holdReasonText,
   localMidnight,
   monthGrid,
+  outcomeUnknownReasonText,
   publicationChip,
   rangeFor,
   shiftAnchor,
@@ -40,8 +41,24 @@ describe('holdReasonText', () => {
   it('has text for every release check key of spec 13.4', () => {
     for (const key of RELEASE_CHECK_KEYS) expect(HOLD_REASON_TEXT[key]).toBeTruthy();
   });
+  it('explains the restore hold (spec 17.6): only a never-sent publication is held by a restore', () => {
+    expect(holdReasonText('restored_from_backup')).toContain('restored from a backup');
+    expect(holdReasonText('restored_from_backup')).toContain('never sent');
+  });
   it('never invents an explanation for an unknown key', () => {
     expect(holdReasonText('something_new')).toBe('No explanation is recorded for this reason.');
+  });
+});
+
+describe('outcomeUnknownReasonText', () => {
+  it('explains a restored row that may already be live (spec 17.6) and offers reconciliation', () => {
+    expect(outcomeUnknownReasonText('restored_from_backup')).toContain('restored from a backup');
+    expect(outcomeUnknownReasonText('restored_from_backup')).toContain('may already be live');
+    expect(actionsFor('outcome_unknown')).toMatchObject({ reconcile: true, release: false });
+  });
+  it('has no text for a missing or unknown reason (the key is still shown)', () => {
+    expect(outcomeUnknownReasonText(null)).toBeNull();
+    expect(outcomeUnknownReasonText('something_new')).toBeNull();
   });
 });
 

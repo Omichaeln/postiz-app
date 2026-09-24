@@ -15,6 +15,13 @@
       "when": 1790216909420,
       "tag": "0001_tool_invocation_proposal_payload",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1790243280565,
+      "tag": "0002_provider_jobs_routing_previews_ledger_idempotency",
+      "breakpoints": true
     }
   ]
 }

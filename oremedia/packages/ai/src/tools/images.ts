@@ -53,8 +53,14 @@ export const imagesGenerate: ToolDefinition<z.infer<typeof GenerateInput>, z.inf
   async run(input, ctx) {
     const generator = ctx.services.images;
     if (!generator) throw new ToolDeniedError('provider_not_configured');
-    const existing = await ctx.providerJobs.find(ctx.run.runId, ctx.run.stepId, imagesGenerate.name);
-    let jobId = existing;
+    // One job per tool call: a retry of this call polls its job; another call in the same step submits its own.
+    const key = {
+      runId: ctx.run.runId,
+      stepId: ctx.run.stepId,
+      toolName: imagesGenerate.name,
+      toolCallId: ctx.toolCallId,
+    };
+    let jobId = await ctx.providerJobs.find(key);
     if (!jobId) {
       const submitted = await generator.submit({
         tenantId: ctx.run.tenantId,
@@ -65,13 +71,23 @@ export const imagesGenerate: ToolDefinition<z.infer<typeof GenerateInput>, z.inf
         aspect: input.aspect,
       });
       jobId = submitted.jobId;
-      await ctx.providerJobs.persist(ctx.run.runId, ctx.run.stepId, imagesGenerate.name, jobId); // before waiting
+      // Before waiting, and committed on its own: the tool's unit of work rolls back on a timeout, the job id must not.
+      await ctx.providerJobs.persist(key, {
+        brandId: ctx.run.brandId,
+        provider: generator.provider,
+        providerJobId: jobId,
+      });
     }
     for (;;) {
       const status = await generator.poll(jobId);
-      if (status.status === 'done') return { jobId, images: status.images };
-      if (status.status === 'failed')
+      if (status.status === 'done') {
+        await ctx.providerJobs.finish(key, 'succeeded');
+        return { jobId, images: status.images };
+      }
+      if (status.status === 'failed') {
+        await ctx.providerJobs.finish(key, 'failed');
         throw new ToolDeniedError(`provider_failed:${status.reason}`.slice(0, 80));
+      }
       await sleep(POLL_INTERVAL_MS);
     }
   },

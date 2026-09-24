@@ -61,7 +61,11 @@ import { evaluateRelease, reviewService } from '@oremedia/module-review';
 import { METRIC, count } from '@oremedia/observability';
 import { ProviderRegistry } from '@oremedia/providers';
 import { runDeletionRequest } from '@oremedia/workflows/deletion-request.workflow.v1';
-import { runPublication, type PublicationHost } from '@oremedia/workflows/publication.workflow.v1';
+import {
+  runPublication,
+  runReconcile,
+  type PublicationHost,
+} from '@oremedia/workflows/publication.workflow.v1';
 import { CROSS_TENANT_INPUTS } from '../../../tooling/test-fixtures/src/cross-tenant-inputs';
 import { callPath, seedTwoTenants, type SeededTenant } from '../../../tooling/test-fixtures/src/seed';
 import { composeModules } from './composition';
@@ -809,7 +813,46 @@ describe('runbook rehearsals (worker-core composition, fixture provider, fake Te
         reason: 'no exposure found',
       });
   });
-  it("restore a single tenant (7.11): the tenant's rows are re-imported from a restore point, the other tenant is untouched, deletions requested after the restore point are re-applied", async () => {
+  it("restore a single tenant (7.11): the tenant's rows are re-imported from a restore point, restored in-flight publications are held or reconciled before anything fires, the other tenant is untouched, deletions requested after the restore point are re-applied", async () => {
+    // What is in flight at the restore point: one publication waiting, one claimed with its attempt open (not yet
+    // sent), one sent and pending on the channel (processing, live there), and one already published.
+    const restoreConn = await connect('acct_restore');
+    const waiting = (await scheduled('Restore waiting', [restoreConn])).ids[0]!;
+    const claimed = (await scheduled('Restore claimed', [restoreConn])).ids[0]!;
+    const claim = await control.claimForDispatch({ ...wfInput(claimed), claimant: 'pub:restore:run-1' });
+    if (!claim.ok) throw new Error('claim');
+    const claimedAttempt = await control.openAttempt({
+      ...wfInput(claimed),
+      fencingToken: claim.fencingToken,
+    });
+    const pendingPub = (await scheduled('Restore processing', [restoreConn])).ids[0]!;
+    const pendingClaim = await control.claimForDispatch({
+      ...wfInput(pendingPub),
+      claimant: 'pub:restore:run-2',
+    });
+    if (!pendingClaim.ok) throw new Error('claim');
+    const pendingAttempt = await control.openAttempt({
+      ...wfInput(pendingPub),
+      fencingToken: pendingClaim.fencingToken,
+    });
+    fixture.behaviour = { kind: 'pending' };
+    const pending = await provider.publishOnce({
+      ...wfInput(pendingPub),
+      attemptId: pendingAttempt,
+      fencingToken: pendingClaim.fencingToken,
+    });
+    await control.markProcessing({ ...wfInput(pendingPub), attempt: pending });
+    fixture.behaviour = { kind: 'accept' };
+    const done = (await scheduled('Restore published', [restoreConn])).ids[0]!;
+    await runPublication(control, wfInput(done), host());
+    expect((await pubRow(done)).state).toBe('published');
+    expect((await pubRow(pendingPub)).state).toBe('processing');
+    expect((await pubRow(claimed)).state).toBe('dispatching');
+    const bInFlight = (
+      await tdb.db.select().from(publications).where(eq(publications.tenantId, B.tenantId))
+    ).filter((p) => ['scheduled', 'dispatching', 'processing'].includes(p.state));
+    expect(bInFlight.length).toBeGreaterThan(0); // the other tenant has in-flight rows the command must not touch
+
     const tables = tenantScopedTables();
     const snapshotB = await B.snapshot();
     // Step 1–2: the restore point: a tenant-scoped dump of every tenant table (what the PITR copy holds).
@@ -874,10 +917,105 @@ describe('runbook rehearsals (worker-core composition, fixture provider, fake Te
     expect(imported).toBeGreaterThan(0);
     const restored = await tdb.db.select().from(publications).where(eq(publications.brandId, brand));
     expect(restored.map((p) => p.id).sort()).toEqual(accidentIds.sort());
-    // Step 5 (the restore rule): the restored in-flight publications are the reconcile list. Moving them to held
-    // needs a publishing command that does not exist yet (reported); the kill switch covers the mandate path only.
-    const inFlight = restored.filter((p) => ['scheduled', 'dispatching', 'processing'].includes(p.state));
-    expect(inFlight.every((p) => p.tenantId === A.tenantId)).toBe(true);
+    // Step 5 (the restore rule, spec 17.6): through the API command the runbook names, called until hasMore is
+    // false (bounded batches), before the kill switches are released or deletions resume. Never sent → held; sent
+    // (processing, or dispatching with sentAt) → outcome_unknown with a reconcile request.
+    type HoldRestoredResult = { held: string[]; outcomeUnknown: string[]; hasMore: boolean };
+    const holdAllRestored = async (limit?: number) => {
+      const total = { held: [] as string[], outcomeUnknown: [] as string[], calls: 0 };
+      for (;;) {
+        const res = await api('publishing.publications.holdRestored', {
+          brandId: null,
+          ...(limit ? { limit } : {}),
+        });
+        expect(res.error).toBeUndefined();
+        const data = res.data as HoldRestoredResult;
+        total.held.push(...data.held);
+        total.outcomeUnknown.push(...data.outcomeUnknown);
+        total.calls += 1;
+        if (!data.hasMore) return total;
+      }
+    };
+    const allOfA = () => tdb.db.select().from(publications).where(eq(publications.tenantId, A.tenantId));
+    const beforeHold = await allOfA();
+    const inFlight = beforeHold.filter((p) => ['scheduled', 'dispatching', 'processing'].includes(p.state));
+    expect(inFlight.map((p) => p.id)).toEqual(expect.arrayContaining([waiting, claimed, pendingPub]));
+    const holding = await holdAllRestored(2);
+    expect(holding.calls).toBe(Math.ceil(inFlight.length / 2)); // bounded: two rows per call
+    expect([...holding.held, ...holding.outcomeUnknown].sort()).toEqual(inFlight.map((p) => p.id).sort());
+    expect(holding.held).toEqual(expect.arrayContaining([waiting, claimed]));
+    expect(holding.outcomeUnknown).toContain(pendingPub);
+    const afterHold = new Map((await allOfA()).map((p) => [p.id, p]));
+    for (const p of beforeHold) {
+      const now = afterHold.get(p.id)!;
+      if (inFlight.includes(p))
+        expect(now, p.id).toMatchObject({
+          state: holding.held.includes(p.id) ? 'held' : 'outcome_unknown',
+          stateReason: 'restored_from_backup',
+        });
+      else expect(now, `${p.id} (${p.state}) is untouched`).toEqual(p); // published, failed, cancelled, held …
+    }
+    expect(afterHold.get(done)!.state).toBe('published');
+    expect(afterHold.get(claimed)!.holdReasons).toEqual(['restored_from_backup']);
+    const reconcileRequested = (
+      await tdb.db
+        .select()
+        .from(outboxEvents)
+        .where(
+          and(
+            eq(outboxEvents.tenantId, A.tenantId),
+            eq(outboxEvents.eventType, 'publication.reconcile_requested'),
+          ),
+        )
+    ).filter((e) => e.payload['publicationId'] === pendingPub);
+    expect(reconcileRequested).toHaveLength(1);
+    expect(reconcileRequested[0]!.payload).toMatchObject({
+      attemptId: pendingAttempt,
+      providerKey: FIXTURE_PROVIDER_KEY,
+    });
+    // Nothing fires from restored state: the waiting workflow ends on the held row, and the run that held the
+    // claim before the restore can no longer send (its fence moved) or finalise the pending post.
+    const postsBefore = fixture.posts.length;
+    await runPublication(control, wfInput(waiting), host());
+    await expect(
+      provider.publishOnce({
+        ...wfInput(claimed),
+        attemptId: claimedAttempt,
+        fencingToken: claim.fencingToken,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      provider.finalize({
+        ...wfInput(pendingPub),
+        attemptId: pendingAttempt,
+        fencingToken: pendingClaim.fencingToken,
+      }),
+    ).rejects.toThrow();
+    // The old run then reconciles (its publishOnce failed → unknown): markOutcomeUnknown, like markProcessing and
+    // markPublished, carries no token and fails on the held row as a non-retryable ValidationFailed, so Temporal does
+    // not retry it (publicationWorkflowV1's control retry policy lists ValidationFailed) and the run ends there.
+    const nonRetryable = { nonRetryable: true, type: 'ValidationFailed' };
+    await expect(
+      control.markOutcomeUnknown({ ...wfInput(claimed), attemptId: claimedAttempt }),
+    ).rejects.toMatchObject(nonRetryable);
+    await expect(
+      control.markProcessing({
+        ...wfInput(claimed),
+        attempt: { attemptId: claimedAttempt, outcome: 'pending' },
+      }),
+    ).rejects.toMatchObject(nonRetryable);
+    expect(fixture.posts.length).toBe(postsBefore);
+    for (const id of [waiting, claimed]) expect((await pubRow(id)).state).toBe('held');
+    expect((await attemptsOf(claimed))[0]).toMatchObject({ sentAt: null, finishedAt: null });
+    // Idempotent: a second run moves nothing; the other tenant is untouched.
+    expect(await holdAllRestored()).toEqual({ held: [], outcomeUnknown: [], calls: 1 });
+    expect(await B.snapshot()).toBe(snapshotB);
+    // The exits. The post that was live before the restore: the reconciliation the request starts finds it →
+    // published, never re-sent. The never-sent ones: a person releases (or cancels) each after checking.
+    fixture.reconcileBehaviour = 'scan';
+    await runReconcile(control, provider, wfInput(pendingPub), pendingAttempt, host());
+    expect(await pubRow(pendingPub)).toMatchObject({ state: 'published' });
+    expect(fixture.posts.length).toBe(postsBefore);
     // Step 6: deletions requested after the restore point are re-applied before release.
     expect(await brand1Rows()).toBeGreaterThan(0); // the dump brought brand 1 back
     const after = (

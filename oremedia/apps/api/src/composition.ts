@@ -66,8 +66,10 @@ import {
   registerIntelligenceToolSource,
   registerPublishingToolSource,
   registerReviewToolSource,
+  registerRoutingPolicySource,
   registerSkillResolver,
 } from '@oremedia/ai';
+import { agentsService } from '@oremedia/module-agents';
 
 /** Wires cross-module hooks so modules never import each other's tables. Called by main and by tests. */
 export function composeModules(): void {
@@ -92,6 +94,11 @@ export function composeModules(): void {
   registerSkillResolver((input, tx) =>
     skillsService.resolveForRun(input.actor, { brandId: input.brandId, taskKind: input.taskKind }, tx),
   );
+  // Spec 12.7: agents.runs.start checks the tenant's stored model-routing policy before a run is created.
+  registerRoutingPolicySource((tenantId) => agentsService.routingPolicy.storedFor(tenantId));
+  // No durable provider job store here (worker-core registers it for agent runs): an MCP surface call never submits
+  // a provider job, since images.generate is outside MCP_TOOLS and costed tools are denied without a run's budget
+  // reservation (no_budget_reservation) before they run; a surface call has no agent_runs row for provider_jobs.
   // Spec 11.4 / 13.2: approvals are invalidated eagerly when a creative document or a content revision changes.
   registerRevisionChangeHook((documentId, tx) =>
     reviewService.approvals.invalidateForCreativeRevisionChange(documentId, tx),

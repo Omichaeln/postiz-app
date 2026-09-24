@@ -1,6 +1,6 @@
 import { hostname } from 'node:os';
 import { startTelemetry, stopTelemetry } from '@oremedia/observability';
-import { configureDatabase, closeDatabase } from '@oremedia/db';
+import { configureDatabase, configureRoleDatabase, closeDatabase } from '@oremedia/db';
 import { composeModules } from './composition';
 import { startAgentsWorker } from './agents-worker';
 import { runDispatchLoop } from './dispatch-loop';
@@ -26,6 +26,11 @@ try {
   process.exit(2);
 }
 configureDatabase({ url, connectionLimit: Number(process.env['DATABASE_POOL'] ?? 5) });
+// Spec 17.5: retentionSweepWorkflowV1's activities use the retention role (roles/retention-role.sql). Without it the
+// sweep runs on the application role, which the engine refuses DELETE on insert-only tables (a dry run still counts).
+const retentionUrl = process.env['DATABASE_URL_RETENTION'];
+if (retentionUrl) configureRoleDatabase('retention', { url: retentionUrl, connectionLimit: 2 });
+else log.warn({}, 'DATABASE_URL_RETENTION not set: the retention sweep uses the application role');
 
 const client = await connectTemporal(temporalConfig);
 composeModules({ workflowProbe: new TemporalWorkflowProbe(client) });

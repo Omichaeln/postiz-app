@@ -34,6 +34,8 @@ export const GLOBAL_PLUS_TENANT_TABLES: Readonly<Record<string, string>> = {
 export const INSERT_ONLY_TABLES: readonly string[] = [
   'creative_revisions',
   'rendered_exports',
+  'render_previews', // the proposed snapshot a preview job draws: written with the job, never updated
+  'preview_exports', // a preview render's output, evidence like rendered_exports
   'review_decisions',
   'remote_evidence',
   'metric_snapshots',
@@ -47,3 +49,27 @@ export const INSERT_ONLY_TABLES: readonly string[] = [
   'experiment_results',
   'content_revisions_snapshot_placeholder',
 ].filter((t) => !t.endsWith('_placeholder'));
+
+export type RetentionPrivilege = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE';
+
+/**
+ * Spec 17.5 / 6.1: the retention database role (`roles/retention-role.sql`, connection DATABASE_URL_RETENTION) is
+ * used only by retentionSweepWorkflowV1's activities. It carries exactly what the registered TTL handlers and the
+ * retention audit need: DELETE on the insert-only tables a TTL class removes by age (and nothing else insert-only),
+ * DELETE/UPDATE on the mutable rows those classes remove or anonymise, SELECT to find them, INSERT on audit_events
+ * for the `retention.apply` record. audit_events, creative_revisions, rendered_exports and every other evidence
+ * table stay undeletable. Adding a TTL class that removes another table means adding it here and regenerating.
+ */
+export const RETENTION_ROLE_GRANTS: Readonly<Record<string, readonly RetentionPrivilege[]>> = {
+  retention_policies: ['SELECT'],
+  // agent_transcripts (90 days)
+  agent_steps: ['SELECT', 'DELETE'],
+  tool_invocations: ['SELECT', 'DELETE'],
+  // metrics (25 months)
+  metric_snapshots: ['SELECT', 'DELETE'],
+  link_clicks: ['SELECT', 'DELETE'],
+  // customer_voice_raw (12 months): messages removed, cluster sample refs cleared
+  messages: ['SELECT', 'DELETE'],
+  customer_voice_clusters: ['SELECT', 'UPDATE'],
+  audit_events: ['INSERT'],
+};

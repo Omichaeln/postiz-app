@@ -17,4 +17,12 @@ export const AGENTS_INPUTS: Record<string, CrossTenantFixture> = {
   'agents.runs.approveProposal': {
     buildInput: (f) => ({ runId: f['agentRunId'], stepId: f['agentStepId'], decision: 'accept' }),
   },
+  'agents.routingPolicy.get': {
+    buildInput: null,
+    reason: "no input; reads the caller's own tenant policy (tenant from the verified membership)",
+  },
+  'agents.routingPolicy.set': {
+    buildInput: null,
+    reason: "no resource ids; the policy document is stored in the caller's tenant",
+  },
 };

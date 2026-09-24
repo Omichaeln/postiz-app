@@ -71,10 +71,16 @@ schedule to apply mode: `temporal schedule update --schedule-id retention-sweep 
 
 ## Database role
 
-The application role has no DELETE on insert-only tables (spec 6.1, `packages/db/roles/app-role.sql`). The purge of
-`creative_revisions`, `rendered_exports`, `review_decisions`, `metric_snapshots`, `link_clicks`, `usage_ledger`,
-`agent_steps`, `tool_invocations`, `evaluation_results`, `experiment_assignments` and `experiment_results` needs a
-retention role with DELETE on them, used only by worker-core's deletion and retention activities. **Open:** the role
-and its connection (`DATABASE_URL_RETENTION`) are not generated or wired yet; until then the deletion fails those
-steps with `ER_TABLEACCESS_DENIED_ERROR` in an environment that uses the application role (the step stays pending
-and is retried; nothing is half-deleted inside a step, since each step is one transaction).
+The application role has no DELETE on insert-only tables (spec 6.1, `packages/db/roles/app-role.sql`). The retention
+sweep runs on its own role (`packages/db/roles/retention-role.sql`, generated from `RETENTION_ROLE_GRANTS` in
+`packages/db/src/global-tables.ts`) through worker-core's `DATABASE_URL_RETENTION` connection: DELETE on
+`agent_steps`, `tool_invocations`, `metric_snapshots` and `link_clicks` (the insert-only tables a TTL class removes),
+DELETE on `messages`, UPDATE on `customer_voice_clusters`, SELECT on those and `retention_policies`, INSERT on
+`audit_events`; no other privilege. Without `DATABASE_URL_RETENTION` the sweep runs on the application role and a
+real (non-dry) run fails with `ER_TABLEACCESS_DENIED_ERROR` (retried the next day; each tenant is one transaction).
+**Open:** the deletion workflow's purge of `creative_revisions`, `rendered_exports`, `render_previews`,
+`preview_exports`, `review_decisions`, `usage_ledger`, `evaluation_results`, `experiment_assignments`,
+`experiment_results` and the TTL tables above still runs on the application role, so in an environment that uses it
+those steps fail with `ER_TABLEACCESS_DENIED_ERROR` (the step stays pending and is retried; nothing is half-deleted
+inside a step, since each step is one transaction). The preview tables belong to the `creative` step, which already
+fails there on `creative_revisions` and `rendered_exports`; they add no new failing step.

@@ -1,26 +1,56 @@
 /**
  * Spec 12.2 model-call recovery: when a generation provider returns a job id (images, video) it is persisted before
- * the activity waits; a retried activity polls that job instead of submitting again. The store is keyed by run and
- * step so a retry of the same activity attempt finds its own job.
+ * the activity waits; a retried activity polls that job instead of submitting again. A job belongs to one tool call:
+ * the run, the model step, the tool and the model's own tool_use id, so two calls of the same tool in one model step
+ * each get their own job while a retry of the same call finds its job.
  */
-export interface ProviderJobStore {
-  persist(runId: string, stepId: string, toolName: string, jobId: string): Promise<void>;
-  find(runId: string, stepId: string, toolName: string): Promise<string | null>;
+export interface ProviderJobKey {
+  runId: string;
+  stepId: string;
+  toolName: string;
+  /** The model's tool_use id for this call (ModelToolCall.id), as the dispatcher received it. */
+  toolCallId: string;
 }
 
-const key = (runId: string, stepId: string, toolName: string) => `${runId}:${stepId}:${toolName}`;
+export interface ProviderJob {
+  brandId: string;
+  /** The generator's provider key (ImageGenerator.provider). */
+  provider: string;
+  providerJobId: string;
+}
+
+export type ProviderJobStatus = 'succeeded' | 'failed';
+
+export interface ProviderJobStore {
+  /** Records the accepted job; a second persist for the same call keeps the first job. */
+  persist(key: ProviderJobKey, job: ProviderJob): Promise<void>;
+  find(key: ProviderJobKey): Promise<string | null>;
+  /** The provider reported a terminal outcome; a retry still finds (and polls) the job. */
+  finish(key: ProviderJobKey, status: ProviderJobStatus): Promise<void>;
+}
+
+const keyOf = (k: ProviderJobKey) => `${k.runId}:${k.stepId}:${k.toolName}:${k.toolCallId}`;
 
 /**
- * In-process store: survives activity retries on the same worker. A durable store (a table or Redis) registers
- * through registerProviderJobStore when the image provider arrives; only images.generate uses it in Release 1.
+ * In-process store: survives activity retries on the same worker only. Worker processes register the durable store
+ * (the agents module's provider_jobs table) through registerProviderJobStore at their composition root; this one
+ * remains for unit tests and processes without a database.
  */
 export class MemoryProviderJobStore implements ProviderJobStore {
-  private readonly jobs = new Map<string, string>();
-  async persist(runId: string, stepId: string, toolName: string, jobId: string): Promise<void> {
-    this.jobs.set(key(runId, stepId, toolName), jobId);
+  private readonly jobs = new Map<
+    string,
+    { providerJobId: string; status: ProviderJobStatus | 'submitted' }
+  >();
+  async persist(key: ProviderJobKey, job: ProviderJob): Promise<void> {
+    if (!this.jobs.has(keyOf(key)))
+      this.jobs.set(keyOf(key), { providerJobId: job.providerJobId, status: 'submitted' });
   }
-  async find(runId: string, stepId: string, toolName: string): Promise<string | null> {
-    return this.jobs.get(key(runId, stepId, toolName)) ?? null;
+  async find(key: ProviderJobKey): Promise<string | null> {
+    return this.jobs.get(keyOf(key))?.providerJobId ?? null;
+  }
+  async finish(key: ProviderJobKey, status: ProviderJobStatus): Promise<void> {
+    const job = this.jobs.get(keyOf(key));
+    if (job) job.status = status;
   }
 }
 
@@ -29,3 +59,13 @@ export const registerProviderJobStore = (s: ProviderJobStore): void => {
   store = s;
 };
 export const providerJobs = (): ProviderJobStore => store;
+
+/**
+ * The store registered at the time of each call (not at the time a runtime was built), so dispatch dependencies
+ * created before the composition root ran still reach the durable store.
+ */
+export const registeredProviderJobStore: ProviderJobStore = {
+  persist: (key, job) => store.persist(key, job),
+  find: (key) => store.find(key),
+  finish: (key, status) => store.finish(key, status),
+};

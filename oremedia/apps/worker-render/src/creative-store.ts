@@ -23,9 +23,19 @@ export function creativeRenderJobStore(): RenderJobStore {
         formatKeys: job.formatKeys,
       };
     },
-    async getRevision(actor, documentId, revisionId) {
+    async getRevision(actor, documentId, revisionId, renderJobId) {
+      // A preview job (spec 11.4) draws the proposed snapshot kept with it, never a committed revision's.
+      const preview = renderJobId
+        ? await creativeService.renders.previewSource(actor, { renderJobId })
+        : null;
+      if (preview) return { ...preview, preview: true };
       const r = await creativeService.revisions.get(actor, { documentId, revisionId });
-      return { snapshot: r.snapshot, contentHash: r.contentHash, brandVersionId: r.brandVersionId };
+      return {
+        snapshot: r.snapshot,
+        contentHash: r.contentHash,
+        brandVersionId: r.brandVersionId,
+        preview: false,
+      };
     },
     async markRendering(renderJobId, tx) {
       await creativeService.renders.markRendering({ renderJobId }, tx);

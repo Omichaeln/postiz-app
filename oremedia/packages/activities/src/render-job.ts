@@ -56,11 +56,21 @@ export interface RenderJobStore {
     brandId: string;
     formatKeys: string[];
   }>;
+  /**
+   * The document the job draws: the committed revision's snapshot, or, when renderJobId names a preview job
+   * (spec 11.4 operations.propose with previewRender), the proposed snapshot kept with that job (`preview: true`).
+   */
   getRevision(
     actor: ResolvedActor,
     documentId: string,
     revisionId: string,
-  ): Promise<{ snapshot: CreativeDocumentV1; contentHash: string; brandVersionId: string }>;
+    renderJobId?: string,
+  ): Promise<{
+    snapshot: CreativeDocumentV1;
+    contentHash: string;
+    brandVersionId: string;
+    preview?: boolean;
+  }>;
   markRendering(renderJobId: string, tx: Tx): Promise<void>;
   markReady(renderJobId: string, exports: RenderExportInput[], tx: Tx): Promise<{ exportIds: string[] }>;
   markFailed(renderJobId: string, error: string, tx: Tx): Promise<void>;
@@ -128,6 +138,16 @@ export const exportStorageKey = (
   formatKey: string,
 ): string =>
   `assets/${tenantId}/${brandId}/exports/${revisionId}/${renderJobId}/${segment(pageId)}-${segment(formatKey)}.png`;
+
+/** Where a preview render's output lives: apart from exports, keyed by job (a preview has no revision of its own). */
+export const previewStorageKey = (
+  tenantId: string,
+  brandId: string,
+  renderJobId: string,
+  pageId: string,
+  formatKey: string,
+): string =>
+  `assets/${tenantId}/${brandId}/previews/${renderJobId}/${segment(pageId)}-${segment(formatKey)}.png`;
 
 function flat(els: Element[]): Element[] {
   const out: Element[] = [];
@@ -224,7 +244,12 @@ export function createRenderJobActivities(deps: RenderJobDeps): RenderJobActivit
     resolveRenderInputs: (input) =>
       inTenant(input, loadActorGrants, async (): Promise<RenderResolveResult> => {
         const { actor } = await resolveActivityActor(input);
-        const revision = await deps.store.getRevision(actor, input.documentId, input.revisionId);
+        const revision = await deps.store.getRevision(
+          actor,
+          input.documentId,
+          input.revisionId,
+          input.renderJobId,
+        );
         const doc = revision.snapshot;
         // The brand version the revision was made against (spec 11.4); resolving it also re-checks brand.read.
         await brandService.resolveBrandSnapshot(actor, {
@@ -301,7 +326,12 @@ export function createRenderJobActivities(deps: RenderJobDeps): RenderJobActivit
       inTenant(input, loadActorGrants, async () => {
         heartbeat('render:load');
         const { actor } = await resolveActivityActor(input);
-        const revision = await deps.store.getRevision(actor, input.documentId, input.revisionId);
+        const revision = await deps.store.getRevision(
+          actor,
+          input.documentId,
+          input.revisionId,
+          input.renderJobId,
+        );
         const doc = revision.snapshot;
         const page = doc.pages.find((p) => p.id === input.target.pageId);
         if (!page) throw new NotFoundError('CreativePage', input.target.pageId);
@@ -330,14 +360,23 @@ export function createRenderJobActivities(deps: RenderJobDeps): RenderJobActivit
         });
         // Spec 17.2 render journey: p95 duration per page (one page × format per call), by format.
         record(METRIC.renderDurationMs, Date.now() - startedAt, { formatKey: input.target.formatKey });
-        const storageKey = exportStorageKey(
-          input.tenantId,
-          input.brandId,
-          input.revisionId,
-          input.renderJobId,
-          input.target.pageId,
-          input.target.formatKey,
-        );
+        // A preview's output never lands next to a revision's exports (spec 11.4: never publishable).
+        const storageKey = revision.preview
+          ? previewStorageKey(
+              input.tenantId,
+              input.brandId,
+              input.renderJobId,
+              input.target.pageId,
+              input.target.formatKey,
+            )
+          : exportStorageKey(
+              input.tenantId,
+              input.brandId,
+              input.revisionId,
+              input.renderJobId,
+              input.target.pageId,
+              input.target.formatKey,
+            );
         heartbeat('render:store');
         await store().putObject(storageKey, out.png, { contentType: 'image/png' });
         log().info(

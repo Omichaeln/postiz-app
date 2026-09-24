@@ -93,4 +93,46 @@ describe('budgets (spec 12.6) against MySQL 8', () => {
       await budgets.settle(runId); // idempotent
     });
   });
+
+  it('a charge keyed by its tool call is ledgered once across retries; distinct calls each charge, also in parallel', async () => {
+    const runId = newId('agentRun');
+    await runInTenant(ctx(tenantA), async () => {
+      await budgets.setLimit(brandA, 'day', 100_000_000);
+      const r = await budgets.reserveSpend(brandA, runId, 1_000_000, deadline);
+      const charge = (key: string, micros: number) =>
+        budgets.consume(r.id, brandA, 'image_generation', 1, 'call', micros, 'step_1', key);
+      // The activity is retried after the charge committed (Temporal re-runs dispatchTool for the same call).
+      await charge('tool_call:a', 300_000);
+      await charge('tool_call:a', 300_000);
+      // Distinct calls of the same step in parallel, plus a duplicate delivery of one of them.
+      await Promise.all([
+        charge('tool_call:b', 100_000),
+        charge('tool_call:c', 100_000),
+        charge('tool_call:d', 100_000),
+        charge('tool_call:e', 100_000),
+        charge('tool_call:e', 100_000),
+      ]);
+      const reservation = async () =>
+        (await tdb.db.select().from(budgetReservations).where(eq(budgetReservations.id, r.id)))[0]!;
+      expect((await reservation()).consumedMicros).toBe(700_000);
+      const ledger = await tdb.db.select().from(usageLedger).where(eq(usageLedger.reservationId, r.id));
+      expect(ledger.map((l) => l.idempotencyKey).sort()).toEqual([
+        'tool_call:a',
+        'tool_call:b',
+        'tool_call:c',
+        'tool_call:d',
+        'tool_call:e',
+      ]);
+      // Overspend protection is unchanged: the charge is ledgered, the run ends; its retry still ends the run
+      // and charges nothing more.
+      await expect(charge('tool_call:f', 400_000)).rejects.toBeInstanceOf(BudgetExhaustedError);
+      await expect(charge('tool_call:f', 400_000)).rejects.toBeInstanceOf(BudgetExhaustedError);
+      expect((await reservation()).consumedMicros).toBe(1_100_000);
+      // A closed reservation refuses even a charge it has already recorded.
+      await budgets.settle(runId);
+      await expect(charge('tool_call:a', 300_000)).rejects.toBeInstanceOf(BudgetExhaustedError);
+      const after = await tdb.db.select().from(usageLedger).where(eq(usageLedger.reservationId, r.id));
+      expect(after).toHaveLength(6);
+    });
+  });
 });

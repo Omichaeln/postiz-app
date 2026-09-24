@@ -7,14 +7,15 @@ import { closeDatabase, configureDatabase } from './client';
  * Runs versioned migrations (drizzle-kit generate output). This is the only supported way to change the schema.
  * `prisma db push --accept-data-loss`-style pushes are prohibited (spec 2.1.11, 20.4 R6).
  */
-export async function runMigrations(url: string): Promise<void> {
+export async function runMigrations(url: string, opts: { migrationsFolder?: string } = {}): Promise<void> {
   const db = configureDatabase({ url, connectionLimit: 2 });
-  // Bundled builds ship the SQL files next to the bundle and set OREMEDIA_MIGRATIONS_DIR.
-  const folder =
-    process.env['OREMEDIA_MIGRATIONS_DIR'] ??
-    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
-  await migrate(db, { migrationsFolder: folder });
+  await migrate(db, { migrationsFolder: opts.migrationsFolder ?? migrationsFolder() });
 }
+
+/** Bundled builds ship the SQL files next to the bundle and set OREMEDIA_MIGRATIONS_DIR. */
+export const migrationsFolder = (): string =>
+  process.env['OREMEDIA_MIGRATIONS_DIR'] ??
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {

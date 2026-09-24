@@ -5,6 +5,7 @@ export {
   createRenderJobActivities,
   RenderIntegrityError,
   exportStorageKey,
+  previewStorageKey,
   resolveTargets,
   referencedAssets,
   type RenderJobStore,
