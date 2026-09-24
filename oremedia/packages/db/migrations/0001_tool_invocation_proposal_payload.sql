@@ -1,0 +1,1 @@
+ALTER TABLE `tool_invocations` ADD `proposal_payload` json;

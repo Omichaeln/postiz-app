@@ -269,10 +269,18 @@ describe('dispatchTool (spec 12.4)', () => {
 
   it('maps a timeout to a denial, a domain error to its reason, and rethrows infrastructure failures', async () => {
     const h = harness();
+    // The timeout fires inside the unit of work, so the transaction rejects (rolls back) before the denial.
+    const outcomes: Array<'committed' | 'rolled_back'> = [];
+    h.deps.transaction = (fn) =>
+      fn({} as Tx).then(
+        (v) => (outcomes.push('committed'), v),
+        (err: unknown) => (outcomes.push('rolled_back'), Promise.reject(err)),
+      );
     expect(await dispatchTool(call('slow.tool', { text: 'x' }), h.run, h.deps)).toEqual({
       kind: 'denied',
       reason: 'tool_timeout',
     });
+    expect(outcomes).toEqual(['rolled_back']);
     expect(await dispatchTool(call('missing.tool', { text: 'x' }), h.run, h.deps)).toEqual({
       kind: 'denied',
       reason: 'not_found',

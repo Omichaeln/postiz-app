@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { eq, gt, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { PlanLimits } from '@oremedia/contracts/billing';
 import { EntitlementExceededError } from '@oremedia/contracts/errors';
 import type { EntitlementFeature, EntitlementSet } from '@oremedia/contracts/policy';
@@ -72,7 +72,7 @@ class UsageReader extends TenantScopedRepository<typeof usageLedger> {
     const rows = await this.conn(tx)
       .select({ total: sql<number>`coalesce(sum(${usageLedger.costMicros}), 0)` })
       .from(usageLedger)
-      .where(this.scope(and(eq(usageLedger.periodKey, periodKey), eq(usageLedger.kind, 'model_tokens'))));
+      .where(this.scope(eq(usageLedger.periodKey, periodKey))); // every kind: model tokens and generated images alike
     return Number(rows[0]?.total ?? 0);
   }
 }

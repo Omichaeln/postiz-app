@@ -7,7 +7,11 @@ import { defineConfig } from 'tsup';
  * Native and worker-thread packages (sharp, pino transports) must never be bundled.
  */
 export default defineConfig({
-  entry: { main: 'src/main.ts', migrate: 'src/migrate.ts' },
+  entry: {
+    main: 'src/main.ts',
+    migrate: 'src/migrate.ts',
+    'seed-builtin-skills': 'src/seed-builtin-skills.ts',
+  },
   format: ['esm'],
   target: 'node22',
   platform: 'node',
@@ -19,5 +23,6 @@ export default defineConfig({
   // awaited by tsup, whereas a shell string is not and can be cut off before the copy finishes.
   onSuccess: async () => {
     await cp('../../packages/db/migrations', 'dist/migrations', { recursive: true });
+    await cp('../../packages/modules/skills/builtin', 'dist/builtin-skills', { recursive: true });
   },
 });

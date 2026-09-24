@@ -97,6 +97,8 @@ export const toolInvocations = mysqlTable(
     policyReason: varchar('policy_reason', { length: 80 }),
     outcome: mysqlEnum('outcome', ['ok', 'error', 'denied', 'invalid', 'proposal']).notNull(),
     outputRef: varchar('output_ref', { length: 200 }),
+    /** A proposal's payload verbatim (what a person accepts is applied from here, never from the redacted input). */
+    proposalPayload: json('proposal_payload').$type<Record<string, unknown>>(),
     createdAt: createdAt(),
   },
   (t) => [index('ix_tool_invocation_run').on(t.tenantId, t.runId, t.createdAt)],

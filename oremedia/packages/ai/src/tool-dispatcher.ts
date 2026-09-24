@@ -53,6 +53,8 @@ export interface DispatchRecord {
   policyReason: string | null;
   outcome: 'ok' | 'error' | 'denied' | 'invalid' | 'proposal';
   durationMs: number;
+  /** A proposal's payload verbatim: what a person accepts is applied from this, never from the redacted input. */
+  proposal: Record<string, unknown> | null;
 }
 
 export interface DispatchOutcome {
@@ -86,6 +88,9 @@ function withTimeout<T>(p: Promise<T>, ms: number, name: string): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new ToolTimeoutError(name, ms)), ms);
   });
+  // After a timeout the orphaned run keeps going until its next query, which fails on the closed transaction
+  // handle (packages/db TransactionClosedError); that late rejection is expected and must not surface.
+  p.catch(() => undefined);
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }
 
@@ -117,6 +122,7 @@ export async function dispatchToolDetailed(
     policyDecision: DispatchRecord['policyDecision'],
     policyReason: string | null,
     outcome: DispatchRecord['outcome'],
+    proposal: Record<string, unknown> | null = null,
   ): DispatchOutcome => ({
     result,
     record: {
@@ -126,6 +132,7 @@ export async function dispatchToolDetailed(
       policyReason,
       outcome,
       durationMs: now().getTime() - started,
+      proposal,
     },
   });
 
@@ -197,8 +204,11 @@ export async function dispatchToolDetailed(
     }
 
     try {
-      const out = await withTimeout(
-        transaction((tx) =>
+      // The timeout runs inside the unit of work: when it fires the transaction rolls back, so a tool that timed
+      // out has done nothing (the model is told it was denied). Racing outside the transaction would let the
+      // tool's writes commit later, after the model was told otherwise.
+      const out = await transaction((tx) =>
+        withTimeout(
           def.run(parsed.data, {
             run,
             actor: run.principal,
@@ -208,9 +218,9 @@ export async function dispatchToolDetailed(
             tx,
             now,
           }),
+          def.timeoutMs ?? deps.defaultTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS,
+          def.name,
         ),
-        def.timeoutMs ?? deps.defaultTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS,
-        def.name,
       );
       if (out instanceof ProposalRequest)
         return finish(
@@ -218,6 +228,7 @@ export async function dispatchToolDetailed(
           'allowed',
           null,
           'proposal',
+          out.payload,
         );
       return finish({ kind: 'ok', output: def.output.parse(out) }, 'allowed', null, 'ok');
     } catch (err) {

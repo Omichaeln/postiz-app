@@ -11,6 +11,9 @@ Six application services, each with root directory `oremedia` and a config-as-co
 | `redirector`    | `infra/railway/Dockerfile`        | `redirector`            | `PORT`, `/health`; tracked-link redirects on `LINK_REDIRECT_DOMAIN` |
 | `web`           | `infra/railway/Dockerfile.web`    | (fixed)                 | `PORT`; static SPA behind Caddy                                     |
 
+`worker-ingest` (Phase 6) and `redirector` (Phase 5) are listed for completeness: their `railway.json` files are
+in place, but the apps do not exist yet and the services must not be created until they do.
+
 Managed dependencies: Railway MySQL (application), Railway Redis, Cloudflare R2 (object storage, external:
 Railway offers no S3-compatible store), and Temporal Cloud (recommended) or the `temporal` service above with its
 own Railway MySQL instance. Variables follow Appendix A names exactly; secrets are Railway sealed variables.

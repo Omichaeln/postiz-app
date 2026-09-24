@@ -89,6 +89,7 @@ export const ID_PREFIXES = {
   deletionRequest: 'dr',
   retentionPolicy: 'rp',
   incident: 'inc',
+  killSwitch: 'ks',
   featureFlag: 'ff',
   element: 'el',
   externalRef: 'xref',

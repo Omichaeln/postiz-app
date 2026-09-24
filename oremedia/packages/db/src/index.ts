@@ -5,7 +5,7 @@ export {
   TenantContextMissingError,
   type TenantContext,
 } from './tenant-context';
-export { withTransaction } from './transaction';
+export { withTransaction, TransactionClosedError } from './transaction';
 export type { Tx, Db } from './client';
 export { configureDatabase, closeDatabase } from './client';
 export {

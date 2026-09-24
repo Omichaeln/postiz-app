@@ -28,8 +28,10 @@ and cannot be performed from the build environment (no `RAILWAY_TOKEN`). Nothing
 ## 2. Deploy
 
 Railway builds each service from the Dockerfile on push to the configured branch. The `api` service runs
-`node dist/migrate.js` as its pre-deploy command (expand/contract migrations, forward-safe). Workers deploy after
-the API. Artifacts are built once per commit and promoted by environment, never rebuilt per environment.
+`node dist/migrate.js && node dist/seed-builtin-skills.js` as its pre-deploy command (expand/contract migrations,
+forward-safe; then the Release 1 built-in skill packages are registered as platform skills, idempotent by key).
+Workers deploy after the API. `worker-ingest` (metric collection, listening, CRM) and `redirector` are provisioned
+with Phase 6 and Phase 5 respectively; until their apps exist their `railway.json` files must not be deployed. Artifacts are built once per commit and promoted by environment, never rebuilt per environment.
 
 Rollout order for a change touching workflows: deploy workers with the new workflow version first (old versions
 stay registered until in-flight histories drain), then the API that starts the new version.

@@ -35,7 +35,7 @@ class KillSwitchRepository extends TenantScopedRepository<typeof killSwitches> {
       );
       return existing.id;
     }
-    const id = newId('incident');
+    const id = newId('killSwitch');
     await this.insertScoped({ id, brandId, scope, engaged, reason, engagedByUserId: byUserId }, tx);
     return id;
   }

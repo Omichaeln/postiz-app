@@ -164,7 +164,15 @@ export async function dispatchBatch(opts: DispatchOptions): Promise<DispatchSumm
             claimExpiresAt: null,
             availableAt: backoffFor(evt.attempts, now()),
           })
-          .where(eq(outboxEvents.id, evt.id)),
+          // Only this worker's live claim on a still-undispatched row: a lease that expired and was re-claimed
+          // (or a row another worker marked dispatched meanwhile) keeps its own history.
+          .where(
+            and(
+              eq(outboxEvents.id, evt.id),
+              isNull(outboxEvents.dispatchedAt),
+              eq(outboxEvents.claimedBy, opts.workerId),
+            ),
+          ),
       );
       count(METRIC.outboxDispatchFailures, 1, { eventType: evt.eventType });
       log.warn(
@@ -242,6 +250,15 @@ export async function listDeadLetters(filter: DeadLetterFilter = {}): Promise<De
   return rows;
 }
 
+/** The dead-letter gauge: every undispatched event at or past the dead-letter attempt count. */
+export async function countDeadLetters(): Promise<number> {
+  const rows = await getDb()
+    .select({ c: sql<number>`count(*)` })
+    .from(outboxEvents)
+    .where(and(isNull(outboxEvents.dispatchedAt), sql`${outboxEvents.attempts} >= ${DEAD_LETTER_ATTEMPTS}`));
+  return Number(rows[0]?.c ?? 0);
+}
+
 /** Runbook replay: make the event claimable now. Attempts are kept so the history stays honest. */
 export async function replayDeadLetter(
   id: string,
@@ -264,5 +281,5 @@ export async function replayDeadLetter(
 /** Observable gauges for the alerts in spec 14.2 / 17.2: oldest undispatched age (> 60 s) and dead letters (≥ 5 attempts). */
 export function registerOutboxGauges(): void {
   gauge(METRIC.outboxOldestAgeMs, async () => [{ value: (await oldestUndispatchedAgeMs()) ?? 0 }]);
-  gauge(METRIC.outboxDeadLetters, async () => [{ value: (await listDeadLetters()).length }]);
+  gauge(METRIC.outboxDeadLetters, async () => [{ value: await countDeadLetters() }]);
 }

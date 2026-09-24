@@ -37,4 +37,5 @@ COPY --from=build --chown=oremedia:oremedia /src/apps/${OREMEDIA_APP}/dist ./dis
 COPY --from=build --chown=oremedia:oremedia /src/apps/${OREMEDIA_APP}/package.json ./package.json
 USER oremedia
 ENV OREMEDIA_MIGRATIONS_DIR=/app/dist/migrations
+ENV OREMEDIA_BUILTIN_SKILLS_DIR=/app/dist/builtin-skills
 CMD ["node", "dist/main.js"]

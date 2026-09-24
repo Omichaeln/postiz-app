@@ -629,14 +629,19 @@ describe('agents module (spec 12) against MySQL 8', () => {
           tx,
         ),
       );
+      // A token-bearing style patch and a headline longer than the record redactor keeps: what the person accepts
+      // must be applied verbatim (tool_invocations.proposal_payload), never from the redacted input.
+      const longHeadline = `October offer, plain and clear. ${'Every word counts here. '.repeat(110)}`.trim();
       const proposal = {
         documentId: docId,
         baseRevisionId: revisionId,
         operations: [
-          { op: 'setText', pageId: 'page_1', elementId: headlineId, text: 'October offer, plain and clear' },
+          { op: 'setText', pageId: 'page_1', elementId: headlineId, text: longHeadline },
+          { op: 'setStyle', pageId: 'page_1', elementId: headlineId, patch: { colourToken: 'ink', tracking: 1 } },
         ],
         summary: 'sharpen headline',
       };
+      expect(longHeadline.length).toBeGreaterThan(2000);
       const { runtime } = runtimeWith([
         { kind: 'tool_calls', toolCalls: [{ name: 'creative.proposeOperations', arguments: proposal }] },
         { kind: 'done', text: '{"done":true}' },
@@ -724,6 +729,10 @@ describe('agents module (spec 12) against MySQL 8', () => {
         authorId: spA,
         agentRunId: started.runId,
       });
+      const applied = after
+        .find((r) => r.number === 2)!
+        .snapshot.pages[0]!.elements.find((e) => e.id === headlineId);
+      expect(applied).toMatchObject({ type: 'text', text: longHeadline, style: { colourToken: 'ink', tracking: 1 } });
       const steps = await stepsOf(started.runId);
       expect(steps.filter((s) => s.kind === 'validation').map((s) => s.summary)).toEqual([
         expect.stringContaining(`proposal ${decisionStepId} accept by user ${USER}`),

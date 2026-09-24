@@ -204,11 +204,12 @@ export const budgets = {
     });
   },
 
-  async release(runId: string): Promise<void> {
-    await withTransaction(async (tx) => {
-      const r = await reservations.byRun(runId, tx);
+  /** Releases the remainder of a held reservation; joins the caller's unit of work when given one. Idempotent. */
+  async release(runId: string, tx?: Tx): Promise<void> {
+    await withTransaction(tx, async (t) => {
+      const r = await reservations.byRun(runId, t);
       if (!r || r.state !== 'held') return;
-      await reservations.update(r.id, r.version, { state: 'released', reservedMicros: r.consumedMicros }, tx);
+      await reservations.update(r.id, r.version, { state: 'released', reservedMicros: r.consumedMicros }, t);
     });
   },
 

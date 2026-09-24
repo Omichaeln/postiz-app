@@ -8,6 +8,13 @@
       "when": 1790205615218,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1790216909420,
+      "tag": "0001_tool_invocation_proposal_payload",
+      "breakpoints": true
     }
   ]
 }

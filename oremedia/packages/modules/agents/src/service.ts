@@ -19,6 +19,7 @@ import { IllegalTransitionError } from '@oremedia/domain/state-machines/machine'
 import {
   applyProposalBatch,
   assertRoutingAllowed,
+  CreativeProposalPayload,
   entitlementAutonomy,
   modelConfigFromEnv,
   tenantPolicyFor,
@@ -28,10 +29,8 @@ import { policy, ServicePrincipalRepository } from '@oremedia/module-access';
 import { budgets, entitlements } from '@oremedia/module-billing';
 import { brandService } from '@oremedia/module-brand';
 import { audit, killSwitch, outbox } from '@oremedia/module-operations';
-import { logger } from '@oremedia/observability';
 import { runWorkflowId } from './outbox-routes';
 import { AgentRunRepository, AgentStepRepository, ToolInvocationRepository } from './repositories';
-import { workflowSignaller } from './signaller';
 
 const runsRepo = new AgentRunRepository();
 const stepsRepo = new AgentStepRepository();
@@ -214,18 +213,10 @@ export const agentsService = {
         tx,
         { brandId: run.brandId },
       );
-      await budgets.release(run.id); // idempotent; the workflow's settle is a no-op afterwards
-      const signaller = workflowSignaller();
-      if (signaller) {
-        try {
-          await signaller.signal(run.workflowId ?? runWorkflowId(run.id), 'cancelRun');
-        } catch (err) {
-          logger().warn(
-            { runId: run.id, errorMessage: err instanceof Error ? err.message : String(err) },
-            'direct cancel signal failed; the outbox relay will deliver it',
-          );
-        }
-      }
+      // Released with the command: if this transaction does not commit, the run keeps its reservation. The
+      // cancel signal reaches the workflow through the outbox relay only after the commit (no direct signal
+      // can be sent from inside an open transaction without racing the workflow against uncommitted state).
+      await budgets.release(run.id, tx); // idempotent; the workflow's settle is a no-op afterwards
       return { runId: run.id, state: toState, version: run.version + 1 };
     },
 
@@ -262,6 +253,7 @@ export const agentsService = {
               policyReason: i.policyReason,
               outcome: i.outcome,
               outputRef: i.outputRef,
+              proposal: i.proposalPayload ?? null,
               createdAt: i.createdAt.toISOString(),
             })),
         })),
@@ -287,7 +279,7 @@ export const agentsService = {
       if (!proposal) throw new NotFoundError('Proposal', parsed.stepId);
       let appliedRevisionId: string | null = null;
       if (parsed.decision === 'modify') {
-        const proposed = proposal.inputRedacted as { documentId?: unknown };
+        const proposed = CreativeProposalPayload.parse(proposal.proposalPayload);
         const batch = OperationBatch.extend({ documentId: z.string() }).parse({
           ...(parsed.batch as object),
           origin: 'user',

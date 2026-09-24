@@ -31,6 +31,7 @@ import { IllegalTransitionError } from '@oremedia/domain/state-machines/machine'
 import {
   applyProposalBatch,
   assembleSystemPrompt,
+  CreativeProposalPayload,
   assertRoutingAllowed,
   createReleaseOneRegistry,
   defaultContextResolverDeps,
@@ -183,6 +184,15 @@ export function createAgentRunRuntime(opts: AgentRuntimeOptions): AgentRunRuntim
       tx,
     );
     return id;
+  }
+
+  /** Whether the transcript's last assistant turn issued this tool call (so its result has a place to go). */
+  function hasToolUse(messages: ModelMessage[], toolUseId: string): boolean {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i]!;
+      if (m.role === 'assistant') return m.content.some((c) => c.type === 'tool_use' && c.id === toolUseId);
+    }
+    return false;
   }
 
   /** After a worker restart the verbatim transcript is gone: the recorded steps become a progress summary. */
@@ -418,6 +428,7 @@ export function createAgentRunRuntime(opts: AgentRuntimeOptions): AgentRunRuntim
               null,
             outcome: record?.outcome ?? 'denied',
             outputRef: outputRef.slice(0, 200),
+            proposalPayload: record?.proposal ?? null,
           },
           tx,
         );
@@ -440,19 +451,24 @@ export function createAgentRunRuntime(opts: AgentRuntimeOptions): AgentRunRuntim
           reason: result.reason,
           action: `tool:${input.call.name.slice(0, 80)}`,
         });
+      // The result joins the transcript only when the matching tool_use is still there: after a worker restart
+      // the verbatim transcript is gone and a lone tool_result would be rejected by the provider; the recorded
+      // step and invocation reach the next planNextStep through the progress summary instead (transcriptFor).
       const messages = (await store.get(run.id)) ?? [];
-      messages.push({
-        role: 'user',
-        content: [
-          {
-            type: 'tool_result',
-            toolUseId: input.call.id,
-            content: JSON.stringify(result),
-            isError: result.kind === 'denied' || result.kind === 'invalid',
-          },
-        ],
-      });
-      await store.set(run.id, messages);
+      if (hasToolUse(messages, input.call.id)) {
+        messages.push({
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              toolUseId: input.call.id,
+              content: JSON.stringify(result),
+              isError: result.kind === 'denied' || result.kind === 'invalid',
+            },
+          ],
+        });
+        await store.set(run.id, messages);
+      }
       return result;
     },
 
@@ -470,15 +486,18 @@ export function createAgentRunRuntime(opts: AgentRuntimeOptions): AgentRunRuntim
       await withTransaction(async (tx) => {
         if (input.decision.decision === 'accept') {
           try {
-            const batch = proposal.inputRedacted as {
-              documentId: string;
-              baseRevisionId: string;
-              operations: unknown[];
-              summary: string;
-            };
+            // The verbatim payload (tool_invocations.proposal_payload), never the redacted input the history shows.
+            const batch = CreativeProposalPayload.parse(proposal.proposalPayload);
             const applied = await applyProposalBatch(
               principal,
-              { ...batch, origin: 'agent', agentRunId: run.id } as Parameters<typeof applyProposalBatch>[1],
+              {
+                documentId: batch.documentId,
+                baseRevisionId: batch.baseRevisionId,
+                operations: batch.operations,
+                summary: batch.summary,
+                origin: 'agent',
+                agentRunId: run.id,
+              },
               tx,
               { autonomyMode: run.autonomyMode },
             );

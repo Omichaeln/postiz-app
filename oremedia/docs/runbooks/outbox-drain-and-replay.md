@@ -9,3 +9,10 @@
 4. Replay: `operations.outbox.replay { eventId }` (tenant admin, `billing.manage`, audited) makes the event claimable now and clears `lastError`; `attempts` is kept so the history stays honest. The dispatcher picks it up on its next pass (≤ 1 s idle poll). Replays are idempotent downstream (workflow ids are stable; the database row is the dedupe authority).
 5. Stale claims: events with `claimedBy` set and `claimExpiresAt` in the past are reclaimed automatically; nothing to do.
 6. Verify: oldest-undispatched age returns below 60 s; dead-letter count is 0 or each remaining one has a written disposition.
+
+## Events without a consumer
+
+An event type with no registered route is marked dispatched with `ignored` (counted in the `routed=no` dispatch
+metric) and is not replayable: a consumer registered later (a Phase 5 or 6 workflow) starts from the events
+emitted after its route exists. Register the route in `apps/worker-core/src/composition.ts` before the producer
+ships when historic events must reach the new consumer.
