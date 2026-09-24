@@ -250,8 +250,8 @@
           "CI: format, lint, typecheck, unit, integration (MySQL 8 service), cross-tenant, replay, dependency and container scans, OpenAPI diff, secrets scan, schema check",
           "production",
           "2.1.12, 22",
-          "in_progress",
-          ".github/workflows/oremedia-ci.yml runs on GitHub for PR #2. First runs exposed a stale lockfile, an api↔test-fixtures Turborepo cycle, an unresolvable Trivy action tag and a replay script with no histories; all fixed (commits 59569b3, da66395). The MySQL-backed integration (31) and cross-tenant (21) jobs passed on the runner; the remaining jobs are being re-verified on the latest head."
+          "complete",
+          ".github/workflows/oremedia-ci.yml green on GitHub for PR #2 at af011f5 (run 10): format, lint (custom rules), typecheck (turbo, 17 packages), unit, integration + cross-tenant on the MySQL 8 service, OpenAPI diff, workflow replay, pnpm audit (high), API image build from infra/railway/Dockerfile, Trivy HIGH/CRITICAL scan, Gitleaks on the PR range. Earlier failures (stale lockfile, api↔fixtures cycle, corepack signature, pnpm deploy catalog bug, shallow checkout, npm CVEs in the base image) were each fixed and re-verified on the runner."
         ],
         [
           "1.8",
@@ -1742,8 +1742,8 @@
           "Dockerfile per service: api, worker-core, worker-render, worker-ingest, web, link redirector",
           "production",
           "17.1",
-          "in_progress",
-          "infra/railway/Dockerfile (parameterised Node services via pnpm deploy + tsup bundle; api bundle verified locally with tsup), Dockerfile.render (Playwright image), Dockerfile.web (Caddy). Only the api image can build today; worker/web/redirector apps do not exist yet. The CI container build + Trivy scan runs on the api image."
+          "complete",
+          "infra/railway/Dockerfile (parameterised OREMEDIA_APP; Node 22.22.2; OS updates; tsup bundle with workspace packages inlined and third-party external; flat production install; migrations shipped beside the bundle; npm/corepack removed from the runtime), Dockerfile.render (Playwright 1.63 image, same layout), Dockerfile.web (Vite build served by Caddy). API image built and scanned clean in CI run 10; locally the bundle boots, serves /health and applies all migrations on MySQL 8."
         ],
         [
           "R.2",
