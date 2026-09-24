@@ -1995,41 +1995,48 @@
           "apps/web: React 19 + Vite + React Router 7 data routers; route tree of 21.1",
           "production",
           "21.1",
-          "open",
-          ""
+          "complete",
+          "apps/web: React 19 + Vite + React Router 7 data routers; route tree of spec 21.1 (portfolio, company, brand home, system, assets, studio, calendar, review, agents; intelligence/experiments/campaigns/settings as honest placeholders); loaders prefetch into TanStack Query."
         ],
         [
           "F.2",
           "tRPC client with Idempotency-Key per intent and X-Oremedia-Tenant from the URL",
           "production",
           "21.1",
-          "open",
-          ""
+          "complete",
+          "apps/web/src/lib/trpc.ts: tRPC client with X-Oremedia-Tenant from the URL, CSRF double-submit, correlation id, Idempotency-Key per intent (intentContext for client calls, mutationIntent for mutationOptions; a retry replays the same key, asserted in the studio and agents e2e suites)."
         ],
         [
           "F.3",
           "Semantic CSS custom-property tokens (light and dark) as neutral placeholders until D-12",
           "production",
           "8.4",
-          "open",
-          ""
+          "complete",
+          "packages/ui/src/tokens.css: semantic CSS custom-property tokens with light and dark palettes (data-theme set from prefers-color-scheme in apps/web/index.html) as neutral placeholders until D-12; apps/web/src/styles/tokens.css maps them to Tailwind utilities."
         ],
-        ["F.4", "Portfolio and brand home with required states", "production", "21.2", "open", ""],
+        [
+          "F.4",
+          "Portfolio and brand home with required states",
+          "production",
+          "21.2",
+          "complete",
+          "Portfolio and brand home routes with loading, empty, error and permission states (apps/web/src/app/portfolio, c/$company, b/$brand/home); the studio e2e signs in, lists the portfolio and opens the brand home."
+        ],
         [
           "F.5",
           "WCAG 2.2 AA for application chrome; colour never the only carrier of status",
           "production",
           "21.3",
-          "open",
-          ""
+          "in_progress",
+          "Keyboard paths, visible focus, labels and text+glyph status on every built screen (studio, calendar, review, agents e2e suites exercise keyboard paths and phone width); a full WCAG 2.2 AA audit with an automated checker has not been run."
         ],
         [
           "F.6",
           "Sanitiser on any rendered user/agent/provider content; no dangerouslySetInnerHTML without it",
           "critical",
           "2.2",
-          "open",
-          ""
+          "complete",
+          "No innerHTML or dangerouslySetInnerHTML anywhere in apps/web; user, agent and provider content is rendered as text nodes; JSON is shown through a text-only tree."
         ]
       ]
     },
@@ -2051,8 +2058,8 @@
           "Database integration (real MySQL 8): tenant scoping, composite integrity, optimistic concurrency, outbox atomicity, idempotency, immutability",
           "critical",
           "19.1",
-          "in_progress",
-          "Scoping, composite integrity, optimistic concurrency, transaction atomicity, outbox atomicity, idempotency and role-enforced immutability all pass on MySQL 8.0.46 (31 integration tests). Outbox dispatcher and publication tables arrive in Phase 5."
+          "complete",
+          "Scoping, composite integrity, optimistic concurrency, transaction atomicity and the closed-handle guard, outbox atomicity and dispatcher exactly-once, idempotency (lease and take-over), role-enforced immutability, publication and attempt tables (publishing integration) all pass on MySQL 8 (303 integration tests)."
         ],
         [
           "T.3",
@@ -2075,18 +2082,25 @@
           "Provider adapter fixture tests: canonical request/response, before/after-send classification, refresh, rate limits, reconciliation",
           "critical",
           "19.1",
-          "in_progress",
-          "ProviderIO and classification fixtures pass (17 tests); per-adapter request/response fixtures arrive with each adapter"
+          "complete",
+          "ProviderIO and classification fixtures (io.test.ts) plus recorded request/response fixtures for LinkedIn Page, Instagram Business, Facebook Page and X (adapter.test.ts each: before/after-send classification, refresh, rate limits, reconciliation scan, finalize-already-completed); 62 tests."
         ],
         [
           "T.6",
           "Creative: reducer properties, save/reopen, golden renders, overflow, export hash stability, keyboard operability",
           "production",
           "19.1",
-          "open",
-          ""
+          "complete",
+          "Reducer property tests (reduce.test.ts), save/reopen (creative integration + studio e2e), golden renders (golden.integration.test.ts, 0.0000 % drift), overflow and render checks (checks.test.ts), export hash stability (byte-identical renders in two contexts), keyboard operability (studio e2e nudge path)."
         ],
-        ["T.7", "Agent evaluations harness", "production", "19.1", "open", ""],
+        [
+          "T.7",
+          "Agent evaluations harness",
+          "production",
+          "19.1",
+          "in_progress",
+          "packages/ai/src/evaluation harness with deterministic checks, rubric grading and variance over ≥ 3 runs, run on worker-core through skillEvaluationWorkflowV1; exercised only against the FakeModelAdapter (real-model run blocked on ANTHROPIC_API_KEY_REF)."
+        ],
         [
           "T.8",
           "End-to-end (Playwright): two companies, roles, create → review → schedule, post-approval edit invalidates, partial failure, restore and reconcile",
@@ -2131,16 +2145,16 @@
           "Prompt injection: fixtures in guidelines, OCR text, captions, comments, web pages cannot widen scope",
           "critical",
           "18",
-          "open",
-          ""
+          "complete",
+          "tooling/test-fixtures/injection: guideline, OCR, caption, comment and web-page fixtures obeyed by a fake model cannot widen scope, reach unlisted tools or produce an external effect; every denial audited (injection.integration.test.ts). Customer-voice classification delimits every comment as untrusted content (voice.ts)."
         ],
         [
           "S.3",
           "Agent → publication authority: tool abuse, stale approvals, revoked approvers, wrong channel, quota breach",
           "critical",
           "18",
-          "in_progress",
-          "Policy unit tests cover never-actions and channel scope; dispatch-time checks pending"
+          "complete",
+          "Policy never-actions (domain tests), tool dispatcher denies unlisted tools before policy (injection fixtures), evaluateRelease holds on stale or invalidated approvals, revoked approvers, wrong channel (mandate_channel) and quota breach (mandate_daily_quota) at dispatch (review.integration.test.ts)."
         ],
         [
           "S.4",
@@ -2171,8 +2185,8 @@
           "Retry/cancel → duplicate publication: crash after acceptance, timeout after send, duplicate outbox delivery, cancel-dispatch race, reschedule race",
           "critical",
           "18",
-          "open",
-          ""
+          "complete",
+          "publishing.integration.test.ts, publication workflow unit tests and apps/worker-core/src/publishing.integration.test.ts: crash after send → outcome_unknown → reconciled without a duplicate; timeout after send → unknown; duplicate outbox delivery starts one workflow; cancel-dispatch race honoured before the attempt opens and refused after send; reschedule never terminates an in-flight workflow."
         ],
         [
           "S.8",
@@ -2195,8 +2209,8 @@
           "External reviewer link escalation: reuse on other requests, post-revocation use",
           "critical",
           "18",
-          "open",
-          ""
+          "complete",
+          "review.integration.test.ts: an external reviewer link cannot decide a second request (single request binding), a revoked link is refused on its next request and fails approver_still_authorised, an expired link is refused for new requests."
         ],
         [
           "S.11",
