@@ -136,7 +136,9 @@ jobs:
       - name: Trivy container scan (HIGH and CRITICAL fail the build)
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-          trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --format sarif --output trivy.sarif oremedia-api:ci
+          # Findings are printed to the job log (table) and uploaded to code scanning (SARIF); the second run is cached.
+          trivy image --severity HIGH,CRITICAL --ignore-unfixed --scanners vuln --format table oremedia-api:ci
+          trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --scanners vuln --format sarif --output trivy.sarif oremedia-api:ci
       - uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('oremedia/trivy.sarif') != ''
         with:

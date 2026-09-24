@@ -89,6 +89,9 @@ importers:
       '@oremedia/module-brand':
         specifier: workspace:*
         version: link:../../packages/modules/brand
+      '@oremedia/module-creative':
+        specifier: workspace:*
+        version: link:../../packages/modules/creative
       '@oremedia/module-operations':
         specifier: workspace:*
         version: link:../../packages/modules/operations
@@ -341,6 +344,42 @@ importers:
       '@oremedia/module-billing':
         specifier: workspace:*
         version: link:../billing
+      '@oremedia/module-operations':
+        specifier: workspace:*
+        version: link:../operations
+      '@oremedia/observability':
+        specifier: workspace:*
+        version: link:../../observability
+      drizzle-orm:
+        specifier: ^0.45.3
+        version: 0.45.3(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(mysql2@3.24.4(@types/node@22.20.4))
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+
+  packages/modules/creative:
+    dependencies:
+      '@oremedia/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@oremedia/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@oremedia/domain':
+        specifier: workspace:*
+        version: link:../../domain
+      '@oremedia/editor':
+        specifier: workspace:*
+        version: link:../../editor
+      '@oremedia/module-access':
+        specifier: workspace:*
+        version: link:../access
+      '@oremedia/module-billing':
+        specifier: workspace:*
+        version: link:../billing
+      '@oremedia/module-brand':
+        specifier: workspace:*
+        version: link:../brand
       '@oremedia/module-operations':
         specifier: workspace:*
         version: link:../operations

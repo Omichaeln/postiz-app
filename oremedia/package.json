@@ -24,7 +24,7 @@
     "check:openapi": "tsx tooling/scripts/check-openapi-diff.ts",
     "db:generate": "pnpm --filter @oremedia/db db:generate",
     "db:migrate": "pnpm --filter @oremedia/db db:migrate",
-    "progress:build": "node docs/progress/build.mjs",
+    "progress:build": "node docs/progress/build.mjs && prettier --write docs/progress/progress.json docs/progress/index.html",
     "contracts:write": "tsx tooling/scripts/check-openapi-diff.ts --write && tsx tooling/scripts/generate-contract-docs.ts",
     "test:replay": "vitest run --project unit --passWithNoTests packages/workflows/src/replay"
   },

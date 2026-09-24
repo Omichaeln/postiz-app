@@ -533,14 +533,7 @@
           "complete",
           "tooling/test-fixtures: allProcedures() from the router; CROSS_TENANT_INPUTS must cover every procedure (missing or stale fixture fails); 21 tests pass: every procedure rejects tenant B ids from tenant A with NOT_FOUND/FORBIDDEN/VALIDATION_FAILED or returns no data, and tenant B’s snapshot is unchanged"
         ],
-        [
-          "1.43",
-          "Secrets scan script",
-          "production",
-          "22",
-          "complete",
-          "tooling/scripts/check-secrets.ts"
-        ]
+        ["1.43", "Secrets scan script", "production", "22", "complete", "tooling/scripts/check-secrets.ts"]
       ]
     },
     {
@@ -548,24 +541,9 @@
       "title": "Brand and asset core",
       "spec": "8, 9",
       "gate": [
-        [
-          "2.g1",
-          "Ineligible assets never appear in search, agent context or render",
-          "open",
-          ""
-        ],
-        [
-          "2.g2",
-          "Every revision records its brand version",
-          "open",
-          ""
-        ],
-        [
-          "2.g3",
-          "SVG, font and image attack fixtures are rejected",
-          "open",
-          ""
-        ]
+        ["2.g1", "Ineligible assets never appear in search, agent context or render", "open", ""],
+        ["2.g2", "Every revision records its brand version", "open", ""],
+        ["2.g3", "SVG, font and image attack fixtures are rejected", "open", ""]
       ],
       "items": [
         [
@@ -581,72 +559,72 @@
           "Brand versions: draft → in_review → published → retired; exactly one published",
           "production",
           "8.2",
-          "open",
-          ""
+          "complete",
+          "packages/modules/brand/src/service.ts versions.{createDraft,update,submitForReview,publish}: brandVersionMachine transitions only; publish locks the brand row, retires the previous published version in the same tx. brand.integration.test.ts: lifecycle, exactly one published, illegal transitions, agent cannot publish (17/17 on MySQL 8)."
         ],
         [
           "2.3",
           "BrandSystemDocumentV1 validated on read and write; content hash",
           "production",
           "8.1",
-          "open",
-          ""
+          "complete",
+          "BrandSystemDocumentV1.parse on write (createDraft/update) and on read (DTO mapper); contentHash = hashCanonical(document) stored on every draft/update. Verified by brand.integration.test.ts."
         ],
         [
           "2.4",
           "Design tokens per version",
           "production",
           "6.3",
-          "open",
-          ""
+          "complete",
+          "DesignTokenRepository is insert-only; publish writes the token set derived from document.tokens (service.ts publish → tokensRepo.create). Integration test asserts tokens written."
         ],
         [
           "2.5",
           "Approved facts: propose / approve / revoke with validity window; expired offers block release",
           "production",
           "6.2, 13.4",
-          "open",
-          ""
+          "complete",
+          "facts.{propose,approve,revoke,list}; approvedFactMachine (proposed → approved → revoked); listEffective = approved ∧ validFrom ≤ now ∧ validUntil > now. Tests: proposed, expired and future facts excluded from the snapshot; revocation restores the previous hash."
         ],
         [
           "2.6",
           "Brand objectives (required before recommendations are ranked)",
           "production",
           "16.1",
-          "open",
-          ""
+          "complete",
+          "objectives.{set,list}: setting closes the previous active objective in the same tx. Integration test verifies."
         ],
         [
           "2.7",
           "Policy versions (thresholds, restricted topics, prohibited terms, distinct approver, hold on revocation)",
           "production",
           "6.3",
-          "open",
-          ""
+          "complete",
+          "policy.{createVersion,activate,get}; policyVersionMachine (draft → active → retired); activation retires the previous active version. Integration test verifies. Ranking gate consumption is Phase 6."
         ],
         [
           "2.8",
           "resolveBrandSnapshot: immutable hashed bundle",
           "production",
           "8.3",
-          "open",
-          ""
+          "in_progress",
+          "packages/domain/src/brand-snapshot.ts buildBrandSnapshot/verifyBrandSnapshot: sorted facts/objectives/template ids, hash = hashCanonical(bundle); brandService.resolveBrandSnapshot(actor, {brandId, versionId?}) (5 unit + integration determinism tests). Open: eligibleTemplateVersionIds is [] until the creative module (Phase 3) supplies template versions; policyVersionId nullable with defaultPolicyDocument() when none active (deviation recorded)."
         ],
         [
           "2.9",
           "brand.version_published event and impact job proposing updates to dependants",
           "production",
           "8.2",
-          "open",
-          ""
+          "in_progress",
+          "brand.version_published emitted via outbox in the publish tx (payload brandVersionId, number, contentHash, previousVersionId) — verified. Impact job proposing updates to dependent creatives is a Phase 5 consumer: open."
         ],
         [
           "2.10",
           "Fact/logo revocation → hold dependent scheduled publications (default) or flag",
           "critical",
           "8.2",
-          "open",
-          ""
+          "in_progress",
+          "brand.fact_revoked emitted in the revoke tx (payload factId, kind, previousState, reason, brandId) — verified; policy holdOnDependencyRevocation defaults true in the snapshot. Hold/flag of dependent scheduled publications is the Phase 5 consumer: open."
         ],
         [
           "2.11",
@@ -720,14 +698,7 @@
           "open",
           ""
         ],
-        [
-          "2.20",
-          "Accepted kinds and caps; archives rejected",
-          "production",
-          "9.1",
-          "open",
-          ""
-        ],
+        ["2.20", "Accepted kinds and caps; archives rejected", "production", "9.1", "open", ""],
         [
           "2.21",
           "Usage rights (owner, licence, channels, territories, expiry, releases, restrictions)",
@@ -799,24 +770,9 @@
       "title": "Creative studio",
       "spec": "11, 21.4",
       "gate": [
-        [
-          "3.g1",
-          "Save / reopen / undo work",
-          "open",
-          ""
-        ],
-        [
-          "3.g2",
-          "Stale edits return 409 and the client rebases",
-          "open",
-          ""
-        ],
-        [
-          "3.g3",
-          "Protected elements are immune to agent operations",
-          "open",
-          ""
-        ],
+        ["3.g1", "Save / reopen / undo work", "open", ""],
+        ["3.g2", "Stale edits return 409 and the client rebases", "open", ""],
+        ["3.g3", "Protected elements are immune to agent operations", "open", ""],
         [
           "3.g4",
           "The export file approved in review is byte-identical (same hash) to the file handed to the provider",
@@ -849,14 +805,7 @@
           "complete",
           "packages/editor/src/adapter.ts: EditorAdapter / EditorHandle (mount, onIntent, applyRemote, select, destroy)"
         ],
-        [
-          "3.4",
-          "Konva/react-konva adapter with state outside the stage",
-          "production",
-          "11.6",
-          "open",
-          ""
-        ],
+        ["3.4", "Konva/react-konva adapter with state outside the stage", "production", "11.6", "open", ""],
         [
           "3.5",
           "applyOperations: tenant-scoped load, policy assert, stale revision → 409",
@@ -905,22 +854,8 @@
           "open",
           ""
         ],
-        [
-          "3.11",
-          "Undo as a new revision; history never rewritten",
-          "production",
-          "11.4",
-          "open",
-          ""
-        ],
-        [
-          "3.12",
-          "Element comments add/resolve; outdated badge",
-          "production",
-          "7.5, 21.4",
-          "open",
-          ""
-        ],
+        ["3.11", "Undo as a new revision; history never rewritten", "production", "11.4", "open", ""],
+        ["3.12", "Element comments add/resolve; outdated badge", "production", "7.5, 21.4", "open", ""],
         [
           "3.13",
           "Render worker: headless Chromium, render-only bundle of the same renderer, pinned fonts, manifest, PNG/JPEG/PDF",
@@ -1028,14 +963,7 @@
         ]
       ],
       "items": [
-        [
-          "4.1",
-          "ModelAdapter interface; model IDs as configuration",
-          "production",
-          "12.7",
-          "open",
-          ""
-        ],
+        ["4.1", "ModelAdapter interface; model IDs as configuration", "production", "12.7", "open", ""],
         [
           "4.2",
           "AnthropicModelAdapter via the official SDK (tool use)",
@@ -1116,70 +1044,14 @@
           "open",
           ""
         ],
-        [
-          "4.12",
-          "Built-in skill: brand-onboarding",
-          "production",
-          "10.4",
-          "open",
-          ""
-        ],
-        [
-          "4.13",
-          "Built-in skill: campaign-planning",
-          "production",
-          "10.4",
-          "open",
-          ""
-        ],
-        [
-          "4.14",
-          "Built-in skill: brand-copywriting",
-          "production",
-          "10.4",
-          "open",
-          ""
-        ],
-        [
-          "4.15",
-          "Built-in skill: social-layout",
-          "production",
-          "10.4",
-          "open",
-          ""
-        ],
-        [
-          "4.16",
-          "Built-in skill: channel-adaptation",
-          "production",
-          "10.4",
-          "open",
-          ""
-        ],
-        [
-          "4.17",
-          "Built-in skill: brand-review",
-          "production",
-          "10.4",
-          "open",
-          ""
-        ],
-        [
-          "4.18",
-          "Built-in skill: performance-review",
-          "production",
-          "10.4",
-          "open",
-          ""
-        ],
-        [
-          "4.19",
-          "Built-in skill: experiment-design",
-          "production",
-          "10.4",
-          "open",
-          ""
-        ],
+        ["4.12", "Built-in skill: brand-onboarding", "production", "10.4", "open", ""],
+        ["4.13", "Built-in skill: campaign-planning", "production", "10.4", "open", ""],
+        ["4.14", "Built-in skill: brand-copywriting", "production", "10.4", "open", ""],
+        ["4.15", "Built-in skill: social-layout", "production", "10.4", "open", ""],
+        ["4.16", "Built-in skill: channel-adaptation", "production", "10.4", "open", ""],
+        ["4.17", "Built-in skill: brand-review", "production", "10.4", "open", ""],
+        ["4.18", "Built-in skill: performance-review", "production", "10.4", "open", ""],
+        ["4.19", "Built-in skill: experiment-design", "production", "10.4", "open", ""],
         [
           "4.20",
           "Evaluation harness: deterministic checks + rubric grading by a separate model call; variance over ≥ 3 runs",
@@ -1211,42 +1083,12 @@
       "title": "Review and publication",
       "spec": "13, 14",
       "gate": [
-        [
-          "5.g1",
-          "An approved revision publishes",
-          "open",
-          ""
-        ],
-        [
-          "5.g2",
-          "Any post-approval edit blocks dispatch",
-          "open",
-          ""
-        ],
-        [
-          "5.g3",
-          "A revoked approver blocks dispatch",
-          "open",
-          ""
-        ],
-        [
-          "5.g4",
-          "Crash-after-send produces outcome_unknown and reconciles without a duplicate",
-          "open",
-          ""
-        ],
-        [
-          "5.g5",
-          "Duplicate outbox delivery is harmless",
-          "open",
-          ""
-        ],
-        [
-          "5.g6",
-          "The cancel race behaves as specified",
-          "open",
-          ""
-        ]
+        ["5.g1", "An approved revision publishes", "open", ""],
+        ["5.g2", "Any post-approval edit blocks dispatch", "open", ""],
+        ["5.g3", "A revoked approver blocks dispatch", "open", ""],
+        ["5.g4", "Crash-after-send produces outcome_unknown and reconciles without a duplicate", "open", ""],
+        ["5.g5", "Duplicate outbox delivery is harmless", "open", ""],
+        ["5.g6", "The cancel race behaves as specified", "open", ""]
       ],
       "items": [
         [
@@ -1273,14 +1115,7 @@
           "open",
           ""
         ],
-        [
-          "5.4",
-          "Review portal app (separate origin build target)",
-          "production",
-          "21.1",
-          "open",
-          ""
-        ],
+        ["5.4", "Review portal app (separate origin build target)", "production", "21.1", "open", ""],
         [
           "5.5",
           "Release approvals bound by ApprovalBindingV1 hash; eager invalidation hooks",
@@ -1441,22 +1276,8 @@
           "open",
           ""
         ],
-        [
-          "5.25",
-          "Adapter: Facebook Page",
-          "critical",
-          "14.8",
-          "open",
-          ""
-        ],
-        [
-          "5.26",
-          "Adapter: X or TikTok (pilot decision D-04)",
-          "critical",
-          "14.8",
-          "open",
-          ""
-        ],
+        ["5.25", "Adapter: Facebook Page", "critical", "14.8", "open", ""],
+        ["5.26", "Adapter: X or TikTok (pilot decision D-04)", "critical", "14.8", "open", ""],
         [
           "5.27",
           "Certification of 3–5 channels with the platform's own app (sandbox publish, read-back, refresh, reconnect, rate limits, error fixtures, reconciliation, metrics)",
@@ -1536,24 +1357,14 @@
       "title": "Measurement and first intelligence",
       "spec": "15, 16",
       "gate": [
-        [
-          "6.g1",
-          "Snapshots carry provenance and completeness; missing ≠ zero verified",
-          "open",
-          ""
-        ],
+        ["6.g1", "Snapshots carry provenance and completeness; missing ≠ zero verified", "open", ""],
         [
           "6.g2",
           "One recommendation flows to a brief, a variant, an experiment and a learning record end to end",
           "open",
           ""
         ],
-        [
-          "6.g3",
-          "Baseline comparison job runs",
-          "open",
-          ""
-        ]
+        ["6.g3", "Baseline comparison job runs", "open", ""]
       ],
       "items": [
         [
@@ -1731,18 +1542,8 @@
       "title": "Pilot readiness",
       "spec": "17, 25",
       "gate": [
-        [
-          "7.g1",
-          "Section 25 production-readiness checklist verified item by item",
-          "open",
-          ""
-        ],
-        [
-          "7.g2",
-          "Residual risks documented with owners",
-          "open",
-          ""
-        ]
+        ["7.g1", "Section 25 production-readiness checklist verified item by item", "open", ""],
+        ["7.g2", "Residual risks documented with owners", "open", ""]
       ],
       "items": [
         [
@@ -1857,14 +1658,7 @@
           "open",
           ""
         ],
-        [
-          "7.15",
-          "Incident process: severities, paging, postmortems",
-          "production",
-          "18",
-          "open",
-          ""
-        ],
+        ["7.15", "Incident process: severities, paging, postmortems", "production", "18", "open", ""],
         [
           "7.16",
           "Retention and deletion paths work end to end (fan-out to DB, object store, indexes, Temporal visibility, logs, provider data, backups)",
@@ -1912,46 +1706,11 @@
           "open",
           "Release 2"
         ],
-        [
-          "8.4",
-          "Reputation and anomaly monitoring",
-          "production",
-          "16.10",
-          "open",
-          "Release 2"
-        ],
-        [
-          "8.5",
-          "Agency operations intelligence",
-          "production",
-          "16.10",
-          "open",
-          "Release 2"
-        ],
-        [
-          "8.6",
-          "Content lifecycle management",
-          "production",
-          "16.10",
-          "open",
-          "Release 2"
-        ],
-        [
-          "8.7",
-          "Remaining provider catalogue",
-          "critical",
-          "1.3",
-          "open",
-          "Later"
-        ],
-        [
-          "8.8",
-          "Video editing",
-          "production",
-          "1.3",
-          "open",
-          "Later"
-        ],
+        ["8.4", "Reputation and anomaly monitoring", "production", "16.10", "open", "Release 2"],
+        ["8.5", "Agency operations intelligence", "production", "16.10", "open", "Release 2"],
+        ["8.6", "Content lifecycle management", "production", "16.10", "open", "Release 2"],
+        ["8.7", "Remaining provider catalogue", "critical", "1.3", "open", "Later"],
+        ["8.8", "Video editing", "production", "1.3", "open", "Later"],
         [
           "8.9",
           "Real-time co-editing (CRDT)",
@@ -1968,14 +1727,7 @@
           "open",
           "Separate release"
         ],
-        [
-          "8.11",
-          "Forecasting and budget scenarios",
-          "production",
-          "16.10",
-          "open",
-          "Context-dependent"
-        ]
+        ["8.11", "Forecasting and budget scenarios", "production", "16.10", "open", "Context-dependent"]
       ]
     }
   ],
@@ -2080,14 +1832,7 @@
           "open",
           ""
         ],
-        [
-          "F.4",
-          "Portfolio and brand home with required states",
-          "production",
-          "21.2",
-          "open",
-          ""
-        ],
+        ["F.4", "Portfolio and brand home with required states", "production", "21.2", "open", ""],
         [
           "F.5",
           "WCAG 2.2 AA for application chrome; colour never the only carrier of status",
@@ -2159,14 +1904,7 @@
           "open",
           ""
         ],
-        [
-          "T.7",
-          "Agent evaluations harness",
-          "production",
-          "19.1",
-          "open",
-          ""
-        ],
+        ["T.7", "Agent evaluations harness", "production", "19.1", "open", ""],
         [
           "T.8",
           "End-to-end (Playwright): two companies, roles, create → review → schedule, post-approval edit invalidates, partial failure, restore and reconcile",
@@ -2286,14 +2024,7 @@
           "in_progress",
           "Support sessions carry supportSessionId into every audit row; audit-completeness test pending"
         ],
-        [
-          "S.12",
-          "Inbound webhooks: forged and replayed",
-          "critical",
-          "18",
-          "open",
-          ""
-        ],
+        ["S.12", "Inbound webhooks: forged and replayed", "critical", "18", "open", ""],
         [
           "S.13",
           "Outbound webhooks: private-range and DNS-rebinding tests",
