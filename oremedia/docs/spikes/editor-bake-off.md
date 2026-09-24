@@ -71,14 +71,15 @@ marker has to come off, on the day it is fixed.
    justification for RTL and falls back to its default alignment. Test: `GAP: align=justify on an Arabic (RTL)
 paragraph is justified or at least right-aligned (…)`. Minimal fix: map `justify` to `right` for RTL in
    `scene.ts` (MINOR renderer version).
-3. **Static contrast check reads text over shapes as 1:1**: `validateAgainstBrand` compares text colour with the page
-   background only, so the Latin badge text (paper on a coral badge over a paper page) and the Arabic body (ink on the
-   gold ribbon over an ink page) are blocking `contrast` before render, although the render check, which measures the
-   colour actually under the text, passes both goldens. A person's edit still commits (findings are shown); an agent
-   batch on these documents would be refused. Tests: `GAP %s: the static brand validation finds nothing blocking on a
-golden fixture that renders clean` (both fixtures); the round-trip test records the finding. Fix: reuse the
-   render check's "what is under the text" logic in the static validator (shapes and backgrounds only; images stay
-   unverified).
+3. **Closed: static contrast check read text over shapes as 1:1.** `validateAgainstBrand` compared text colour with
+   the page background only, so the Latin badge text and the Arabic body on the ribbon were blocking `contrast` before
+   render and an agent batch on these documents would have been refused. It now walks down the paint order under each
+   text (`backdropsFor` in `packages/editor/src/validate.ts`): opaque rects take the part of the text box they cover,
+   ellipses show their colour without hiding what is beneath, covering images and the page background take the rest,
+   and translucent fills or shapes tilted against the text mark what lies beneath as obscured. A failure is blocking
+   only against a resolved colour under at least 10 % of the text box; otherwise it is a warning and the render check,
+   which measures the pixels, decides. Tests: `static contrast uses what is actually under the text (spec 11.4)` in
+   `validate.test.ts`; both golden fixtures now validate with nothing blocking (`bake-off.test.ts`, the round trip).
 4. **Scripts not covered**: Devanagari and CJK (no font in the repository; see Limit above).
 5. **Keyboard operability on the Arabic brand in the built studio**: the studio e2e seeds the Latin editor fixture;
    the Arabic fixture is covered DOM-free only. The keyboard code path is script-independent, so the risk is low.

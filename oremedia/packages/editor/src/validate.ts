@@ -92,7 +92,16 @@ export function validateAgainstBrand(doc: CreativeDocumentV1, snapshot: BrandSna
       }
       if (el.type === 'text')
         findings.push(
-          ...validateText(el, at, colours, typeRoles, approvedFacts, prohibited, bgHex, minContrast),
+          ...validateText(
+            el,
+            at,
+            colours,
+            typeRoles,
+            approvedFacts,
+            prohibited,
+            backdropsFor(el, all, bgHex, background, colours),
+            minContrast,
+          ),
         );
       if (el.type === 'shape') {
         if (el.fillToken && !colours.has(el.fillToken))
@@ -116,6 +125,123 @@ export function validateAgainstBrand(doc: CreativeDocumentV1, snapshot: BrandSna
   return findings;
 }
 
+type Rect = { x: number; y: number; width: number; height: number };
+const area = (r: Rect) => r.width * r.height;
+const intersect = (a: Rect, b: Rect): Rect | null => {
+  const x = Math.max(a.x, b.x);
+  const y = Math.max(a.y, b.y);
+  const w = Math.min(a.x + a.width, b.x + b.width) - x;
+  const h = Math.min(a.y + a.height, b.y + b.height) - y;
+  return w > 0 && h > 0 ? { x, y, width: w, height: h } : null;
+};
+/** a minus b as up to four rectangles. */
+const subtract = (a: Rect, b: Rect): Rect[] => {
+  const i = intersect(a, b);
+  if (!i) return [a];
+  const out: Rect[] = [];
+  if (i.y > a.y) out.push({ x: a.x, y: a.y, width: a.width, height: i.y - a.y });
+  if (i.y + i.height < a.y + a.height)
+    out.push({ x: a.x, y: i.y + i.height, width: a.width, height: a.y + a.height - (i.y + i.height) });
+  if (i.x > a.x) out.push({ x: a.x, y: i.y, width: i.x - a.x, height: i.height });
+  if (i.x + i.width < a.x + a.width)
+    out.push({ x: i.x + i.width, y: i.y, width: a.x + a.width - (i.x + i.width), height: i.height });
+  return out;
+};
+
+/** A solid colour under a text element: the share of the text box it shows through, and how much of that is clear. */
+export interface Backdrop {
+  hex: string;
+  share: number;
+  /** The part of `share` not overlapped by anything above it without a static colour (translucent or tilted). */
+  clearShare: number;
+}
+
+/** The axis-aligned box enclosing a rotated element (rotation about its box centre). */
+const footprint = (t: Element['transform']): Rect => {
+  if (t.rotation === 0) return t;
+  const rad = (t.rotation * Math.PI) / 180;
+  const w = Math.abs(t.width * Math.cos(rad)) + Math.abs(t.height * Math.sin(rad));
+  const h = Math.abs(t.width * Math.sin(rad)) + Math.abs(t.height * Math.cos(rad));
+  return { x: t.x + t.width / 2 - w / 2, y: t.y + t.height / 2 - h / 2, width: w, height: h };
+};
+
+/**
+ * The solid colours a text element sits on, for the static contrast check, each with the share of the text box it
+ * shows through. Walks down the paint order (array order of the flattened page; group children carry page-absolute
+ * transforms) from just under the text, tracking which part of the text box is still uncovered:
+ *  - a visible, opaque, filled rect or rounded rect (corners treated as square) in the text's frame (unrotated, or
+ *    rotated by the same angle about the same centre) takes the uncovered area it overlaps, with its colour;
+ *  - an ellipse shows its colour where it overlaps but is not assumed to hide what is beneath (its corners do not);
+ *  - an opaque, unmasked, cover/fill image takes the area it overlaps with no static colour: the render-time check
+ *    (spec 11.5) measures those pixels;
+ *  - translucent fills and shapes in another frame have no static colour and hide nothing, but where their footprint
+ *    lies over the text the colours beneath are not clear (the render check measures the blend there);
+ *  - lines are ignored;
+ *  - the page background takes whatever is left (an image background has no static colour).
+ * Shares of the same colour from separate shapes add up.
+ */
+function backdropsFor(
+  text: TextElement,
+  all: Element[],
+  bgHex: string | undefined,
+  background: Element | undefined,
+  colours: Map<string, { key: string; value: string }>,
+): Backdrop[] {
+  const box = text.transform;
+  const total = area(box);
+  const sameFrame = (t: Element['transform']) =>
+    t.rotation === box.rotation &&
+    (t.rotation === 0 ||
+      (Math.abs(t.x + t.width / 2 - (box.x + box.width / 2)) < 0.5 &&
+        Math.abs(t.y + t.height / 2 - (box.y + box.height / 2)) < 0.5));
+  let uncovered: Rect[] = [box];
+  const obscurers: Rect[] = [];
+  const shares = new Map<string, { share: number; clearShare: number }>();
+  const clearArea = (r: Rect) =>
+    obscurers
+      .reduce<Rect[]>((pieces, o) => pieces.flatMap((p) => subtract(p, o)), [r])
+      .reduce((sum, p) => sum + area(p), 0);
+  const note = (hex: string, pieces: Rect[]) => {
+    const prev = shares.get(hex) ?? { share: 0, clearShare: 0 };
+    shares.set(hex, {
+      share: prev.share + pieces.reduce((sum, p) => sum + area(p), 0) / total,
+      clearShare: prev.clearShare + pieces.reduce((sum, p) => sum + clearArea(p), 0) / total,
+    });
+  };
+  const take = (r: Rect, hex: string | undefined, hides: boolean) => {
+    const pieces: Rect[] = [];
+    const next: Rect[] = [];
+    for (const u of uncovered) {
+      const i = intersect(u, r);
+      if (i) pieces.push(i);
+      next.push(...(hides ? subtract(u, r) : [u]));
+    }
+    if (hex && pieces.length) note(hex, pieces);
+    uncovered = next;
+  };
+  for (const under of all.slice(0, Math.max(0, all.indexOf(text))).reverse()) {
+    if (!uncovered.length) break;
+    if (under === background || under.type === 'group' || !under.visible) continue;
+    if (under.type === 'shape' && under.shape === 'line') continue;
+    if (under.opacity !== 1 || !sameFrame(under.transform)) {
+      obscurers.push(footprint(under.transform));
+      continue;
+    }
+    if (under.type === 'image') {
+      if (!under.mask && under.fit !== 'contain') take(under.transform, undefined, true);
+      continue;
+    }
+    if (under.type !== 'shape' || !under.fillToken) continue;
+    const hex = colours.get(under.fillToken)?.value;
+    if (hex) take(under.transform, hex, under.shape === 'rect');
+  }
+  if (bgHex && uncovered.length) note(bgHex, uncovered);
+  return [...shares].map(([hex, v]) => ({ hex, ...v }));
+}
+
+/** A failing colour under less than this share of the text box is a warning; the render check measures pixels. */
+const BLOCKING_SHARE = 0.1;
+
 function validateText(
   el: TextElement,
   at: { pageId: string; elementId: string },
@@ -123,7 +249,7 @@ function validateText(
   typeRoles: Map<string, { minSizePx: number; fontAssetId: string }>,
   approvedFacts: Set<string>,
   prohibited: string[],
-  bgHex: string | undefined,
+  backdrops: Backdrop[],
   minContrast: (sizePx: number) => number,
 ): Finding[] {
   const out: Finding[] = [];
@@ -150,15 +276,23 @@ function validateText(
       ...at,
     });
   const fg = el.style.colourToken ? colours.get(el.style.colourToken)?.value : el.style.colourValue;
-  if (fg && bgHex) {
-    const ratio = contrastRatio(fg, bgHex);
-    if (ratio !== null && ratio < minContrast(el.style.sizePx))
+  if (fg) {
+    const target = minContrast(el.style.sizePx);
+    const failing = backdrops
+      .map((b) => ({ ...b, ratio: contrastRatio(fg, b.hex) }))
+      .filter((b): b is Backdrop & { ratio: number } => b.ratio !== null && b.ratio < target);
+    if (failing.length) {
+      const worst = failing.reduce((a, b) => (b.ratio < a.ratio ? b : a));
+      const major = failing.some((b) => b.clearShare >= BLOCKING_SHARE);
       out.push({
         code: 'contrast',
-        severity: 'blocking',
-        message: `Contrast ${ratio.toFixed(2)}:1 is below the ${minContrast(el.style.sizePx)}:1 target`,
+        severity: major ? 'blocking' : 'warning',
+        message: major
+          ? `Contrast ${worst.ratio.toFixed(2)}:1 is below the ${target}:1 target`
+          : `Contrast ${worst.ratio.toFixed(2)}:1 against a backdrop that is partly hidden or only a sliver of the text box; the render check measures the pixels`,
         ...at,
       });
+    }
   }
   for (const f of el.factRefs)
     if (!approvedFacts.has(f))

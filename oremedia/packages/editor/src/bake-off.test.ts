@@ -117,13 +117,12 @@ describe('editor bake-off on the golden fixture brands (DOM-free)', () => {
   );
 
   /**
-   * GAP (docs/spikes/editor-bake-off.md): the static contrast check compares text with the page background only, so
-   * text over a shape (the Latin badge, the Arabic ribbon) reads 1:1 and is blocking before render, although the
-   * render check (colour actually under the text) passes both goldens. It would stop an agent batch on these
-   * documents. Expected to fail until validateAgainstBrand looks at what is under the text.
+   * Was a GAP in docs/spikes/editor-bake-off.md: the static contrast check compared text with the page background
+   * only, so text over the Latin badge and the Arabic ribbon read 1:1 and blocked an agent batch. It now checks the
+   * solid colours actually under the text (validate.ts backdropColours).
    */
-  it.fails.each(cases)(
-    'GAP %s: the static brand validation finds nothing blocking on a golden fixture that renders clean',
+  it.each(cases)(
+    '%s: the static brand validation finds nothing blocking on a golden fixture that renders clean',
     (_key, fixture) => {
       const blocking = validateAgainstBrand(fixture.document, fixture.snapshot).filter(
         (f) => f.severity === 'blocking',

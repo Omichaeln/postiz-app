@@ -331,12 +331,9 @@ describe('0.g2 round trip: create → apply → save → reopen → Chromium ren
         ),
       );
       expect(applied.revision.number).toBe(2);
-      // A person's batch commits with findings. The static pre-render check (validateAgainstBrand) compares text with
-      // the page background only, so text over a shape (the badge, the ribbon) reads 1:1 there; the render check
-      // below measures the colour actually under the text and is authoritative (docs/spikes/editor-bake-off.md).
-      expect(applied.findings.filter((f) => f.severity === 'blocking').map((f) => f.code)).toEqual([
-        'contrast',
-      ]);
+      // The static pre-render check reads the colours actually under each text (the badge, the ribbon), so the
+      // finished fixture has no blocking finding before render either (docs/spikes/editor-bake-off.md, gap 3 closed).
+      expect(applied.findings.filter((f) => f.severity === 'blocking')).toEqual([]);
 
       // 3. reopen: the document's current revision is revision 2 and its snapshot is the fixture document
       const reopened = await read(() =>
