@@ -92,6 +92,10 @@ jobs:
           cache: pnpm
           cache-dependency-path: oremedia/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # The render worker's golden and end-to-end tests need the render-only bundle (a build output) and a Chromium
+      # matching the pinned Playwright version (spec 19.5).
+      - run: pnpm --filter @oremedia/editor build:renderer
+      - run: pnpm --filter @oremedia/worker-render exec playwright install --with-deps chromium
       - run: pnpm test:integration
       - run: pnpm test:cross-tenant
       - run: pnpm check:openapi
