@@ -99,6 +99,11 @@ jobs:
       - run: pnpm test:integration
       - run: pnpm test:cross-tenant
       - run: pnpm check:openapi
+      # Studio end-to-end smoke (spec 21): the built app in Chromium against an in-process tRPC mock.
+      - run: pnpm --filter @oremedia/web build
+      - run: pnpm exec vitest run --project unit apps/web/e2e/studio.e2e.test.ts
+        env:
+          OREMEDIA_E2E: '1'
 
   workflow-replay:
     name: Temporal workflow replay

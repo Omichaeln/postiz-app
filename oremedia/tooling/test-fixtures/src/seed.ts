@@ -192,6 +192,7 @@ async function seedTenant(db: Db, label: string): Promise<SeededTenant> {
       servicePrincipalId,
       apiClientId,
       userId: creatorUserId,
+      ...extraIds,
     },
     snapshot,
   };
@@ -226,7 +227,7 @@ export async function callPath(
   opts: CallOptions,
   path: string,
   input: unknown,
-): Promise<{ data?: unknown; error?: ErrorEnvelope }> {
+): Promise<{ data?: unknown; error?: ErrorEnvelope; trpcCode?: string }> {
   const caller = await callerFor(opts);
   const fn = path.split('.').reduce<unknown>((acc, seg) => (acc as Record<string, unknown>)[seg], caller) as (
     i: unknown,
@@ -234,7 +235,8 @@ export async function callPath(
   try {
     return { data: await fn(input) };
   } catch (err) {
-    if (err instanceof TRPCError) return { error: envelopeFor(err, opts.correlationId ?? 'test') };
+    if (err instanceof TRPCError)
+      return { error: envelopeFor(err, opts.correlationId ?? 'test'), trpcCode: err.code };
     throw err;
   }
 }

@@ -1,0 +1,48 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+/* Components in packages/ui use the same utilities; Tailwind must scan them too. */
+@source '../../../../packages/ui/src';
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Spec 21.3: focus is always visible, on every interactive element, in both themes. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .skip-link {
+    position: absolute;
+    left: 0.5rem;
+    top: -100px;
+    z-index: 100;
+    padding: 0.5rem 0.75rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-radius: var(--radius);
+  }
+  .skip-link:focus {
+    top: 0.5rem;
+  }
+}

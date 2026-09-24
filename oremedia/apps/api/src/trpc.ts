@@ -85,14 +85,18 @@ export const t = initTRPC.context<RequestContext>().create({
 });
 
 /** Domain errors become TRPC errors with the domain error as cause; the formatter builds the envelope from it. */
+/**
+ * Spec 7.2: a domain error becomes its tRPC code (and HTTP status), not INTERNAL_SERVER_ERROR. In tRPC 11 a
+ * middleware's next() resolves to a failed result rather than throwing, so the remap inspects the result.
+ */
 const domainErrors = t.middleware(async ({ next, ctx }) => {
-  try {
-    return await withLogContext({ correlationId: ctx.correlationId }, () => next());
-  } catch (err) {
-    if (isOremediaError(err))
-      throw new TRPCError({ code: TRPC_CODE[err.code], message: err.message, cause: err });
-    throw err;
+  const result = await withLogContext({ correlationId: ctx.correlationId }, () => next());
+  if (!result.ok) {
+    const cause = result.error.cause;
+    if (isOremediaError(cause) && result.error.code !== TRPC_CODE[cause.code])
+      throw new TRPCError({ code: TRPC_CODE[cause.code], message: cause.message, cause });
   }
+  return result;
 });
 
 const authed = t.middleware(async ({ ctx, next }) => {

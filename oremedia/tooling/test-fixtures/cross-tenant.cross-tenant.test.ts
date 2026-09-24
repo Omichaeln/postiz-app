@@ -47,6 +47,10 @@ describe('cross-tenant harness', () => {
       } else {
         expect(res.error, `${path} returned data: ${JSON.stringify(res.data)}`).toBeDefined();
         expect(['NOT_FOUND', 'FORBIDDEN', 'VALIDATION_FAILED']).toContain(res.error?.code);
+        // Spec 7.2: the envelope's code is also the transport code (404/403/400), never INTERNAL_SERVER_ERROR.
+        expect(res.trpcCode, `${path} surfaced ${res.error?.code} as ${res.trpcCode}`).not.toBe(
+          'INTERNAL_SERVER_ERROR',
+        );
       }
       expect(await tenantB.snapshot()).toEqual(before); // no writes landed in tenant B
     },

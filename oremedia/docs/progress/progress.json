@@ -795,14 +795,14 @@
         [
           "3.g1",
           "Save / reopen / undo work",
-          "in_progress",
-          "Server side verified (create → apply → get returns the committed snapshot; undo is a new revision with the earlier content hash; history never rewritten). The studio UI path is the web stream (in progress)."
+          "complete",
+          "Server: create → apply → get returns the committed snapshot; undo is a new revision with the earlier content hash (creative.integration.test.ts). Studio: create → edit → autosave → reload → same text, undo/redo produce new revisions (studio e2e, mock transport and real API)."
         ],
         [
           "3.g2",
           "Stale edits return 409 and the client rebases",
-          "in_progress",
-          "Server returns STALE_REVISION (409) carrying the current revision id and accepts the rebased batch (creative.integration.test.ts). The client rebase (packages/editor rebase.ts + studio flow) is the web stream (in progress)."
+          "complete",
+          "Server returns STALE_REVISION (409, now with the matching transport code) carrying the current revision id; the studio rebases non-conflicting local intents onto the new head and shows a conflict dialog for same-element edits (studio e2e both modes; reducer tests)."
         ],
         [
           "3.g3",
@@ -842,7 +842,14 @@
           "complete",
           "packages/editor/src/adapter.ts: EditorAdapter / EditorHandle (mount, onIntent, applyRemote, select, destroy)"
         ],
-        ["3.4", "Konva/react-konva adapter with state outside the stage", "production", "11.6", "open", ""],
+        [
+          "3.4",
+          "Konva/react-konva adapter with state outside the stage",
+          "production",
+          "11.6",
+          "complete",
+          "packages/editor/src/konva-adapter.ts: KonvaEditorAdapter implements EditorAdapter with state outside the stage; gestures become operation batches (move/nudge/resize with logo aspect kept/transform/select; text edited in the side field); scene built by the shared buildScene with colourFor and ready(). 8 DOM-free unit tests of the intent mapping; exercised end to end by the studio e2e suite (12) in Chromium."
+        ],
         [
           "3.5",
           "applyOperations: tenant-scoped load, policy assert, stale revision → 409",
@@ -952,40 +959,40 @@
           "Studio layout: header context, left panels, canvas, right conversation/properties, bottom format strip, save state",
           "production",
           "11.1",
-          "open",
-          ""
+          "complete",
+          "apps/web/src/features/studio: header with company and brand, left panels (assets, templates, layers), centre canvas, right conversation placeholder + selected-element properties, bottom page/format strip, save/revision indicator and a review action disabled with its reason until Phase 5. Portfolio, brand home, brand system, asset library, sign-in and placeholder routes per spec 21.1; Vite build 641 KB main (195 KB gzip). Studio e2e 12/12 (mock transport) and 10/10 + 2 skipped against the real API."
         ],
         [
           "3.19",
           "Keyboard path for every canvas action; visible focus; screen-reader labels",
           "production",
           "21.3",
-          "open",
-          ""
+          "complete",
+          "Layers listbox with roving focus, arrow-key nudge 1 px / 10 px with Shift, Delete, Escape, Ctrl+Z/Y/S, numeric x/y/w/h fields, text edited in the side field, managed focus on page and proposal changes, aria labels on layers and properties, status never colour-only (glyph + text). Nudge path verified in e2e; the rest by inspection."
         ],
         [
           "3.20",
           "Pending batch on debounce; rebase on STALE_REVISION; conflicts shown",
           "production",
           "21.4",
-          "open",
-          ""
+          "complete",
+          "Pending batch flushed on 800 ms idle or explicit save; STALE_REVISION → fetch head and revisions since base → rebaseBatch → re-apply as a new intent; same-element conflicts shown in an alertdialog naming the elements with \"keep theirs, re-apply the rest\" / \"discard all\". Studio reducer tests + e2e (mock and real API)."
         ],
         [
           "3.21",
           "Agent proposals as overlay diff with Accept / Modify / Reject",
           "production",
           "21.4",
-          "open",
-          ""
+          "complete",
+          "Proposals from operations.propose render as an overlay diff (added/changed/removed with labels) with Accept (commits an origin: agent revision) / Modify (loads into pending) / Reject; Accept disabled with reason when blocking, stale or dirty. The trigger is a clearly labelled development-only simulation until Phase 4 supplies runs. e2e both modes."
         ],
         [
           "3.22",
           "Required states: autosave, stale conflict, proposal pending, render failure, unsaved work on navigation",
           "production",
           "21.2",
-          "open",
-          ""
+          "complete",
+          "Autosave in progress / failed with a retry that replays the same idempotency key, stale-revision conflict, proposal pending, render failure with the worker error and retry, unsaved work on navigation (useBlocker + beforeunload). Each verified in the studio e2e suite."
         ]
       ]
     },

@@ -85,6 +85,8 @@ describe('API request path (spec 4.3, 7.1–7.3)', () => {
       { email: 'x@example.test', role: 'creator' },
     );
     expect(res.error?.code).toBe('FORBIDDEN');
+    // Spec 7.2: the domain error carries its own tRPC code (HTTP 403), never INTERNAL_SERVER_ERROR.
+    expect(res.trpcCode).toBe('FORBIDDEN');
     const audit = await callPath(
       { bearer: tenantA.ownerToken, tenantId: tenantA.tenantId },
       'operations.audit.query',
