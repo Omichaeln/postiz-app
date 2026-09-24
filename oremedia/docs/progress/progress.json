@@ -181,7 +181,7 @@
           "1.g2",
           "Cross-tenant harness green on every tRPC procedure",
           "complete",
-          "pnpm test:cross-tenant: 208/208 at 2c65d17 — every one of the 145 tRPC procedures, 26 REST routes, 8 MCP tools and 16 agent tools, with fixture coverage enforced per surface"
+          "pnpm test:cross-tenant: 278/278 at 8238ae6 — every one of the 148 tRPC procedures, 26 REST routes, 8 MCP tools, 16 agent tools and every registered Temporal activity, with fixture coverage enforced per surface"
         ],
         [
           "1.g3",
