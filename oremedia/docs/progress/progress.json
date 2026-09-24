@@ -937,7 +937,7 @@
           "production",
           "19.5",
           "complete",
-          "Two fixture brands with different scripts and pinned OFL fonts (Karla Latin; Noto Naskh Arabic RTL) covering wrapping, justify, RTL, transparency, rotation, crop and masks, a 4000×3000 image with focal point; committed goldens in tooling/test-fixtures/golden. golden.integration.test.ts: worker vs golden 0.0000 % differing pixels for both, web path (bundle on a visible stage, Playwright screenshot) vs worker export 0.0000 %, byte-identical PNGs in two fresh contexts (hash stability). Per-channel tolerance 2 implemented faithfully. CJK fixture deferred (Noto Sans SC exceeds the fixture size budget)."
+          "Two fixture brands with different scripts and pinned OFL fonts (Karla Latin; Noto Naskh Arabic RTL) covering wrapping, justify, RTL, transparency, rotation, crop and masks, a 4000×3000 image with focal point; committed goldens in tooling/test-fixtures/golden. golden.integration.test.ts: worker vs golden 0.0000 % differing pixels for both, web path (bundle on a visible stage, Playwright screenshot) vs worker export 0.0000 %, byte-identical PNGs in two fresh contexts (hash stability). Per-channel tolerance 2 implemented faithfully. CJK fixture deferred (Noto Sans SC exceeds the fixture size budget). Chromium is pinned through Playwright 1.56.1 (build 1194) in the worker, the CI job and the production image, and the worker always launches the full build (the headless shell drifts by ~3 %); bumping the pin means regenerating the goldens."
         ],
         [
           "3.17",

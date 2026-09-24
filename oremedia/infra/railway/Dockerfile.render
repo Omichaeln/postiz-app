@@ -1,7 +1,9 @@
 # worker-render: isolated rendering with headless Chromium (spec 11.5). No credential access; egress restricted
 # at the network layer (Railway private networking + object-store endpoint only).
 # syntax=docker/dockerfile:1.7
-FROM mcr.microsoft.com/playwright:v1.63.0-noble AS base
+# Pinned to the Playwright release whose Chromium build (1194) produced the committed golden renders; bumping either
+# means regenerating tooling/test-fixtures/golden on the new build (spec 19.5).
+FROM mcr.microsoft.com/playwright:v1.56.1-noble AS base
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
 

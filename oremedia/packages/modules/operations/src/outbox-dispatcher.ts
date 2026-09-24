@@ -43,6 +43,33 @@ export function backoffFor(attempts: number, now: Date, random: () => number = M
 
 const truncate = (s: string, n: number): string => (s.length > n ? s.slice(0, n) : s);
 
+const LOCK_ERROR_CODES = new Set(['ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT']);
+
+const isLockError = (err: unknown): boolean => {
+  let current: unknown = err;
+  for (let depth = 0; current && typeof current === 'object' && depth < 4; depth++) {
+    const e = current as { code?: string; cause?: unknown };
+    if (e.code && LOCK_ERROR_CODES.has(e.code)) return true;
+    current = e.cause;
+  }
+  return false;
+};
+
+/**
+ * Concurrent `UPDATE … ORDER BY … LIMIT` claims can deadlock on InnoDB's index locks; the victim is rolled back
+ * atomically, so retrying the statement is safe (spec 14.2 avoids SKIP LOCKED for TiDB portability).
+ */
+async function withLockRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!isLockError(err) || attempt >= attempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 10 * attempt + Math.floor(Math.random() * 40)));
+    }
+  }
+}
+
 const toRecord = (row: typeof outboxEvents.$inferSelect): OutboxEventRecord => ({
   id: row.id,
   tenantId: row.tenantId,
@@ -65,18 +92,20 @@ export async function dispatchBatch(opts: DispatchOptions): Promise<DispatchSumm
   const leaseUntil = new Date(now().getTime() + (opts.leaseSeconds ?? 60) * 1000);
   const log = logger().child('outbox');
 
-  await db
-    .update(outboxEvents)
-    .set({ claimedBy: opts.workerId, claimExpiresAt: leaseUntil })
-    .where(
-      and(
-        isNull(outboxEvents.dispatchedAt),
-        lte(outboxEvents.availableAt, now()),
-        or(isNull(outboxEvents.claimedBy), lt(outboxEvents.claimExpiresAt, now())),
-      ),
-    )
-    .orderBy(asc(outboxEvents.availableAt))
-    .limit(batchSize);
+  await withLockRetry(() =>
+    db
+      .update(outboxEvents)
+      .set({ claimedBy: opts.workerId, claimExpiresAt: leaseUntil })
+      .where(
+        and(
+          isNull(outboxEvents.dispatchedAt),
+          lte(outboxEvents.availableAt, now()),
+          or(isNull(outboxEvents.claimedBy), lt(outboxEvents.claimExpiresAt, now())),
+        ),
+      )
+      .orderBy(asc(outboxEvents.availableAt))
+      .limit(batchSize),
+  );
 
   const claimed = await db
     .select()
@@ -103,25 +132,40 @@ export async function dispatchBatch(opts: DispatchOptions): Promise<DispatchSumm
       } else {
         summary.ignored += 1;
       }
-      // Only the holder of the lease may mark the row dispatched; a lease that expired mid-dispatch is retried later.
-      await db
-        .update(outboxEvents)
-        .set({ dispatchedAt: now() })
-        .where(and(eq(outboxEvents.id, evt.id), eq(outboxEvents.claimedBy, opts.workerId)));
+      // The start happened, so the row is dispatched whoever holds the lease now: keying the mark on the lease
+      // (as the spec sketch does) can leave a started event undispatched until the lease expires and then start it
+      // again. Starts are idempotent (stable workflow ids, USE_EXISTING), so a lost lease costs at most a no-op
+      // duplicate start, never a lost or twice-recorded event; a mark that finds the row already dispatched is
+      // that duplicate and is logged.
+      const marked = affectedRows(
+        await withLockRetry(() =>
+          db
+            .update(outboxEvents)
+            .set({ dispatchedAt: now() })
+            .where(and(eq(outboxEvents.id, evt.id), isNull(outboxEvents.dispatchedAt))),
+        ),
+      );
+      if (marked === 0)
+        log.warn(
+          { correlationId: evt.correlationId, tenantId: evt.tenantId },
+          'outbox event was already marked dispatched by another worker (duplicate start absorbed)',
+        );
       count(METRIC.outboxDispatched, 1, { eventType: evt.eventType, routed: req ? 'yes' : 'no' });
     } catch (err) {
       summary.failed += 1;
       const message = err instanceof Error ? err.message : String(err);
-      await db
-        .update(outboxEvents)
-        .set({
-          attempts: sql`${outboxEvents.attempts} + 1`,
-          lastError: truncate(message, 1000),
-          claimedBy: null,
-          claimExpiresAt: null,
-          availableAt: backoffFor(evt.attempts, now()),
-        })
-        .where(eq(outboxEvents.id, evt.id));
+      await withLockRetry(() =>
+        db
+          .update(outboxEvents)
+          .set({
+            attempts: sql`${outboxEvents.attempts} + 1`,
+            lastError: truncate(message, 1000),
+            claimedBy: null,
+            claimExpiresAt: null,
+            availableAt: backoffFor(evt.attempts, now()),
+          })
+          .where(eq(outboxEvents.id, evt.id)),
+      );
       count(METRIC.outboxDispatchFailures, 1, { eventType: evt.eventType });
       log.warn(
         {

@@ -72,6 +72,19 @@ interface RendererGlobal {
   __oremediaRender(input: RenderInput): Promise<RenderOutput>;
 }
 
+/**
+ * Always the full Chromium build of the pinned Playwright release: its headless shell renders text differently
+ * (golden fixtures drift by ~3 % of pixels and Arabic text wraps onto an extra line), so the studio, the worker and
+ * the golden tests must all launch through this one helper.
+ */
+export function launchChromium(executablePath?: string): Promise<Browser> {
+  const launchOptions: LaunchOptions = { headless: true, args: LAUNCH_ARGS };
+  const path = executablePath ?? process.env['OREMEDIA_CHROMIUM_PATH'];
+  if (path) launchOptions.executablePath = path;
+  else launchOptions.channel = 'chromium';
+  return chromium.launch(launchOptions);
+}
+
 export function createChromiumRenderer(opts: ChromiumRendererOptions = {}): ChromiumRenderer {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxEdge = opts.maxEdgePx ?? DEFAULT_MAX_EDGE_PX;
@@ -81,10 +94,7 @@ export function createChromiumRenderer(opts: ChromiumRendererOptions = {}): Chro
 
   const launch = async (): Promise<Browser> => {
     if (browser?.isConnected()) return browser;
-    const launchOptions: LaunchOptions = { headless: true, args: LAUNCH_ARGS };
-    const executablePath = opts.executablePath ?? process.env['OREMEDIA_CHROMIUM_PATH'];
-    if (executablePath) launchOptions.executablePath = executablePath;
-    browser = await chromium.launch(launchOptions);
+    browser = await launchChromium(opts.executablePath);
     log().info({ status: browser.version() }, 'chromium launched');
     return browser;
   };

@@ -3,11 +3,11 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { chromium, type Browser } from 'playwright';
+import type { Browser } from 'playwright';
 import { renderFixtures, type RenderFixture } from '@oremedia/editor/renderer/fixtures';
 import type { RenderInput } from '@oremedia/editor/renderer/protocol';
 import { formatFor } from '@oremedia/editor/formats';
-import { createChromiumRenderer, resolveRendererBundlePath } from './chromium-renderer';
+import { createChromiumRenderer, resolveRendererBundlePath, launchChromium } from './chromium-renderer';
 import {
   ACTUAL_DIR,
   GOLDEN_DIR,
@@ -192,7 +192,7 @@ describe('golden renders (spec 19.5): worker path vs goldens, web path vs worker
       const l = loaded.find((x) => x.fixture.key === key)!;
       const worker = workerPng.get(key) ?? (await renderWorker(l)).png;
       const format = formatFor(l.fixture.formatKey)!;
-      browser ??= await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
+      browser ??= await launchChromium(executablePath);
       const context = await browser.newContext({
         offline: true,
         deviceScaleFactor: 1,
