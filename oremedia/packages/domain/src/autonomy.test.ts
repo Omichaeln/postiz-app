@@ -37,4 +37,8 @@ describe('ids', () => {
     expect(id.length).toBeLessThanOrEqual(32);
     expect(newId('approvedFact').length).toBeLessThanOrEqual(32);
   });
+  it('ids minted in one burst sort in creation order (lists ordered by id keep insertion order)', () => {
+    const ids = Array.from({ length: 2000 }, () => newId('experimentVariant'));
+    expect([...ids].sort()).toEqual(ids);
+  });
 });
