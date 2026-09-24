@@ -1,4 +1,3 @@
-import { createHmac } from 'node:crypto';
 import type { ActivityHooks } from '@oremedia/contracts/agents';
 import type {
   CommentIngestionRuntimeV1,
@@ -6,26 +5,27 @@ import type {
   PullCommentsResultV1,
 } from '@oremedia/contracts/measurement';
 import { withTransaction } from '@oremedia/db';
+import { tenantKeyedHash } from '@oremedia/domain/hash';
 import { newId } from '@oremedia/domain/ids';
 import { adapterFor, credentialBroker, providerIO } from '@oremedia/module-publishing';
 import { collectionPlan, loadPublication } from './common';
-import { authorHashSecretInUse, notifyCommentSinks, type IngestedComment } from './hooks';
+import { authorHashSecretInUse, classifyComment, notifyCommentSinks, type IngestedComment } from './hooks';
 import { ConversationRepository, MessageRepository } from './repositories';
 
 /**
  * Spec 16.5 (first half, read-only) behind commentIngestionWorkflowV1 (task queue `ingest-comments`): comments of
  * a published post are pulled through the adapter's `fetchComments` surface into one conversation per remote post
  * and one message per remote comment. Author identities are per-tenant salted keyed hashes (the salt is derived
- * from a secret reference, never stored); raw ids never reach the hash. Classification, embedding and clustering
- * belong to the intelligence module, which subscribes through registerCommentSink.
+ * from a secret reference, never stored); raw ids never reach the hash. Classification (a model call, made before
+ * the transaction through registerCommentClassifier), embedding and clustering belong to the intelligence module,
+ * which subscribes through registerCommentSink.
  */
 const conversationsRepo = new ConversationRepository();
 const messagesRepo = new MessageRepository();
 
 /** salt = HMAC(secret, tenant); hash = HMAC(salt, handle). Rotating the secret changes every hash. */
 export function authorHash(secret: string, tenantId: string, authorHandle: string): string {
-  const salt = createHmac('sha256', secret).update(`tenant:${tenantId}`).digest();
-  return createHmac('sha256', salt).update(authorHandle.normalize('NFC').trim().toLowerCase()).digest('hex');
+  return tenantKeyedHash(secret, tenantId, authorHandle.normalize('NFC').trim().toLowerCase());
 }
 
 export function createCommentIngestionRuntime(): CommentIngestionRuntimeV1 {
@@ -41,6 +41,37 @@ export function createCommentIngestionRuntime(): CommentIngestionRuntimeV1 {
         return { ingested: 0, duplicates: 0, nextCursor: null };
       const remotePostId = row.remotePostId;
       const secret = authorHashSecretInUse();
+
+      // Network and model calls run before the transaction opens (as pullMetrics does): the conversation and its
+      // newest message are read first, the page is fetched, new comments are classified, and only then are rows
+      // written. The transaction re-checks each comment, so a concurrent or repeated pull still writes it once.
+      const known = await conversationsRepo.findByRemoteThread(connection.id, remotePostId);
+      const since = input.since
+        ? new Date(input.since)
+        : known
+          ? ((await messagesRepo.latestRemoteCreatedAt(known.id)) ?? undefined)
+          : undefined;
+      hooks?.heartbeat(`comments:${publicationId}:${input.pullIndex}`);
+      const page = await credentialBroker.withCredentials(tenantId, connection.id, (creds) =>
+        fetchComments(
+          {
+            remotePostId,
+            ...(since ? { since } : {}),
+            ...(input.cursor ? { cursor: input.cursor } : {}),
+          },
+          creds,
+          providerIO(adapter.key, tenantId, hooks),
+        ),
+      );
+      // A retried pull does not pay for a model call on a comment it already stored.
+      const classifications = new Map<string, IngestedComment['classification']>();
+      for (const item of page.items) {
+        if (known && (await messagesRepo.existsRemote(known.id, item.remoteCommentId))) continue;
+        classifications.set(
+          item.remoteCommentId,
+          await classifyComment({ brandId: row.brandId, text: item.text }),
+        );
+      }
 
       return withTransaction(async (tx) => {
         let conversation = await conversationsRepo.findByRemoteThread(connection.id, remotePostId, tx);
@@ -61,25 +92,6 @@ export function createCommentIngestionRuntime(): CommentIngestionRuntimeV1 {
           );
           conversation = await conversationsRepo.getById(id, tx);
         }
-        const since = input.since
-          ? new Date(input.since)
-          : ((await messagesRepo.latestRemoteCreatedAt(conversation.id, tx)) ?? undefined);
-        hooks?.heartbeat(`comments:${publicationId}:${input.pullIndex}`);
-        const page = await credentialBroker.withCredentials(
-          tenantId,
-          connection.id,
-          (creds) =>
-            fetchComments(
-              {
-                remotePostId,
-                ...(since ? { since } : {}),
-                ...(input.cursor ? { cursor: input.cursor } : {}),
-              },
-              creds,
-              providerIO(adapter.key, tenantId, hooks),
-            ),
-          tx,
-        );
         const ingested: IngestedComment[] = [];
         let duplicates = 0;
         let latest = conversation.lastMessageAt;
@@ -91,6 +103,7 @@ export function createCommentIngestionRuntime(): CommentIngestionRuntimeV1 {
           const id = newId('message');
           const remoteCreatedAt = new Date(item.createdAt);
           const hash = authorHash(secret, tenantId, item.authorHandle);
+          const classification = classifications.get(item.remoteCommentId) ?? null;
           await messagesRepo.create(
             {
               id,
@@ -102,7 +115,7 @@ export function createCommentIngestionRuntime(): CommentIngestionRuntimeV1 {
               authorHandle: item.authorHandle.slice(0, 200),
               text: item.text,
               sentiment: null,
-              classification: null,
+              classification,
               substantive: null,
               clusterId: null,
               remoteCreatedAt,
@@ -119,6 +132,7 @@ export function createCommentIngestionRuntime(): CommentIngestionRuntimeV1 {
             authorHash: hash,
             text: item.text,
             remoteCreatedAt: remoteCreatedAt.toISOString(),
+            classification,
           });
         }
         if (ingested.length && latest && latest.getTime() !== conversation.lastMessageAt?.getTime())

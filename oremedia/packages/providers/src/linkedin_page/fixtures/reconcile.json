@@ -8,7 +8,10 @@
             "method": "GET",
             "host": "api.linkedin.com",
             "path": "/rest/posts",
-            "query": { "q": "author", "author": "urn:li:organization:2001" }
+            "query": {
+              "q": "author",
+              "author": "urn:li:organization:2001"
+            }
           },
           "response": {
             "status": 200,
@@ -19,7 +22,11 @@
                   "commentary": "Hello from Oremedia #launch",
                   "createdAt": 1790300000000
                 },
-                { "id": "urn:li:share:6000", "commentary": "An older post", "createdAt": 1758000000000 }
+                {
+                  "id": "urn:li:share:6000",
+                  "commentary": "An older post",
+                  "createdAt": 1758000000000
+                }
               ]
             }
           }
@@ -34,13 +41,19 @@
             "method": "GET",
             "host": "api.linkedin.com",
             "path": "/rest/posts",
-            "query": { "q": "author" }
+            "query": {
+              "q": "author"
+            }
           },
           "response": {
             "status": 200,
             "json": {
               "elements": [
-                { "id": "urn:li:share:6000", "commentary": "An older post", "createdAt": 1758000000000 }
+                {
+                  "id": "urn:li:share:6000",
+                  "commentary": "An older post",
+                  "createdAt": 1758000000000
+                }
               ]
             }
           }
@@ -54,9 +67,333 @@
             "method": "GET",
             "host": "api.linkedin.com",
             "path": "/rest/posts",
-            "query": { "q": "author" }
+            "query": {
+              "q": "author"
+            }
           },
-          "response": { "status": 500, "body": "Internal Server Error" }
+          "response": {
+            "status": 500,
+            "body": "Internal Server Error"
+          }
+        }
+      ]
+    },
+    "edited_old_post_first": {
+      "description": "Sorted by LAST_MODIFIED: a full first page of old posts edited after the attempt (createdAt long before it); the attempt's post is on the next page. createdAt proves no coverage, so the scan must continue.",
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "query": {
+              "q": "author",
+              "sortBy": "LAST_MODIFIED",
+              "start": "0"
+            }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                {
+                  "id": "urn:li:share:6100",
+                  "commentary": "An older post, edited after the attempt (0)",
+                  "createdAt": 1758000000000,
+                  "lastModifiedAt": 1790211600000
+                },
+                {
+                  "id": "urn:li:share:6101",
+                  "commentary": "An older post, edited after the attempt (1)",
+                  "createdAt": 1758000001000,
+                  "lastModifiedAt": 1790211540000
+                },
+                {
+                  "id": "urn:li:share:6102",
+                  "commentary": "An older post, edited after the attempt (2)",
+                  "createdAt": 1758000002000,
+                  "lastModifiedAt": 1790211480000
+                },
+                {
+                  "id": "urn:li:share:6103",
+                  "commentary": "An older post, edited after the attempt (3)",
+                  "createdAt": 1758000003000,
+                  "lastModifiedAt": 1790211420000
+                },
+                {
+                  "id": "urn:li:share:6104",
+                  "commentary": "An older post, edited after the attempt (4)",
+                  "createdAt": 1758000004000,
+                  "lastModifiedAt": 1790211360000
+                },
+                {
+                  "id": "urn:li:share:6105",
+                  "commentary": "An older post, edited after the attempt (5)",
+                  "createdAt": 1758000005000,
+                  "lastModifiedAt": 1790211300000
+                },
+                {
+                  "id": "urn:li:share:6106",
+                  "commentary": "An older post, edited after the attempt (6)",
+                  "createdAt": 1758000006000,
+                  "lastModifiedAt": 1790211240000
+                },
+                {
+                  "id": "urn:li:share:6107",
+                  "commentary": "An older post, edited after the attempt (7)",
+                  "createdAt": 1758000007000,
+                  "lastModifiedAt": 1790211180000
+                },
+                {
+                  "id": "urn:li:share:6108",
+                  "commentary": "An older post, edited after the attempt (8)",
+                  "createdAt": 1758000008000,
+                  "lastModifiedAt": 1790211120000
+                },
+                {
+                  "id": "urn:li:share:6109",
+                  "commentary": "An older post, edited after the attempt (9)",
+                  "createdAt": 1758000009000,
+                  "lastModifiedAt": 1790211060000
+                },
+                {
+                  "id": "urn:li:share:6110",
+                  "commentary": "An older post, edited after the attempt (10)",
+                  "createdAt": 1758000010000,
+                  "lastModifiedAt": 1790211000000
+                },
+                {
+                  "id": "urn:li:share:6111",
+                  "commentary": "An older post, edited after the attempt (11)",
+                  "createdAt": 1758000011000,
+                  "lastModifiedAt": 1790210940000
+                },
+                {
+                  "id": "urn:li:share:6112",
+                  "commentary": "An older post, edited after the attempt (12)",
+                  "createdAt": 1758000012000,
+                  "lastModifiedAt": 1790210880000
+                },
+                {
+                  "id": "urn:li:share:6113",
+                  "commentary": "An older post, edited after the attempt (13)",
+                  "createdAt": 1758000013000,
+                  "lastModifiedAt": 1790210820000
+                },
+                {
+                  "id": "urn:li:share:6114",
+                  "commentary": "An older post, edited after the attempt (14)",
+                  "createdAt": 1758000014000,
+                  "lastModifiedAt": 1790210760000
+                },
+                {
+                  "id": "urn:li:share:6115",
+                  "commentary": "An older post, edited after the attempt (15)",
+                  "createdAt": 1758000015000,
+                  "lastModifiedAt": 1790210700000
+                },
+                {
+                  "id": "urn:li:share:6116",
+                  "commentary": "An older post, edited after the attempt (16)",
+                  "createdAt": 1758000016000,
+                  "lastModifiedAt": 1790210640000
+                },
+                {
+                  "id": "urn:li:share:6117",
+                  "commentary": "An older post, edited after the attempt (17)",
+                  "createdAt": 1758000017000,
+                  "lastModifiedAt": 1790210580000
+                },
+                {
+                  "id": "urn:li:share:6118",
+                  "commentary": "An older post, edited after the attempt (18)",
+                  "createdAt": 1758000018000,
+                  "lastModifiedAt": 1790210520000
+                },
+                {
+                  "id": "urn:li:share:6119",
+                  "commentary": "An older post, edited after the attempt (19)",
+                  "createdAt": 1758000019000,
+                  "lastModifiedAt": 1790210460000
+                }
+              ]
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "query": {
+              "q": "author",
+              "sortBy": "LAST_MODIFIED",
+              "start": "20"
+            }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                {
+                  "id": "urn:li:share:7011",
+                  "commentary": "Hello from Oremedia #launch",
+                  "createdAt": 1790208060000,
+                  "lastModifiedAt": 1790208060000
+                },
+                {
+                  "id": "urn:li:share:6000",
+                  "commentary": "An older post",
+                  "createdAt": 1758000000000,
+                  "lastModifiedAt": 1758000000000
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "covered_by_last_modified": {
+      "description": "A full page (nothing matches) ending with a post last modified before the attempt window: every later post is older, so the window is provably covered without another page.",
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "host": "api.linkedin.com",
+            "path": "/rest/posts",
+            "query": {
+              "q": "author",
+              "sortBy": "LAST_MODIFIED",
+              "start": "0"
+            }
+          },
+          "response": {
+            "status": 200,
+            "json": {
+              "elements": [
+                {
+                  "id": "urn:li:share:6200",
+                  "commentary": "Another post (0)",
+                  "createdAt": 1758000000000,
+                  "lastModifiedAt": 1790211600000
+                },
+                {
+                  "id": "urn:li:share:6201",
+                  "commentary": "Another post (1)",
+                  "createdAt": 1758000001000,
+                  "lastModifiedAt": 1790211300000
+                },
+                {
+                  "id": "urn:li:share:6202",
+                  "commentary": "Another post (2)",
+                  "createdAt": 1758000002000,
+                  "lastModifiedAt": 1790211000000
+                },
+                {
+                  "id": "urn:li:share:6203",
+                  "commentary": "Another post (3)",
+                  "createdAt": 1758000003000,
+                  "lastModifiedAt": 1790210700000
+                },
+                {
+                  "id": "urn:li:share:6204",
+                  "commentary": "Another post (4)",
+                  "createdAt": 1758000004000,
+                  "lastModifiedAt": 1790210400000
+                },
+                {
+                  "id": "urn:li:share:6205",
+                  "commentary": "Another post (5)",
+                  "createdAt": 1758000005000,
+                  "lastModifiedAt": 1790210100000
+                },
+                {
+                  "id": "urn:li:share:6206",
+                  "commentary": "Another post (6)",
+                  "createdAt": 1758000006000,
+                  "lastModifiedAt": 1790209800000
+                },
+                {
+                  "id": "urn:li:share:6207",
+                  "commentary": "Another post (7)",
+                  "createdAt": 1758000007000,
+                  "lastModifiedAt": 1790209500000
+                },
+                {
+                  "id": "urn:li:share:6208",
+                  "commentary": "Another post (8)",
+                  "createdAt": 1758000008000,
+                  "lastModifiedAt": 1790209200000
+                },
+                {
+                  "id": "urn:li:share:6209",
+                  "commentary": "Another post (9)",
+                  "createdAt": 1758000009000,
+                  "lastModifiedAt": 1790208900000
+                },
+                {
+                  "id": "urn:li:share:6210",
+                  "commentary": "Another post (10)",
+                  "createdAt": 1758000010000,
+                  "lastModifiedAt": 1790208600000
+                },
+                {
+                  "id": "urn:li:share:6211",
+                  "commentary": "Another post (11)",
+                  "createdAt": 1758000011000,
+                  "lastModifiedAt": 1790208300000
+                },
+                {
+                  "id": "urn:li:share:6212",
+                  "commentary": "Another post (12)",
+                  "createdAt": 1758000012000,
+                  "lastModifiedAt": 1790208000000
+                },
+                {
+                  "id": "urn:li:share:6213",
+                  "commentary": "Another post (13)",
+                  "createdAt": 1758000013000,
+                  "lastModifiedAt": 1790207700000
+                },
+                {
+                  "id": "urn:li:share:6214",
+                  "commentary": "Another post (14)",
+                  "createdAt": 1758000014000,
+                  "lastModifiedAt": 1790207400000
+                },
+                {
+                  "id": "urn:li:share:6215",
+                  "commentary": "Another post (15)",
+                  "createdAt": 1758000015000,
+                  "lastModifiedAt": 1790207100000
+                },
+                {
+                  "id": "urn:li:share:6216",
+                  "commentary": "Another post (16)",
+                  "createdAt": 1758000016000,
+                  "lastModifiedAt": 1790206800000
+                },
+                {
+                  "id": "urn:li:share:6217",
+                  "commentary": "Another post (17)",
+                  "createdAt": 1758000017000,
+                  "lastModifiedAt": 1790206500000
+                },
+                {
+                  "id": "urn:li:share:6218",
+                  "commentary": "Another post (18)",
+                  "createdAt": 1758000018000,
+                  "lastModifiedAt": 1790206200000
+                },
+                {
+                  "id": "urn:li:share:6000",
+                  "commentary": "An older post",
+                  "createdAt": 1758000000000,
+                  "lastModifiedAt": 1790204400000
+                }
+              ]
+            }
+          }
         }
       ]
     }

@@ -129,9 +129,10 @@ export const operationsRouter = router({
           {},
           tx,
         );
-        // Subjects are validated by their owning module; brand is the Phase 1 subject, others are added with their modules.
+        // Subjects are validated by their owning module: a brand of this tenant, or this tenant itself (a foreign
+        // tenant id is NOT_FOUND in deletion.request). The other subject types arrive with their handlers.
         if (input.subjectType === 'brand') await brandService.assertExist([input.subjectId], tx);
-        else
+        else if (input.subjectType !== 'tenant')
           throw new PolicyDeniedError(
             'subject_type_not_supported_yet',
             `Deletion of ${input.subjectType} is not available yet`,

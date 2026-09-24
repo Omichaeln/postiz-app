@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { ValidationFailedError } from '@oremedia/contracts/errors';
 import type { ResolvedActor } from '@oremedia/contracts/policy';
 import type { PublicationForRelease } from '@oremedia/contracts/publishing';
@@ -75,6 +76,9 @@ export const toConnectionDto = (c: ConnectionRow) => ({
   version: c.version,
 });
 
+/** Versioned JSON is validated on read (spec 6.1): hold reasons are release check names or runtime reasons. */
+const HoldReasons = z.array(z.string()).nullable();
+
 export const toPublicationDto = (p: PublicationRow) => ({
   id: p.id,
   brandId: p.brandId,
@@ -89,7 +93,7 @@ export const toPublicationDto = (p: PublicationRow) => ({
   scheduledFor: p.scheduledFor.toISOString(),
   state: p.state,
   stateReason: p.stateReason,
-  holdReasons: p.holdReasons ?? [],
+  holdReasons: HoldReasons.parse(p.holdReasons ?? null) ?? [],
   remotePostId: p.remotePostId,
   remoteUrl: p.remoteUrl,
   fencingToken: p.fencingToken,

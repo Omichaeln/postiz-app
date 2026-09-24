@@ -3,6 +3,7 @@ import type {
   MetricCollectionRuntimeV1,
 } from '@oremedia/contracts/measurement';
 import type { TenantContextInput } from '@oremedia/contracts/tenancy';
+import { METRIC, record } from '@oremedia/observability';
 import { toActivityFailure } from './agent-run';
 import { loadActorGrants } from './actor';
 import { heartbeat, inTenant } from './tenant';
@@ -26,9 +27,14 @@ export function createMetricCollectionActivities(
     };
   return {
     readCollectionPlan: guarded((input) => runtime.readCollectionPlan(input)),
-    pullMetrics: guarded((input) => {
+    pullMetrics: guarded(async (input) => {
       heartbeat(`metrics:${input.publicationId}:${input.pullIndex}:start`);
-      return runtime.pullMetrics(input, { heartbeat });
+      const result = await runtime.pullMetrics(input, { heartbeat });
+      // Spec 17.2 ingest "keeping up": the pull's window end (when the data was due) → the pull finished.
+      record(METRIC.ingestLagMs, Math.max(0, Date.now() - Date.parse(input.windowEnd)), {
+        outcome: result.written > 0 ? 'written' : 'none',
+      });
+      return result;
     }),
   };
 }

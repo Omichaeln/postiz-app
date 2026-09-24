@@ -1,8 +1,8 @@
-import { and, asc, eq, gt, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { affectedRows } from '@oremedia/db';
 import { getDb } from '@oremedia/db/client';
 import { outboxEvents } from '@oremedia/db/schema/operations';
-import { METRIC, count, gauge, logger } from '@oremedia/observability';
+import { METRIC, count, gauge, logger, record } from '@oremedia/observability';
 import { outboxRouteFor, type OutboxEventRecord, type WorkflowStartRequest } from './outbox-routes';
 
 /**
@@ -18,6 +18,8 @@ export interface DispatchOptions {
   workerId: string;
   starter: WorkflowStarter;
   batchSize?: number;
+  /** Spec 17.4: at most this many events of one tenant per batch (default: no cap beyond round-robin order). */
+  maxPerTenant?: number;
   leaseSeconds?: number;
   now?: () => Date;
 }
@@ -85,6 +87,19 @@ const toRecord = (row: typeof outboxEvents.$inferSelect): OutboxEventRecord => (
   createdAt: row.createdAt,
 });
 
+/** Claimed rows (oldest first) re-ordered round-robin across tenants, so the batch's own start order is fair too. */
+function roundRobinByTenant<T extends { tenantId: string }>(rows: T[]): T[] {
+  const seen = new Map<string, number>();
+  return rows
+    .map((row, i) => {
+      const rank = seen.get(row.tenantId) ?? 0;
+      seen.set(row.tenantId, rank + 1);
+      return { row, rank, i };
+    })
+    .sort((a, b) => a.rank - b.rank || a.i - b.i)
+    .map((r) => r.row);
+}
+
 export async function dispatchBatch(opts: DispatchOptions): Promise<DispatchSummary> {
   const db = getDb();
   const now = opts.now ?? (() => new Date());
@@ -92,20 +107,47 @@ export async function dispatchBatch(opts: DispatchOptions): Promise<DispatchSumm
   const leaseUntil = new Date(now().getTime() + (opts.leaseSeconds ?? 60) * 1000);
   const log = logger().child('outbox');
 
-  await withLockRetry(() =>
-    db
-      .update(outboxEvents)
-      .set({ claimedBy: opts.workerId, claimExpiresAt: leaseUntil })
-      .where(
-        and(
-          isNull(outboxEvents.dispatchedAt),
-          lte(outboxEvents.availableAt, now()),
-          or(isNull(outboxEvents.claimedBy), lt(outboxEvents.claimExpiresAt, now())),
-        ),
-      )
-      .orderBy(asc(outboxEvents.availableAt))
-      .limit(batchSize),
+  // Spec 17.4 fairness: rank the ready events per tenant and take them round-robin (every tenant's oldest, then every
+  // tenant's second oldest, …), optionally capped per tenant, so one tenant's bulk schedule cannot fill the batch
+  // ahead of another tenant's event due at the same minute. The claim re-checks claimability row by row, so two
+  // workers that pick the same ids still claim each row once.
+  const ready = and(
+    isNull(outboxEvents.dispatchedAt),
+    lte(outboxEvents.availableAt, now()),
+    or(isNull(outboxEvents.claimedBy), lt(outboxEvents.claimExpiresAt, now())),
   );
+  const ranked = db
+    .select({
+      id: outboxEvents.id,
+      availableAt: outboxEvents.availableAt,
+      rank: sql<number>`row_number() over (partition by ${outboxEvents.tenantId} order by ${outboxEvents.availableAt}, ${outboxEvents.id})`.as(
+        'tenant_rank',
+      ),
+    })
+    .from(outboxEvents)
+    .where(ready)
+    .as('ranked');
+  const picked = await db
+    .select({ id: ranked.id })
+    .from(ranked)
+    .where(opts.maxPerTenant ? lte(ranked.rank, opts.maxPerTenant) : undefined)
+    .orderBy(asc(ranked.rank), asc(ranked.availableAt))
+    .limit(batchSize);
+  if (picked.length)
+    await withLockRetry(() =>
+      db
+        .update(outboxEvents)
+        .set({ claimedBy: opts.workerId, claimExpiresAt: leaseUntil })
+        .where(
+          and(
+            inArray(
+              outboxEvents.id,
+              picked.map((p) => p.id),
+            ),
+            ready,
+          ),
+        ),
+    );
 
   const claimed = await db
     .select()
@@ -117,11 +159,11 @@ export async function dispatchBatch(opts: DispatchOptions): Promise<DispatchSumm
         gt(outboxEvents.claimExpiresAt, now()),
       ),
     )
-    .orderBy(asc(outboxEvents.availableAt));
+    .orderBy(asc(outboxEvents.availableAt), asc(outboxEvents.id));
 
   const summary: DispatchSummary = { claimed: claimed.length, dispatched: 0, ignored: 0, failed: 0 };
 
-  for (const row of claimed) {
+  for (const row of roundRobinByTenant(claimed)) {
     const evt = toRecord(row);
     try {
       const route = outboxRouteFor(evt.eventType);
@@ -129,6 +171,10 @@ export async function dispatchBatch(opts: DispatchOptions): Promise<DispatchSumm
       if (req) {
         await opts.starter.start({ ...req, tenantId: evt.tenantId, correlationId: evt.correlationId });
         summary.dispatched += 1;
+        // Spec 17.2 "keeping up": event ready → workflow start requested (no tenant attribute: bounded cardinality).
+        record(METRIC.outboxDispatchLagMs, Math.max(0, now().getTime() - evt.availableAt.getTime()), {
+          eventType: evt.eventType,
+        });
       } else {
         summary.ignored += 1;
       }

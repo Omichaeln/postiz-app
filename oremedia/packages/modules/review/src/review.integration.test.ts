@@ -1,3 +1,4 @@
+import { ApprovalBindingV1 } from '@oremedia/contracts/approval';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import {
@@ -184,7 +185,7 @@ describe('review module (spec 13) against MySQL 8', () => {
   let requestB = '';
   let approvalB = '';
   const authorised = { assets: true };
-  const checks = { channelUsable: true, validateVariant: true, count: 0 };
+  const checks = { channelUsable: true, validateVariant: true, count: 0, publishedElsewhere: false };
 
   const ctx = (tenantId: string, actorId: string): TenantContext => ({
     tenantId,
@@ -374,6 +375,7 @@ describe('review module (spec 13) against MySQL 8', () => {
       channelUsable: async () => checks.channelUsable,
       validateVariant: async () => checks.validateVariant,
       countForMandateOnDay: async () => checks.count,
+      publishedElsewhereForApprovalChannel: async () => checks.publishedElsewhere,
     };
     registerReleaseCheckers(checkers);
 
@@ -839,6 +841,62 @@ describe('review module (spec 13) against MySQL 8', () => {
       });
     });
 
+    it('consume spends an approval once (valid → consumed, audited with the publication); a consumed approval fails approval_valid', async () => {
+      const original = await approvalRow(approvalId);
+      const spentId = newId('releaseApproval');
+      await tdb.db.insert(releaseApprovals).values({ ...original, id: spentId, state: 'valid', version: 0 });
+      const pubId = newId('publication');
+      // a partial target set keeps the approval valid for the remaining channels (spec 13.2 binds every target)
+      expect(await runA((tx) => reviewService.approvals.consume(spentId, tx, pubId, []))).toEqual({
+        approvalId: spentId,
+        state: 'valid',
+        version: 0,
+      });
+      const targets = ApprovalBindingV1.parse(original.binding).targets.map((t) => t.channelConnectionId);
+      expect(await runA((tx) => reviewService.approvals.consume(spentId, tx, pubId, targets))).toEqual({
+        approvalId: spentId,
+        state: 'consumed',
+        version: 1,
+      });
+      expect((await approvalRow(spentId)).state).toBe('consumed');
+      expect(
+        (await auditOf(tenantA, 'review.approval.consume')).find((a) => a.resourceId === spentId)?.metadata,
+      ).toMatchObject({ publicationId: pubId, fromState: 'valid', toState: 'consumed' });
+      // a repeat (the publishing transaction retried) changes nothing
+      expect(await runA((tx) => reviewService.approvals.consume(spentId, tx, pubId))).toEqual({
+        approvalId: spentId,
+        state: 'consumed',
+        version: 1,
+      });
+      const d = await runA(() => evaluateRelease(pubFor({ approvalId: spentId }), at));
+      expect(d).toMatchObject({ allow: false });
+      expect((d as { reasons: string[] }).reasons).toContain('approval_valid');
+      expect((await approvalRow(approvalId)).state).toBe('valid'); // the other approval is untouched
+      // single use per target: a channel that already published under the approval fails approval_valid at dispatch
+      checks.publishedElsewhere = true;
+      try {
+        const again = await runA(() => evaluateRelease(pubFor({ approvalId }), at));
+        expect((again as { reasons: string[] }).reasons).toContain('approval_valid');
+      } finally {
+        checks.publishedElsewhere = false;
+      }
+    });
+
+    it('the approval binding is validated on read: a malformed stored binding is refused, a valid one parses', async () => {
+      const original = await approvalRow(approvalId);
+      const brokenId = newId('releaseApproval');
+      await tdb.db.insert(releaseApprovals).values({
+        ...original,
+        id: brokenId,
+        binding: { v: 1 } as unknown as typeof original.binding,
+      });
+      await expect(runA((tx) => reviewService.approvals.getById(brokenId, tx))).rejects.toThrow();
+      await tdb.db.delete(releaseApprovals).where(eq(releaseApprovals.id, brokenId)); // later reads list the request's approvals
+      expect((await runA((tx) => reviewService.approvals.getById(approvalId, tx))).binding).toEqual(
+        original.binding,
+      );
+    });
+
     it('a creative edit after approval invalidates the approval eagerly (spec 11.4 hook); the request is already decided', async () => {
       const before = await approvalRow(approvalId);
       expect(before.state).toBe('valid');
@@ -875,6 +933,7 @@ describe('review module (spec 13) against MySQL 8', () => {
         channelUsable: async () => checks.channelUsable,
         validateVariant: async () => checks.validateVariant,
         countForMandateOnDay: async () => checks.count,
+        publishedElsewhereForApprovalChannel: async () => checks.publishedElsewhere,
       });
     });
   });

@@ -1,7 +1,7 @@
 # Runbook: drain and replay the outbox and dead letters
 
 **Symptom:** alert `oremedia.outbox.oldest_undispatched_age_ms` > 60 s, or `oremedia.outbox.dead_letters` > 0 (attempts ≥ 5).
-**Owner:** platform on-call. **Exercised:** dispatcher, dead-letter listing and replay verified by `packages/modules/operations/src/outbox-dispatcher.integration.test.ts` and the cross-tenant harness; not yet walked through on a live environment.
+**Owner:** platform on-call. **Exercised:** locally by `apps/worker-core/src/runbooks.integration.test.ts` ("drain and replay the outbox (7.6)"): a start refused by "Temporal" five times dead-letters the event (`attempts = 5`, `lastError` kept), the oldest-undispatched age exceeds 60 s, `operations.outbox.deadLetters` lists it for its tenant only, another tenant's `replay` is NOT_FOUND, `operations.outbox.replay` clears the error and keeps the attempts, the next pass starts it exactly once, the dead-letter list is empty and the replay is audited. Fair claiming across tenants: `outbox-dispatcher.integration.test.ts` (spec 17.4). **Needs a live environment for:** step 1 (Railway logs and redeploy), step 2 (a real Temporal connectivity failure) and the gauges on a dashboard.
 
 1. Is the dispatcher running? Check `worker-core` logs for `outbox dispatch` lines and Temporal connectivity errors. A stopped dispatcher is the common cause; restart the service (Railway → redeploy) before anything else.
 2. Is Temporal reachable? `TEMPORAL_ADDRESS`/namespace/certificate errors appear as `lastError` on the events. Fix connectivity; events resume automatically (lease-based claiming, backoff).

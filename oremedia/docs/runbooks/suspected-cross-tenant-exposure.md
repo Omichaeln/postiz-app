@@ -1,6 +1,6 @@
 # Runbook: respond to a suspected cross-tenant exposure
 
-**Severity:** sev1 until proven otherwise. **Owner:** platform on-call + security lead. **Exercised:** not yet.
+**Severity:** sev1 until proven otherwise. **Owner:** platform on-call + security lead. **Exercised:** locally by `apps/worker-core/src/runbooks.integration.test.ts` ("suspected cross-tenant exposure (7.12)"): both kill switches engaged tenant-wide under the incident's correlation id, the audit query returns exactly those engage events with actor and correlation id (step 2), and every procedure's cross-tenant fixture is re-run as the other tenant against this build with no leak and no write landing in the investigated tenant (step 3). **Needs a live environment for:** request logs by correlation id, the deployed build SHA, disabling an endpoint by flag or redeploy, tenant and regulator notification. There is no `incidents` API yet (step 6, open). The kill switches do not stop approval-path publications (see kill-switch.md).
 
 1. Contain: engage the tenant-wide kill switches for the affected tenants; if the suspect path is an API, disable the endpoint by flag or redeploy the previous build.
 2. Preserve evidence: audit events (`resourceType`, `actorId`, `correlationId`), request logs by correlation id, the exact build SHA.

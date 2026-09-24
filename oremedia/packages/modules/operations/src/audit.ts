@@ -36,6 +36,7 @@ const METADATA_ALLOWLIST = new Set([
   'path',
   'ticketRef',
   'error', // a failure's truncated detail (never a payload or credential)
+  'evidence', // a deletion/retention step's per-table counts (`table=n,...`), never row content
 ]);
 
 class AuditRepository extends TenantScopedRepository<typeof auditEvents> {

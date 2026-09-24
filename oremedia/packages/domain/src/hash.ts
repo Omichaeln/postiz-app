@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 import { canonicalJson } from './canonical-json';
 
+/** Per-tenant keyed hash (salt = HMAC(secret, tenant)); shared with the redirector through contracts. */
+export { tenantKeyedHash } from '@oremedia/contracts/visitor-assignment';
+
 /** SHA-256 hex, char(64) (spec 6.1). */
 export const sha256Hex = (input: string | Uint8Array): string =>
   createHash('sha256').update(input).digest('hex');

@@ -1,7 +1,7 @@
 # Runbook: recover rendering
 
 **Symptom:** `render_jobs` stuck in `rendering`/`failed`; metric `oremedia.render.failures` rising; p95 render duration > 15 s.
-**Owner:** platform on-call. **Exercised:** not yet (Phase 3).
+**Owner:** platform on-call. **Exercised:** locally by `apps/worker-render/src/recover-rendering.integration.test.ts` (real creative module and render activities, a scripted renderer in place of Chromium): a renderer crash fails the job with `render_failed: <detail>` and counts `oremedia.render.failures`; the retry (step 3) is a new job whose export lands under its own job key while the failed job stays untouched; a duplicate start of the finished job is `illegal_state` and changes nothing. **Needs a live environment for:** Chromium itself (no `OREMEDIA_CHROMIUM_PATH` here), the Railway logs and image rollback (steps 1 and 4), the Temporal UI check and the golden-render suite (step 5).
 
 1. Check `worker-render` health (Railway service logs, service `oremedia-worker-render`): a container that exits with
    `DATABASE_URL is required` / `TEMPORAL_ADDRESS is required` is misconfigured; `workflow bundle missing` or

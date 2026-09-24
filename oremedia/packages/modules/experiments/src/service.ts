@@ -26,7 +26,7 @@ import { brandService } from '@oremedia/module-brand';
 import { contentService } from '@oremedia/module-content';
 import { audit, featureFlag, outbox } from '@oremedia/module-operations';
 import { analyseExperiment } from './analysis';
-import { notifyExperiment } from './hooks';
+import { experimentArmLinks, notifyExperiment } from './hooks';
 import {
   ExperimentAssignmentRepository,
   ExperimentRepository,
@@ -330,6 +330,20 @@ export const experimentsService = {
       { brandId: x.brandId },
     );
     const variants = await variantsRepo.listForExperiment(x.brandId, x.id, tx);
+    // Spec 16.6: a hashed-visitor experiment gets one tracked link per arm (the arm's revision names its URL) and
+    // an entry link; the redirector assigns visitors on the entry link and records exposures on the arm links.
+    const links = experimentArmLinks();
+    let entryLink: { shortCode: string; shortUrl: string | null } | null = null;
+    if (links && x.allocationMethod === 'hashed_visitor') {
+      const arms = [];
+      for (const v of variants)
+        arms.push({
+          variantId: v.id,
+          text: (await contentService.revisions.read(v.contentRevisionId, tx)).copy.master.text,
+        });
+      const created = await links.create({ brandId: x.brandId, experimentId: x.id, arms }, tx);
+      if (created) entryLink = { shortCode: created.entryShortCode, shortUrl: created.shortUrl };
+    }
     await notifyExperiment(
       {
         kind: 'started',
@@ -343,7 +357,7 @@ export const experimentsService = {
       },
       tx,
     );
-    return { experimentId: x.id, state: toState, version: parsed.expectedVersion + 1 };
+    return { experimentId: x.id, state: toState, version: parsed.expectedVersion + 1, entryLink };
   },
 
   async stop(actor: ResolvedActor, input: z.infer<typeof ExperimentStop>, tx: Tx) {
@@ -425,10 +439,19 @@ export const experimentsService = {
         ],
         'Results are not declared before the pre-registered sample and window are reached',
       );
+    // Spec 16.6: a link experiment's exposure per arm is what the redirector recorded (distinct visitors on the
+    // arm's link); a caller-stated exposure is kept as given.
+    const links = experimentArmLinks();
+    const exposures =
+      links && x.allocationMethod === 'hashed_visitor' ? await links.exposures(x.brandId, x.id, tx) : null;
+    const observations = parsed.observations.map((o) => {
+      const exposure = exposures?.get(o.variantId);
+      return o.exposure === undefined && exposure !== undefined ? { ...o, exposure } : o;
+    });
     const outcome = analyseExperiment(
       design,
       variants.map((v) => v.id),
-      parsed.observations,
+      observations,
     );
     const resultId = newId('experimentResult');
     await resultsRepo.create(

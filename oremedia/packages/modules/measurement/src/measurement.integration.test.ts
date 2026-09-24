@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { ConflictError, NotFoundError, PolicyDeniedError } from '@oremedia/contracts/errors';
 import type { ResolvedActor } from '@oremedia/contracts/policy';
@@ -42,6 +42,7 @@ import {
   configureAuthorHashing,
   configureLinkTracking,
   registerBrandChecker,
+  registerCommentClassifier,
   registerCommentSink,
   resetCommentSinks,
   type IngestedComment,
@@ -125,7 +126,10 @@ class MeasuringFixture extends FixtureProviderAdapter {
       },
     ];
   }
+  /** Called as the adapter's network call starts (the transaction probe of the comment test). */
+  onFetchComments: (() => void) | null = null;
   async fetchComments(req: { cursor?: string }): Promise<CommentPage> {
+    this.onFetchComments?.();
     const page = Number(req.cursor ?? '0');
     return this.commentPages[page] ?? { items: [] };
   }
@@ -618,6 +622,75 @@ describe('measurement module (spec 15, 16.2, 16.5) against MySQL 8', () => {
         ),
       ).rejects.toBeInstanceOf(NotFoundError);
     });
+    it('fetches the page and classifies new comments with no transaction open; a retry makes neither write nor model call', async () => {
+      // Count the transactions open on the pool while the adapter and the classifier (a model call) run.
+      let open = 0;
+      const realTransaction = tdb.db.transaction.bind(tdb.db);
+      const spy = vi.spyOn(tdb.db, 'transaction').mockImplementation(((
+        fn: (tx: Tx) => Promise<unknown>,
+        config?: Parameters<typeof realTransaction>[1],
+      ) =>
+        realTransaction(async (tx) => {
+          open += 1;
+          try {
+            return await fn(tx);
+          } finally {
+            open -= 1;
+          }
+        }, config)) as typeof tdb.db.transaction);
+      const openAtFetch: number[] = [];
+      const openAtClassify: number[] = [];
+      fixture.onFetchComments = () => openAtFetch.push(open);
+      registerCommentClassifier(async ({ brandId, text }) => {
+        openAtClassify.push(open);
+        expect(brandId).toBe(brandA);
+        return text.includes('?') ? 'question' : 'praise';
+      });
+      try {
+        const pub = await publishedPublication(tenantA, brandA, connA);
+        fixture.commentPages = [
+          {
+            items: [
+              {
+                remoteCommentId: 'c10',
+                authorHandle: '@carol',
+                text: 'Does it ship to Harare?',
+                createdAt: T0.toISOString(),
+              },
+              { remoteCommentId: 'c11', authorHandle: '@dan', text: 'Love it', createdAt: T0.toISOString() },
+            ],
+          },
+        ];
+        const sinkBefore = sinkCalls.length;
+        const first = await inTenant(tenantA, () =>
+          ingestion.pullComments({ ...wfInput(pub), pullIndex: 0, since: null, cursor: null }),
+        );
+        expect(first).toEqual({ ingested: 2, duplicates: 0, nextCursor: null });
+        expect(openAtFetch).toEqual([0]);
+        expect(openAtClassify).toEqual([0, 0]);
+        const again = await inTenant(tenantA, () =>
+          ingestion.pullComments({ ...wfInput(pub), pullIndex: 1, since: null, cursor: null }),
+        );
+        expect(again).toEqual({ ingested: 0, duplicates: 2, nextCursor: null });
+        expect(openAtFetch).toEqual([0, 0]);
+        expect(openAtClassify).toHaveLength(2); // the stored comments are not classified again
+        const stored = await tdb.db
+          .select()
+          .from(messages)
+          .where(and(eq(messages.tenantId, tenantA), eq(messages.authorHandle, '@carol')));
+        expect(stored.map((m) => m.classification)).toEqual(['question']);
+        expect(
+          sinkCalls
+            .slice(sinkBefore)
+            .flat()
+            .map((c) => c.classification),
+        ).toEqual(['question', 'praise']);
+      } finally {
+        spy.mockRestore();
+        fixture.onFetchComments = null;
+        registerCommentClassifier(null);
+      }
+    });
     it('the quality composite uses brand weights, drills down to components and names what is unavailable', async () => {
       now = new Date(T0.getTime() + 25 * HOUR);
       const window = {
@@ -752,6 +825,76 @@ describe('measurement module (spec 15, 16.2, 16.5) against MySQL 8', () => {
       await expect(
         inTenant(tenantB, () => linkService.list(B, { brandId: brandA, variantId, page: { limit: 50 } })),
       ).rejects.toBeInstanceOf(NotFoundError);
+    });
+    it('a link experiment gets an entry link and one link per arm; exposures are distinct visitors per arm', async () => {
+      const experimentId = newId('experiment');
+      const [armA, armB] = [newId('experimentVariant'), newId('experimentVariant')];
+      const arms = [
+        { variantId: armA, text: 'Control: see https://brand.example/a.' },
+        { variantId: armB, text: 'Treatment https://brand.example/b' },
+      ];
+      const created = await run(tenantA, (tx) =>
+        linkService.trackExperimentArms({ brandId: brandA, experimentId, arms }, tx),
+      );
+      expect(created?.shortUrl).toBe(`https://ore.link/${created?.entryShortCode}`);
+      const rows = await tdb.db
+        .select()
+        .from(trackedLinks)
+        .where(eq(trackedLinks.experimentId, experimentId));
+      expect(rows).toHaveLength(3);
+      const entry = rows.find((r) => r.shortCode === created?.entryShortCode)!;
+      expect(entry).toMatchObject({ experimentVariantId: null, variantId: null, publicationId: null });
+      expect(entry.destination).toMatch(/^https:\/\/brand\.example\/a\?utm_source=oremedia/);
+      const armRows = new Map(
+        rows.filter((r) => r.experimentVariantId).map((r) => [r.experimentVariantId!, r]),
+      );
+      expect(armRows.get(armA)?.destination).toMatch(/^https:\/\/brand\.example\/a\?/);
+      expect(armRows.get(armB)?.destination).toMatch(/^https:\/\/brand\.example\/b\?/);
+      expect(armRows.get(armB)?.utm).toMatchObject({ utm_campaign: experimentId, utm_content: armB });
+      // A repeat (a retried start) returns the same entry and creates nothing.
+      const again = await run(tenantA, (tx) =>
+        linkService.trackExperimentArms({ brandId: brandA, experimentId, arms }, tx),
+      );
+      expect(again?.entryShortCode).toBe(created?.entryShortCode);
+      expect(
+        await tdb.db.select().from(trackedLinks).where(eq(trackedLinks.experimentId, experimentId)),
+      ).toHaveLength(3);
+      // An arm without a URL: no links at all.
+      expect(
+        await run(tenantA, (tx) =>
+          linkService.trackExperimentArms(
+            {
+              brandId: brandA,
+              experimentId: newId('experiment'),
+              arms: [arms[0]!, { variantId: armB, text: 'no link here' }],
+            },
+            tx,
+          ),
+        ),
+      ).toBeNull();
+      // The redirector records each click on the arm's link: 3 clicks by 2 visitors on A, 1 on B.
+      const click = (trackedLinkId: string, visitorHash: string) => ({
+        id: newId('trackedLink').replace('tl_', 'lc_'),
+        tenantId: tenantA,
+        brandId: brandA,
+        trackedLinkId,
+        visitorHash,
+        occurredAt: T0,
+      });
+      await tdb.db
+        .insert(linkClicks)
+        .values([
+          click(armRows.get(armA)!.id, 'v'.repeat(64)),
+          click(armRows.get(armA)!.id, 'v'.repeat(64)),
+          click(armRows.get(armA)!.id, 'w'.repeat(64)),
+          click(armRows.get(armB)!.id, 'x'.repeat(64)),
+        ]);
+      const exposures = await run(tenantA, (tx) => linkService.experimentExposures(brandA, experimentId, tx));
+      expect(Object.fromEntries(exposures)).toEqual({ [armA]: 2, [armB]: 1 });
+      // Another tenant sees none of it.
+      await expect(
+        run(tenantB, (tx) => linkService.experimentExposures(brandA, experimentId, tx)),
+      ).resolves.toEqual(new Map());
     });
     it('without a redirect domain the text is left as written', async () => {
       configureLinkTracking({ redirectBaseUrl: null });

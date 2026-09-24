@@ -495,7 +495,7 @@ export class LinkedInPageAdapter implements ProviderAdapter {
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: formEncode(params),
       },
-      { mutation: false },
+      { mutation: true }, // effecting: a code is spent and a refresh issues new tokens
     );
     return readResponse(res);
   }
@@ -685,7 +685,12 @@ export class LinkedInPageAdapter implements ProviderAdapter {
     return { outcome: 'accepted', remotePostId: id, remoteUrl: postUrl(id) };
   }
 
-  /** Find-by-author scan, newest first; `covered` when the page reached posts older than the attempt or ran short. */
+  /**
+   * Find-by-author scan sorted by LAST_MODIFIED, newest first. `covered` when the list ran short or a post last
+   * modified before the attempt window was reached: the sort key is monotone and a post created in the window was
+   * last modified in it too, so nothing after that point can match. createdAt proves nothing under this sort (an
+   * old post edited after the attempt sorts first).
+   */
   private async scanRecent(
     io: ProviderIO,
     token: string,
@@ -694,6 +699,7 @@ export class LinkedInPageAdapter implements ProviderAdapter {
   ): Promise<{ posts: RecentPost[]; covered: boolean; reason?: string }> {
     const posts: RecentPost[] = [];
     const notBefore = since.getTime() - 5 * 60_000;
+    let reachedOlder = false;
     for (let page = 0; page < SCAN_PAGES; page += 1) {
       const res = await this.rest(
         io,
@@ -712,12 +718,10 @@ export class LinkedInPageAdapter implements ProviderAdapter {
           createdAt: num(get(el, 'createdAt')),
           url: postUrl(id),
         });
+        const lastModifiedAt = num(get(el, 'lastModifiedAt'));
+        if (lastModifiedAt !== undefined && lastModifiedAt < notBefore) reachedOlder = true;
       }
-      if (
-        elements.length < SCAN_PAGE ||
-        posts.some((p) => p.createdAt !== undefined && p.createdAt < notBefore)
-      )
-        return { posts, covered: true };
+      if (elements.length < SCAN_PAGE || reachedOlder) return { posts, covered: true };
     }
     return { posts, covered: false, reason: 'scan_pages_exhausted' };
   }

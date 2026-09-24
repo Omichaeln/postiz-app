@@ -9,7 +9,7 @@ import {
   type NativeConnectionOptions,
   type WorkerOptions,
 } from '@temporalio/worker';
-import type { Client } from '@temporalio/client';
+import { WorkflowNotFoundError, type Client } from '@temporalio/client';
 import {
   createBrandChangeImpactActivities,
   createPublicationSweepActivities,
@@ -31,6 +31,7 @@ import { logger } from '@oremedia/observability';
 import { providerRegistry } from '@oremedia/providers';
 import { createBrandChangeImpactRuntime } from './brand-change-runtime';
 import { intelligenceActivities } from './intelligence-worker';
+import { operationsActivities } from './operations-worker';
 import type { TemporalConfig } from './temporal';
 
 /**
@@ -93,6 +94,8 @@ export async function startPublishingWorkers(
       ...createBrandChangeImpactActivities(createBrandChangeImpactRuntime()),
       // brandAnalystWorkflowV1 / brandAnalystSweepWorkflowV1 / baselineComparisonWorkflowV1 (spec 16.3, 16.8)
       ...intelligenceActivities(),
+      // deletionRequestWorkflowV1 / retentionSweepWorkflowV1 (spec 17.5)
+      ...operationsActivities(),
     },
     maxConcurrentActivityTaskExecutions: Number(env['CORE_CONCURRENCY'] ?? 16),
   });
@@ -134,15 +137,27 @@ export async function ensureSweeperRunning(client: Client): Promise<void> {
   });
 }
 
-/** The sweeper's probe: is a workflow execution running right now? (unknown id → false). */
+/**
+ * The sweeper's probe: is a workflow execution running right now? An unknown id is not running; any other failure
+ * (Temporal unreachable, timeout) is treated as running, so an outage never makes the sweeper declare worker loss.
+ */
 export class TemporalWorkflowProbe implements WorkflowProbe {
-  constructor(private readonly client: Client) {}
+  constructor(private readonly client: Pick<Client, 'workflow'>) {}
   async isRunning(workflowId: string): Promise<boolean> {
     try {
       const d = await this.client.workflow.getHandle(workflowId).describe();
       return d.status.name === 'RUNNING';
-    } catch {
-      return false;
+    } catch (err) {
+      if (err instanceof WorkflowNotFoundError) return false;
+      logger().warn(
+        {
+          workflowId,
+          errorName: (err as Error)?.name,
+          errorCode: (err as { code?: string | number })?.code,
+        },
+        'workflow probe failed; treating the workflow as running',
+      );
+      return true;
     }
   }
 }

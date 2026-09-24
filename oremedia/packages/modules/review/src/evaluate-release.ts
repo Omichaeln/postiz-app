@@ -66,6 +66,13 @@ export interface ReleaseCheckers {
   channelUsable(channelConnectionId: string, tx?: Tx): Promise<boolean>;
   validateVariant(channelVariantId: string, tx?: Tx): Promise<boolean>;
   countForMandateOnDay(mandateId: string, at: Date, tx?: Tx): Promise<number>;
+  /** Whether another publication already published on this channel under this approval (single use per target). */
+  publishedElsewhereForApprovalChannel(
+    approvalId: string,
+    channelConnectionId: string,
+    exceptPublicationId: string,
+    tx?: Tx,
+  ): Promise<boolean>;
 }
 const unregisteredCheckers: ReleaseCheckers = {
   channelUsable: async () => {
@@ -75,6 +82,9 @@ const unregisteredCheckers: ReleaseCheckers = {
     throw new Error('release checkers not registered (composition root must call registerReleaseCheckers)');
   },
   countForMandateOnDay: async () => {
+    throw new Error('release checkers not registered (composition root must call registerReleaseCheckers)');
+  },
+  publishedElsewhereForApprovalChannel: async () => {
     throw new Error('release checkers not registered (composition root must call registerReleaseCheckers)');
   },
 };
@@ -352,7 +362,13 @@ export async function evaluateRelease(
 
   if (pub.authority === 'approval') {
     const apr = live.approval;
-    checks.push(check('approval_valid', apr?.state === 'valid'));
+    checks.push(
+      check(
+        'approval_valid',
+        apr?.state === 'valid' &&
+          !(await checkers.publishedElsewhereForApprovalChannel(apr.id, pub.channelConnectionId, pub.id, tx)),
+      ),
+    );
     checks.push(check('approval_matches', apr !== null && apr.bindingHash === live.bindingHash));
     checks.push(
       check(

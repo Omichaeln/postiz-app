@@ -199,6 +199,39 @@ export class PublicationRepository extends BrandScopedRepository<typeof publicat
       .limit(200)
       .for('update');
   }
+  /** Channels already published under one approval (spec 13.1: the approval is spent once every target is out). */
+  async listPublishedChannelsForApproval(approvalId: string, tx?: Tx): Promise<string[]> {
+    const rows = await this.conn(tx)
+      .selectDistinct({ channelConnectionId: publications.channelConnectionId })
+      .from(publications)
+      .where(
+        this.scope(and(eq(publications.approvalId, approvalId), eq(publications.state, 'published')) as SQL),
+      );
+    return rows.map((r) => r.channelConnectionId);
+  }
+  /** Whether another publication already published on this channel under this approval (single use per target). */
+  async publishedElsewhereForApprovalChannel(
+    approvalId: string,
+    channelConnectionId: string,
+    exceptPublicationId: string,
+    tx?: Tx,
+  ): Promise<boolean> {
+    const rows = await this.conn(tx)
+      .select({ id: publications.id })
+      .from(publications)
+      .where(
+        this.scope(
+          and(
+            eq(publications.approvalId, approvalId),
+            eq(publications.channelConnectionId, channelConnectionId),
+            eq(publications.state, 'published'),
+            ne(publications.id, exceptPublicationId),
+          ) as SQL,
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
   /** The scheduled publications of one channel (disconnect holds them, spec 14.7). */
   async listScheduledForChannel(channelConnectionId: string, tx: Tx) {
     return tx

@@ -58,7 +58,7 @@ export function rankingConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Rank
 }
 
 const COST = { low: 0, medium: 1, high: 2 } as const;
-const VERDICT_SCORE = { supported: 1, inconclusive: 0.5, not_supported: 0 } as const;
+export const VERDICT_SCORE = { supported: 1, inconclusive: 0.5, not_supported: 0 } as const;
 
 /** Spec 16.1: alignment with the brand objective decides first; a like-count metric never outranks the objective. */
 export function objectiveAlignment(item: Rankable, objective: RankingObjective): number {
@@ -199,5 +199,3 @@ export function compareRankings(
     selected: beaten ? 'learned' : 'baseline',
   };
 }
-
-export const verdictScore = (verdict: keyof typeof VERDICT_SCORE): number => VERDICT_SCORE[verdict];

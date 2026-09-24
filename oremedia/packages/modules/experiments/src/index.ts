@@ -5,6 +5,8 @@ export { analyseExperiment, DIRECTIONAL_LABEL, type AnalysisOutcome } from './an
 export {
   registerExperimentListener,
   resetExperimentListeners,
+  registerExperimentArmLinks,
+  type ExperimentArmLinks,
   type ExperimentListener,
   type ExperimentMilestone,
 } from './hooks';

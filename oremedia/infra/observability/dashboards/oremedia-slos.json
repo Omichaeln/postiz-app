@@ -1,0 +1,1442 @@
+{
+  "title": "Oremedia SLOs (spec 17.2)",
+  "uid": "oremedia-slos",
+  "description": "Up / fast / erroring / keeping up per journey. Generated from the metric names in packages/observability/src/telemetry.ts; see docs/operations/slos.md. Thresholds are spec 17.2 placeholders until the pilot measures real traffic.",
+  "tags": ["oremedia", "slo"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Metrics"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Schedule: up / fast / erroring / keeping up",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "[up] Schedule calls per minute",
+      "description": "up: oremedia.http.requests. Runbook: docs/runbooks/deploy-railway.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "schedule",
+      "oremediaQuestion": "up",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(oremedia_http_requests_total{path=\"/trpc/publishing.publications.schedule\"}[5m])) * 60",
+          "oremediaMetric": "oremedia.http.requests"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "[fast] Schedule p95 latency",
+      "description": "fast: oremedia.http.duration_ms. Threshold 400 (ms), spec 17.2 placeholder.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 400
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "schedule",
+      "oremediaQuestion": "fast",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(oremedia_http_duration_ms_bucket{path=\"/trpc/publishing.publications.schedule\"}[5m])))",
+          "oremediaMetric": "oremedia.http.duration_ms"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "[erroring] Schedule 5xx ratio",
+      "description": "erroring: oremedia.http.requests. Threshold 0.001 (percentunit), spec 17.2 placeholder.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.001
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "schedule",
+      "oremediaQuestion": "erroring",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(oremedia_http_requests_total{path=\"/trpc/publishing.publications.schedule\",status=~\"5..\"}[5m])) / sum(rate(oremedia_http_requests_total{path=\"/trpc/publishing.publications.schedule\"}[5m]))",
+          "oremediaMetric": "oremedia.http.requests"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "[keeping up] Outbox oldest undispatched age",
+      "description": "keeping up: oremedia.outbox.oldest_undispatched_age_ms. Threshold 60000 (ms), spec 17.2 placeholder. Runbook: docs/runbooks/outbox-drain-and-replay.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 60000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "schedule",
+      "oremediaQuestion": "keeping_up",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(oremedia_outbox_oldest_undispatched_age_ms)",
+          "oremediaMetric": "oremedia.outbox.oldest_undispatched_age_ms"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Dispatch: up / fast / erroring / keeping up",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "[up] Outbox events dispatched per minute",
+      "description": "up: oremedia.outbox.dispatched. Runbook: docs/runbooks/outbox-drain-and-replay.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "dispatch",
+      "oremediaQuestion": "up",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(oremedia_outbox_dispatched_total[5m])) * 60",
+          "oremediaMetric": "oremedia.outbox.dispatched"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "[fast] Dispatch lateness p99 by provider",
+      "description": "fast: oremedia.publish.dispatch_lateness_ms. Threshold 60000 (ms), spec 17.2 placeholder. Runbook: docs/runbooks/outbox-drain-and-replay.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 60000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "dispatch",
+      "oremediaQuestion": "fast",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le, providerKey) (rate(oremedia_publish_dispatch_lateness_ms_bucket[5m])))",
+          "oremediaMetric": "oremedia.publish.dispatch_lateness_ms"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "[erroring] Publication outcomes by outcome",
+      "description": "erroring: oremedia.publish.outcomes. Runbook: docs/runbooks/reconcile-outcome-unknown.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "dispatch",
+      "oremediaQuestion": "erroring",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (increase(oremedia_publish_outcomes_total[1h]))",
+          "oremediaMetric": "oremedia.publish.outcomes"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "[erroring] outcome_unknown per hour",
+      "description": "erroring: oremedia.publish.outcome_unknown. Threshold 0 (short), spec 17.2 placeholder. Runbook: docs/runbooks/reconcile-outcome-unknown.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "dispatch",
+      "oremediaQuestion": "erroring",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(oremedia_publish_outcome_unknown_total[1h]))",
+          "oremediaMetric": "oremedia.publish.outcome_unknown"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "[erroring] Outbox dispatch failures",
+      "description": "erroring: oremedia.outbox.dispatch_failures. Runbook: docs/runbooks/outbox-drain-and-replay.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "dispatch",
+      "oremediaQuestion": "erroring",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (eventType) (rate(oremedia_outbox_dispatch_failures_total[5m]))",
+          "oremediaMetric": "oremedia.outbox.dispatch_failures"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "[keeping up] Outbox dispatch lag p99",
+      "description": "keeping up: oremedia.outbox.dispatch_lag_ms. Threshold 60000 (ms), spec 17.2 placeholder. Runbook: docs/runbooks/outbox-drain-and-replay.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 60000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "dispatch",
+      "oremediaQuestion": "keeping_up",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(oremedia_outbox_dispatch_lag_ms_bucket[5m])))",
+          "oremediaMetric": "oremedia.outbox.dispatch_lag_ms"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "[keeping up] Outbox dead letters",
+      "description": "keeping up: oremedia.outbox.dead_letters. Threshold 0 (short), spec 17.2 placeholder. Runbook: docs/runbooks/outbox-drain-and-replay.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "dispatch",
+      "oremediaQuestion": "keeping_up",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(oremedia_outbox_dead_letters)",
+          "oremediaMetric": "oremedia.outbox.dead_letters"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "Render: up / fast / erroring / keeping up",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      }
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "[up] Render jobs finished per minute",
+      "description": "up: oremedia.render.jobs. Runbook: docs/runbooks/recover-rendering.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 27
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "render",
+      "oremediaQuestion": "up",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(oremedia_render_jobs_total[5m])) * 60",
+          "oremediaMetric": "oremedia.render.jobs"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "[fast] Render p95 duration per page by format",
+      "description": "fast: oremedia.render.duration_ms. Threshold 15000 (ms), spec 17.2 placeholder. Runbook: docs/runbooks/recover-rendering.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 27
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 15000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "render",
+      "oremediaQuestion": "fast",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, formatKey) (rate(oremedia_render_duration_ms_bucket[15m])))",
+          "oremediaMetric": "oremedia.render.duration_ms"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "[erroring] Render failure ratio",
+      "description": "erroring: oremedia.render.jobs. Threshold 0.005 (percentunit), spec 17.2 placeholder. Runbook: docs/runbooks/recover-rendering.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 27
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.005
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "render",
+      "oremediaQuestion": "erroring",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(oremedia_render_jobs_total{result=\"failed\"}[1h])) / sum(rate(oremedia_render_jobs_total[1h]))",
+          "oremediaMetric": "oremedia.render.jobs"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "[erroring] Render failures by reason",
+      "description": "erroring: oremedia.render.failures. Runbook: docs/runbooks/recover-rendering.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 27
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "render",
+      "oremediaQuestion": "erroring",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (reason) (increase(oremedia_render_failures_total[1h]))",
+          "oremediaMetric": "oremedia.render.failures"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "type": "timeseries",
+      "title": "[keeping up] Render start lag p95",
+      "description": "keeping up: oremedia.render.start_lag_ms. Threshold 30000 (ms), placeholder until the pilot sets it. Runbook: docs/runbooks/recover-rendering.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 35
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 30000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "render",
+      "oremediaQuestion": "keeping_up",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(oremedia_render_start_lag_ms_bucket[15m])))",
+          "oremediaMetric": "oremedia.render.start_lag_ms"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "row",
+      "title": "Agent run: up / fast / erroring / keeping up",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      }
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "[up] Agent runs finished per hour",
+      "description": "up: oremedia.agents.runs. Runbook: docs/runbooks/kill-switch.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 44
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "agent_run",
+      "oremediaQuestion": "up",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (state) (increase(oremedia_agents_runs_total[1h]))",
+          "oremediaMetric": "oremedia.agents.runs"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "[fast] Agent run p95 duration by task",
+      "description": "fast: oremedia.agents.run_duration_ms. Threshold 1800000 (ms), spec 17.2 placeholder.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 44
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1800000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "agent_run",
+      "oremediaQuestion": "fast",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, taskKind) (rate(oremedia_agents_run_duration_ms_bucket[1h])))",
+          "oremediaMetric": "oremedia.agents.run_duration_ms"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "[erroring] Agent runs failing with a system error",
+      "description": "erroring: oremedia.agents.runs. Threshold 0.01 (percentunit), spec 17.2 placeholder. Runbook: docs/runbooks/kill-switch.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 44
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "agent_run",
+      "oremediaQuestion": "erroring",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(oremedia_agents_runs_total{state=\"failed\"}[1h])) / sum(rate(oremedia_agents_runs_total[1h]))",
+          "oremediaMetric": "oremedia.agents.runs"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "[cost] Agent run cost per hour (micro-units)",
+      "description": "cost: oremedia.agents.run_cost_micros.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 44
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "agent_run",
+      "oremediaQuestion": "cost",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (taskKind) (increase(oremedia_agents_run_cost_micros_sum[1h]))",
+          "oremediaMetric": "oremedia.agents.run_cost_micros"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "[cost] Spend vs reservation drift",
+      "description": "cost: oremedia.agents.spend_vs_reservation_drift_micros. Threshold 0 (short), spec 17.2 placeholder. Runbook: docs/runbooks/kill-switch.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "agent_run",
+      "oremediaQuestion": "cost",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max_over_time((oremedia_agents_spend_vs_reservation_drift_micros_sum)[1h:])",
+          "oremediaMetric": "oremedia.agents.spend_vs_reservation_drift_micros"
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "type": "timeseries",
+      "title": "[keeping up] Agent run start lag p95 by task",
+      "description": "keeping up: oremedia.agents.run_start_lag_ms. Threshold 60000 (ms), placeholder until the pilot sets it. Runbook: docs/runbooks/kill-switch.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 60000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "agent_run",
+      "oremediaQuestion": "keeping_up",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, taskKind) (rate(oremedia_agents_run_start_lag_ms_bucket[1h])))",
+          "oremediaMetric": "oremedia.agents.run_start_lag_ms"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "type": "row",
+      "title": "Ingest: up / fast / erroring / keeping up",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      }
+    },
+    {
+      "id": 26,
+      "type": "timeseries",
+      "title": "[up] Metric pulls per hour",
+      "description": "up: oremedia.measurement.ingest_lag_ms. Runbook: docs/runbooks/reconnect-a-channel.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 61
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "ingest",
+      "oremediaQuestion": "up",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(oremedia_measurement_ingest_lag_ms_count[1h]))",
+          "oremediaMetric": "oremedia.measurement.ingest_lag_ms"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "type": "timeseries",
+      "title": "[fast] Ingest lag p95",
+      "description": "fast: oremedia.measurement.ingest_lag_ms. Threshold 7200000 (ms), spec 17.2 placeholder.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 61
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 7200000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "ingest",
+      "oremediaQuestion": "fast",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(oremedia_measurement_ingest_lag_ms_bucket[1h])))",
+          "oremediaMetric": "oremedia.measurement.ingest_lag_ms"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "type": "timeseries",
+      "title": "[erroring] Provider rate-limit hits",
+      "description": "erroring: oremedia.providers.rate_limit_hits. Runbook: docs/runbooks/reconnect-a-channel.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 61
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "ingest",
+      "oremediaQuestion": "erroring",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (providerKey) (rate(oremedia_providers_rate_limit_hits_total[15m]))",
+          "oremediaMetric": "oremedia.providers.rate_limit_hits"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "type": "timeseries",
+      "title": "[erroring] Token refresh failures and reconnects",
+      "description": "erroring: oremedia.channels.token_refresh_failures. Runbook: docs/runbooks/reconnect-a-channel.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 61
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "ingest",
+      "oremediaQuestion": "erroring",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (providerKey, reason) (increase(oremedia_channels_token_refresh_failures_total[1h]))",
+          "oremediaMetric": "oremedia.channels.token_refresh_failures"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "[erroring] Connections needing reconnect",
+      "description": "erroring: oremedia.channels.reconnect_needed. Threshold 0 (short), spec 17.2 placeholder. Runbook: docs/runbooks/reconnect-a-channel.md",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 69
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "ingest",
+      "oremediaQuestion": "erroring",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (providerKey) (increase(oremedia_channels_reconnect_needed_total[1h]))",
+          "oremediaMetric": "oremedia.channels.reconnect_needed"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "[keeping up] Ingest lag p99",
+      "description": "keeping up: oremedia.measurement.ingest_lag_ms. Threshold 7200000 (ms), spec 17.2 placeholder.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 69
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 7200000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "oremediaJourney": "ingest",
+      "oremediaQuestion": "keeping_up",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(oremedia_measurement_ingest_lag_ms_bucket[1h])))",
+          "oremediaMetric": "oremedia.measurement.ingest_lag_ms"
+        }
+      ]
+    }
+  ]
+}

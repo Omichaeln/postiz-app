@@ -31,3 +31,4 @@ export {
   createAnalystSweepActivities,
   createBaselineComparisonActivities,
 } from './intelligence';
+export { createDeletionActivities, createRetentionActivities, RETENTION_ACTOR } from './operations';

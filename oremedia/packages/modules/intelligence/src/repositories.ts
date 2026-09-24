@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, lte, type SQL } from 'drizzle-orm';
 import { NotFoundError } from '@oremedia/contracts/errors';
 import type { Page, PageRequest } from '@oremedia/contracts/pagination';
 import { BrandScopedRepository, type Tx } from '@oremedia/db';
@@ -75,6 +75,30 @@ export class InsightRepository extends BrandScopedRepository<typeof insights> {
       .where(this.brandScope(brandId, inArray(insights.id, [...ids])))
       .orderBy(asc(insights.id));
   }
+  /** Insights of the given kinds written for exactly this period (the analyst's retry check, spec 16.3). */
+  async listForPeriod(
+    brandId: string,
+    kinds: readonly InsightKind[],
+    periodStart: Date,
+    periodEnd: Date,
+    tx?: Tx,
+  ) {
+    return this.conn(tx)
+      .select()
+      .from(insights)
+      .where(
+        this.brandScope(
+          brandId,
+          and(
+            inArray(insights.kind, [...kinds]),
+            eq(insights.periodStart, periodStart),
+            eq(insights.periodEnd, periodEnd),
+          ) as SQL,
+        ),
+      )
+      .orderBy(asc(insights.id))
+      .limit(200);
+  }
   async listForRun(brandId: string, agentRunId: string, tx?: Tx) {
     return this.conn(tx)
       .select()
@@ -144,6 +168,23 @@ export class RecommendationRepository extends BrandScopedRepository<typeof recom
       .select()
       .from(recommendations)
       .where(this.brandScope(brandId, inArray(recommendations.state, ['accepted', 'executed', 'dismissed'])))
+      .orderBy(desc(recommendations.id))
+      .limit(500);
+  }
+  /** Recommendations decided before a moment: the history a comparison of a later period may learn from. */
+  async listDecidedBefore(brandId: string, before: Date, tx?: Tx) {
+    return this.conn(tx)
+      .select()
+      .from(recommendations)
+      .where(
+        this.brandScope(
+          brandId,
+          and(
+            inArray(recommendations.state, ['accepted', 'executed', 'dismissed']),
+            lt(recommendations.updatedAt, before),
+          ) as SQL,
+        ),
+      )
       .orderBy(desc(recommendations.id))
       .limit(500);
   }

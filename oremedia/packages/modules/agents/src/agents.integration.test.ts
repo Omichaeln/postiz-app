@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import type * as Observability from '@oremedia/observability';
 import { and, eq } from 'drizzle-orm';
 import { emptyBrandSystemDocument, type BrandSystemDocumentV1 } from '@oremedia/contracts/brand';
 import type { CreativeDocumentV1 } from '@oremedia/contracts/creative';
@@ -33,6 +34,12 @@ import { registerAgentOutboxRoutes } from './outbox-routes';
 import { createAgentRunRuntime } from './runtime';
 import { agentsService, configureAgentModel } from './service';
 import { MemoryTranscriptStore } from './transcripts';
+import { METRIC, count, record } from '@oremedia/observability';
+
+vi.mock('@oremedia/observability', async (importOriginal) => {
+  const actual = await importOriginal<typeof Observability>();
+  return { ...actual, count: vi.fn(actual.count), record: vi.fn(actual.record) };
+});
 
 const USER = 'usr_agents_test';
 const ctx = (
@@ -569,6 +576,27 @@ describe('agents module (spec 12) against MySQL 8', () => {
         const finished = await runtime.finishRun({ ...input, state: 'completed' });
         expect(finished.state).toBe('completed');
         expect(finished.costMicros).toBeGreaterThan(0);
+        // Spec 17.2 agent-run journey metrics (docs/operations/slos.md): terminal state, duration and cost.
+        expect(vi.mocked(count)).toHaveBeenCalledWith(
+          METRIC.agentRuns,
+          1,
+          expect.objectContaining({ state: 'completed' }),
+        );
+        expect(vi.mocked(record)).toHaveBeenCalledWith(
+          METRIC.agentRunCostMicros,
+          finished.costMicros,
+          expect.any(Object),
+        );
+        expect(vi.mocked(record)).toHaveBeenCalledWith(
+          METRIC.agentRunDurationMs,
+          expect.any(Number),
+          expect.any(Object),
+        );
+        expect(vi.mocked(record)).toHaveBeenCalledWith(
+          METRIC.agentRunStartLagMs,
+          expect.any(Number),
+          expect.any(Object),
+        );
         await runtime.settleBudget(input);
         expect((await runtime.finishRun({ ...input, state: 'failed' })).state).toBe('completed'); // terminal: idempotent
       });

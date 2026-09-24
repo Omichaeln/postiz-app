@@ -16,3 +16,5 @@ export { metricCollectionWorkflowV1 } from './metric-collection.workflow.v1';
 export { commentIngestionWorkflowV1 } from './comment-ingestion.workflow.v1';
 export { brandAnalystWorkflowV1, brandAnalystSweepWorkflowV1 } from './brand-analyst.workflow.v1';
 export { baselineComparisonWorkflowV1 } from './baseline-comparison.workflow.v1';
+export { deletionRequestWorkflowV1 } from './deletion-request.workflow.v1';
+export { retentionSweepWorkflowV1 } from './retention-sweep.workflow.v1';

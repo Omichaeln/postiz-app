@@ -1,8 +1,9 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import express from 'express';
+import { assignVariant, visitorHash } from '@oremedia/contracts/visitor-assignment';
 import { logger } from '@oremedia/observability';
-import { type ClickBuffer, visitorHash } from './click-buffer';
-import type { LinkResolver } from './links';
+import type { ClickBuffer } from './click-buffer';
+import type { LinkResolver, ResolvedArm, ResolvedLink } from './links';
 
 /** Prefixed id with a 26-character Crockford body (an app may not import the domain package's generator). */
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -12,12 +13,32 @@ const newClickId = (): string => `lc_${[...randomBytes(26)].map((b) => CROCKFORD
 const SHORT_CODE = /^[A-Za-z0-9_-]{4,16}$/;
 
 export interface RedirectorOptions {
-  resolver: LinkResolver;
+  resolver: Pick<LinkResolver, 'resolve'>;
   clicks: ClickBuffer;
   /** Keyed hashing secret (Appendix A: LINK_HASH_SECRET_REF); rotating it changes every visitor id. */
   hashSecret: string;
   /** Trust X-Forwarded-For from the platform's proxy (Railway) for the visitor hash. */
   trustProxy?: boolean;
+}
+
+/**
+ * Spec 16.6: where the visitor goes and which link the click counts against. The entry link of a running
+ * randomised experiment assigns the visitor (hashed per tenant and day) with the shared pure function and sends
+ * them to the arm's destination; the click is recorded on the arm's link, which carries the experiment variant.
+ */
+export function redirectTarget(
+  link: ResolvedLink,
+  hash: string,
+): { trackedLinkId: string; destination: string; variantId: string | null } {
+  if (!link.experimentId || !link.arms?.length)
+    return { trackedLinkId: link.id, destination: link.destination, variantId: null };
+  const variantId = assignVariant(
+    hash,
+    link.experimentId,
+    link.arms.map((a) => ({ id: a.variantId, allocationWeight: a.allocationWeight })),
+  );
+  const arm = link.arms.find((a) => a.variantId === variantId) ?? (link.arms[0] as ResolvedArm);
+  return { trackedLinkId: arm.trackedLinkId, destination: arm.destination, variantId: arm.variantId };
 }
 
 /**
@@ -55,16 +76,23 @@ export function createRedirector(opts: RedirectorOptions): express.Express {
       return;
     }
     const now = new Date();
+    const hash = visitorHash(
+      opts.hashSecret,
+      link.tenantId,
+      `${req.ip ?? ''}|${req.header('user-agent') ?? ''}`,
+      now,
+    );
+    const target = redirectTarget(link, hash);
     opts.clicks.add({
       id: newClickId(),
       tenantId: link.tenantId,
       brandId: link.brandId,
-      trackedLinkId: link.id,
-      visitorHash: visitorHash(opts.hashSecret, req.ip ?? '', req.header('user-agent') ?? '', now),
+      trackedLinkId: target.trackedLinkId,
+      visitorHash: hash,
       occurredAt: now,
     });
     res.setHeader('Cache-Control', 'no-store');
-    res.redirect(302, link.destination);
+    res.redirect(302, target.destination);
   });
   return app;
 }

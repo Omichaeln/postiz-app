@@ -52,15 +52,22 @@ function rateLimiter(): RateLimiter {
 
 /**
  * A ProviderIO for one (provider, tenant) pair. The activity's heartbeat is attached per request (spec 20.3:
- * per-activity context, never a singleton), so adapters need not know they run inside Temporal.
+ * per-activity context, never a singleton), so adapters need not know they run inside Temporal. `beforeSend` runs
+ * once, just before the first mutation leaves (publishOnce commits the attempt's sentAt there, spec 14.3).
  */
-export function providerIO(providerKey: string, tenantId: string, hooks?: ActivityHooks): ProviderIO {
+export function providerIO(
+  providerKey: string,
+  tenantId: string,
+  hooks?: ActivityHooks,
+  beforeSend?: () => Promise<void>,
+): ProviderIO {
   const io = createProviderIO({
     providerKey,
     tenantId,
     timeoutMs: options.timeoutMs,
     limiter: rateLimiter(),
     ...(options.insecureAllowLoopback ? { insecureAllowLoopback: true } : {}),
+    ...(beforeSend ? { beforeSend } : {}),
   });
   if (!hooks) return io;
   return {

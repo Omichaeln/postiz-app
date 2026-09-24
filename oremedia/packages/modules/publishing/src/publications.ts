@@ -39,7 +39,7 @@ import {
   workflowIdOf,
   type PublicationRow,
 } from './common';
-import { assertBrandExists, review, variants } from './hooks';
+import { approvals, assertBrandExists, review, variants } from './hooks';
 import { registry } from './providers';
 import {
   ChannelConnectionRepository,
@@ -484,9 +484,9 @@ export const publicationService = {
 
   /**
    * Runbook "reconcile an outcome_unknown publication": the human resolution. confirm_published records
-   * human_confirmation evidence (outcome_unknown → published); confirm_absent proves absence (→ retry_eligible);
-   * cancel closes a held row. A row held after exhausted reconciliation keeps its state on confirmation: the
-   * machine has no held → published move (reported as a gap); the evidence is recorded either way.
+   * human_confirmation evidence (outcome_unknown → published, spending a release approval); confirm_absent proves
+   * absence (→ retry_eligible); cancel closes a held row. confirm_published is refused on a held row: the machine
+   * has no held → published move, and recording a confirmation that leaves the row held would misreport it.
    */
   async reconcile(actor: ResolvedActor, input: z.infer<typeof ReconcileCommand>, tx: Tx) {
     const cmd = ReconcileCommand.parse(input);
@@ -501,6 +501,11 @@ export const publicationService = {
     const last = attempts.at(-1) ?? null;
     switch (cmd.resolution) {
       case 'confirm_published': {
+        if (row.state !== 'outcome_unknown')
+          throw new ValidationFailedError(
+            [{ path: 'resolution', issue: `confirm_published_not_allowed_in_state:${row.state}` }],
+            'A publication can be confirmed as published only while its outcome is unknown (state outcome_unknown)',
+          );
         if (!cmd.remotePostId)
           throw new ValidationFailedError([
             { path: 'remotePostId', issue: 'required_for_confirm_published' },
@@ -526,10 +531,7 @@ export const publicationService = {
           tx,
         );
         if (last && !last.remotePostId) await attemptsRepo.attachRemotePost(last.id, cmd.remotePostId, tx);
-        const toState =
-          row.state === 'outcome_unknown'
-            ? transition(row.state, 'reconcile_found', 'publicationId')
-            : row.state;
+        const toState = transition(row.state, 'reconcile_found', 'publicationId');
         await publicationsRepo.update(
           row.id,
           row.version,
@@ -541,6 +543,18 @@ export const publicationService = {
           },
           tx,
         );
+        if (row.authority === 'approval' && row.approvalId)
+          await approvals.consume(
+            row.approvalId,
+            row.id,
+            Array.from(
+              new Set([
+                ...(await publicationsRepo.listPublishedChannelsForApproval(row.approvalId, tx)),
+                row.channelConnectionId,
+              ]),
+            ),
+            tx,
+          );
         await recordStateChange(actor, 'publication.reconcile', row, toState, 'confirm_published', tx);
         break;
       }
@@ -613,6 +627,19 @@ export const publicationService = {
   /** Review module release checker (spec 13.4 mandate_daily_quota). */
   countForMandateOnDay: (mandateId: string, at: Date, tx?: Tx) =>
     publicationsRepo.countForMandateOnDay(mandateId, at, tx),
+  /** Release check owned here (spec 13.1 single use per target): another published publication on this channel under the approval. */
+  publishedElsewhereForApprovalChannel: (
+    approvalId: string,
+    channelConnectionId: string,
+    exceptPublicationId: string,
+    tx?: Tx,
+  ) =>
+    publicationsRepo.publishedElsewhereForApprovalChannel(
+      approvalId,
+      channelConnectionId,
+      exceptPublicationId,
+      tx,
+    ),
 
   /** Content module calendar source (spec 7.5 content.calendar.range): publications of a brand in a window. */
   async calendarRange(brandId: string, from: Date, to: Date, tx?: Tx) {

@@ -34,7 +34,7 @@ import {
   rankBaseline,
   rankLearned,
   rankingConfigFromEnv,
-  verdictScore,
+  VERDICT_SCORE,
   type OutcomeHistory,
   type Rankable,
   type RankingConfig,
@@ -48,7 +48,14 @@ import {
   PlaybookEntryRepository,
   RecommendationRepository,
 } from './repositories';
-import { classifyComment, embedText, labelFor, nearestCluster, updatedCentroid } from './voice';
+import {
+  classifyComment,
+  embedText,
+  labelFor,
+  nearestCluster,
+  updatedCentroid,
+  type MessageClassificationValue,
+} from './voice';
 
 const insightsRepo = new InsightRepository();
 const recommendationsRepo = new RecommendationRepository();
@@ -231,10 +238,17 @@ function requireObjective(objective: RankingObjective | null): RankingObjective 
   return objective;
 }
 
-/** The brand's own closed loops (tenant and brand scoped by the repository): the only history a ranker sees. */
-async function outcomeHistory(brandId: string, tx?: Tx): Promise<OutcomeHistory[]> {
+/**
+ * The brand's own closed loops (tenant and brand scoped by the repository): the only history a ranker sees. With
+ * `decidedBefore`, only recommendations decided before that moment count, so a comparison never scores a period
+ * with a ranker that already knows the period's outcomes.
+ */
+async function outcomeHistory(brandId: string, tx?: Tx, decidedBefore?: Date): Promise<OutcomeHistory[]> {
   const records = await learningRepo.listWithVerdict(brandId, tx);
-  const recs = new Map((await recommendationsRepo.listDecided(brandId, tx)).map((r) => [r.id, r]));
+  const decided = decidedBefore
+    ? await recommendationsRepo.listDecidedBefore(brandId, decidedBefore, tx)
+    : await recommendationsRepo.listDecided(brandId, tx);
+  const recs = new Map(decided.map((r) => [r.id, r]));
   const out: OutcomeHistory[] = [];
   for (const l of records) {
     const r = recs.get(l.recommendationId);
@@ -803,6 +817,15 @@ export const intelligenceService = {
     },
 
     /**
+     * Spec 16.5: the classification alone (a model call behind the routing policy), for ingestion to run before its
+     * transaction opens and pass to ingest; runs in the caller's tenant context.
+     */
+    async classify(input: { text: string }): Promise<MessageClassificationValue> {
+      const { tenantId } = requireTenant();
+      return classifyComment(tenantId, input.text);
+    },
+
+    /**
      * Spec 16.5: the comment sink. Classifies (unless classified upstream), embeds with the tenant salt and joins
      * the nearest cluster of the brand and kind or opens a new one. Spam and other are never clustered. Runs in the
      * caller's tenant context (the ingestion workflow's); the brand scope of the repository is the isolation.
@@ -1058,8 +1081,9 @@ export const intelligenceService = {
       const outcomes = new Map<string, number>();
       for (const l of records)
         if (l.verdict !== 'pending' && l.humanDecision !== 'rejected')
-          outcomes.set(l.recommendationId, verdictScore(l.verdict));
-      const history = await outcomeHistory(brand.id, tx);
+          outcomes.set(l.recommendationId, VERDICT_SCORE[l.verdict]);
+      // Only loops closed on recommendations decided before the period: the period's own verdicts are what is scored.
+      const history = await outcomeHistory(brand.id, tx, input.periodStart);
       const comparison = objective
         ? compareRankings(decided.map(rankable), objective, history, outcomes, cfg.baselineMargin)
         : {

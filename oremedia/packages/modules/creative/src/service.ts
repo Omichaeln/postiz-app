@@ -1,3 +1,4 @@
+import { METRIC, record } from '@oremedia/observability';
 import { z } from 'zod';
 import {
   CommentAdd,
@@ -847,6 +848,9 @@ export const creativeService = {
         tx,
         { brandId: job.brandId, fromState: job.state, toState },
       );
+      // Spec 17.2 render "keeping up": requested → picked up by the render worker (first start only).
+      if (job.attempts === 0)
+        record(METRIC.renderStartLagMs, Math.max(0, Date.now() - job.createdAt.getTime()));
       return { renderJobId: job.id, state: toState, attempts: job.attempts + 1, version: job.version + 1 };
     },
 

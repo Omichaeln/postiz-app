@@ -1,12 +1,12 @@
 # Runbook: restore a single tenant
 
 **When:** accidental deletion or corruption limited to one tenant.
-**Owner:** platform on-call. **Exercised:** not yet (requires a staging restore rehearsal, Phase 7).
+**Owner:** platform on-call. **Exercised:** locally by `apps/worker-core/src/runbooks.integration.test.ts` ("restore a single tenant (7.11)"): a tenant-scoped dump of every tenant table (the restore point), a brand deletion and an accidental loss of publications after it, both kill switches engaged tenant-wide, the rows re-imported parents first and only where missing (the lost publications come back), deletion requests made after the restore point re-applied (`deletion.reapply` + the deletion workflow: the deleted brand is gone again), the other tenant byte-for-byte untouched. **Not implemented (reported):** step 5's automatic hold: there is no publishing command that moves restored `scheduled`/`dispatching`/`processing` rows to `held` (the release kill switch covers only mandate-path posts), so the rehearsal lists them for reconciliation; until the command exists, cancel them (`publishing.publications.cancel`) and re-schedule after reconciliation. **Needs a live environment for:** the PITR restore into a separate instance, object version restore and the staging harness run (ledger 7.3).
 
 1. Restore the database point-in-time copy to a **separate** instance (never over production).
 2. Export the tenant's rows from the copy (every table has `tenant_id`; `pnpm check:schema` lists the exceptions) with a tenant-scoped dump.
 3. Object storage: restore `assets/{tenant}/...` and `releases/{tenant}/...` object versions for the window.
-4. Import into production inside a maintenance window for that tenant only (kill switch engaged for the tenant first).
+4. Import into production inside a maintenance window for that tenant only (kill switches `release_dispatch` and `agent_starts` engaged tenant-wide first; approval-path posts are not stopped by them, see step 5). Import parents before children (foreign keys) and only rows missing in production.
 5. **Restore rule (spec 17.6):** move every restored publication in `scheduled`/`dispatching`/`processing` to `held` and reconcile each against remote history before release, so a restore cannot republish.
-6. Re-apply pending deletion requests for the tenant (deletions requested after the restore point).
+6. Re-apply deletion requests made after the restore point: for each (`deletion_requests.created_at` after the point), `deletion.reapply` then re-run `deletionRequestWorkflowV1` for it (docs/runbooks/process-deletion-request.md). Requests still open at restore time simply resume.
 7. Verify: cross-tenant harness on staging against the restored data; the tenant's owner confirms; release the kill switch.

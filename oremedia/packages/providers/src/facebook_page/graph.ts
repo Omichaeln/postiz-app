@@ -85,7 +85,7 @@ async function oauthAccessToken(io: ProviderIO, params: Record<string, string>):
   const { res } = await io.request(
     `${META_GRAPH}/oauth/access_token?${formEncode(params)}`,
     { method: 'GET' },
-    { mutation: false },
+    { mutation: true }, // effecting: a code is spent and a token exchange issues a new token
   );
   return readResponse(res);
 }

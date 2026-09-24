@@ -1,10 +1,12 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import type * as Observability from '@oremedia/observability';
 import { eq } from 'drizzle-orm';
 import { createTestDatabase, type TestDatabase } from '@oremedia/db/testing';
 import { runInTenant, withTransaction, type TenantContext } from '@oremedia/db';
 import { tenants } from '@oremedia/db/schema/access';
 import { outboxEvents } from '@oremedia/db/schema/operations';
 import { newId } from '@oremedia/domain/ids';
+import { METRIC, record } from '@oremedia/observability';
 import { outbox } from './outbox';
 import {
   DEAD_LETTER_ATTEMPTS,
@@ -16,6 +18,11 @@ import {
   type WorkflowStarter,
 } from './outbox-dispatcher';
 import { clearOutboxRoutes, registerOutboxRoute } from './outbox-routes';
+
+vi.mock('@oremedia/observability', async (importOriginal) => {
+  const actual = await importOriginal<typeof Observability>();
+  return { ...actual, record: vi.fn(actual.record) };
+});
 
 const ctx = (tenantId: string): TenantContext => ({
   tenantId,
@@ -220,6 +227,41 @@ describe('outbox dispatcher against MySQL 8 (spec 14.2)', () => {
     expect((await dispatchBatch({ workerId: 'w1', starter })).dispatched).toBe(1);
     expect(await replayDeadLetter(id)).toBe(false); // already dispatched
     expect(await oldestUndispatchedAgeMs()).toBeNull();
+  });
+
+  it('spec 17.4 fairness: a bulk schedule of one tenant cannot fill the batch ahead of another tenant due at the same minute', async () => {
+    registerOutboxRoute('asset.upload_completed', (evt) => ({
+      workflowType: 'assetIngestWorkflowV1',
+      taskQueue: 'media',
+      workflowId: `ingest:${String(evt.payload['uploadIntentId'])}`,
+      args: [],
+    }));
+    const tenantBulk = newId('tenant');
+    const tenantSmall = newId('tenant');
+    // The bulk tenant's 30 events are older than the small tenant's 2 (it scheduled first, for the same minute).
+    for (let i = 0; i < 30; i++) await emit(tenantBulk, `upl_bulk_${i}`);
+    await emit(tenantSmall, 'upl_small_0');
+    await emit(tenantSmall, 'upl_small_1');
+    const starter = new RecordingStarter();
+    const first = await dispatchBatch({ workerId: 'w-fair', starter, batchSize: 10 });
+    expect(first.claimed).toBe(10);
+    const firstBatch = starter.calls.map((c) => c.tenantId);
+    // Round-robin: both of the small tenant's events are in the first batch, and they are started first-and-third,
+    // not after the bulk tenant's backlog.
+    expect(firstBatch.filter((t) => t === tenantSmall)).toHaveLength(2);
+    expect(firstBatch.slice(0, 4)).toEqual([tenantBulk, tenantSmall, tenantBulk, tenantSmall]);
+    // Without the fair claim the oldest-first order would have been 10 bulk events.
+    // The per-tenant cap bounds any one tenant's share of a batch even when it is the only one with work.
+    for (let i = 0; i < 5; i++) await emit(tenantSmall, `upl_small_cap_${i}`);
+    const capped = new RecordingStarter();
+    await dispatchBatch({ workerId: 'w-cap', starter: capped, batchSize: 10, maxPerTenant: 3 });
+    const perTenant = (t: string) => capped.calls.filter((c) => c.tenantId === t).length;
+    expect(perTenant(tenantBulk)).toBe(3);
+    expect(perTenant(tenantSmall)).toBe(3);
+    // Spec 17.2 keeping up: the ready → start lag is recorded per dispatched event.
+    expect(vi.mocked(record)).toHaveBeenCalledWith(METRIC.outboxDispatchLagMs, expect.any(Number), {
+      eventType: 'asset.upload_completed',
+    });
   });
 
   it('backoff doubles from 5 s and caps at 15 minutes', () => {

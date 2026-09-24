@@ -244,6 +244,14 @@ export class TrackedLinkRepository extends BrandScopedRepository<typeof trackedL
       .limit(page.limit + 1);
     return pageOf(rows, page);
   }
+  /** The entry and arm links of a randomised link experiment (spec 16.6). */
+  async listForExperiment(brandId: string, experimentId: string, tx?: Tx) {
+    return this.conn(tx)
+      .select()
+      .from(trackedLinks)
+      .where(this.brandScope(brandId, eq(trackedLinks.experimentId, experimentId)))
+      .orderBy(asc(trackedLinks.id));
+  }
   /** Links of a variant that still lack a publication reference (the publication is known only at scheduling). */
   async listForVariant(brandId: string, variantId: string, tx?: Tx) {
     return this.conn(tx)
@@ -264,6 +272,20 @@ export class LinkClickRepository extends TenantScopedRepository<typeof linkClick
     if (trackedLinkIds.length === 0) return counts;
     const rows = await this.conn(tx)
       .select({ trackedLinkId: linkClicks.trackedLinkId, c: sql<number>`count(*)` })
+      .from(linkClicks)
+      .where(this.scope(inArray(linkClicks.trackedLinkId, trackedLinkIds)))
+      .groupBy(linkClicks.trackedLinkId);
+    for (const r of rows) counts.set(r.trackedLinkId, Number(r.c));
+    return counts;
+  }
+  async countUniqueVisitorsByLink(trackedLinkIds: string[], tx?: Tx): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    if (trackedLinkIds.length === 0) return counts;
+    const rows = await this.conn(tx)
+      .select({
+        trackedLinkId: linkClicks.trackedLinkId,
+        c: sql<number>`count(distinct ${linkClicks.visitorHash})`,
+      })
       .from(linkClicks)
       .where(this.scope(inArray(linkClicks.trackedLinkId, trackedLinkIds)))
       .groupBy(linkClicks.trackedLinkId);

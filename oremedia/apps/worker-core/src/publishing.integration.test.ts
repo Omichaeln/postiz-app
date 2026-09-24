@@ -34,6 +34,7 @@ import {
   registerPublishMediaSource,
   registerPublishingBrandChecker,
   registerPublishingOutboxRoutes,
+  registerApprovalConsumer,
   registerReleaseEvaluator,
   registerVariantSource,
   registerWorkflowProbe,
@@ -202,7 +203,7 @@ describe('publication workflow end to end (worker-core, fake Temporal host)', ()
         for (const id of ids) if (id !== brandA) throw new NotFoundError('Brand', id);
       },
     });
-    configurePublishingProviders({ registry });
+    configurePublishingProviders({ registry, insecureAllowLoopback: true }); // the fixture's send is a loopback call
     configureCredentialBroker({ kms: new LocalKms('e2e-master-secret-0123456789abcdef') });
     registerProviderClients(() => ({ clientId: 'c', clientSecret: 's' }));
     registerVariantSource(async (id) => {
@@ -211,6 +212,7 @@ describe('publication workflow end to end (worker-core, fake Temporal host)', ()
       return v;
     });
     registerReleaseEvaluator(async () => releaseDecision);
+    registerApprovalConsumer(async () => undefined); // the review module's consume is not under test here
     registerPublishMediaSource({ describe: async () => [], release: async () => [] });
     registerWorkflowProbe(null);
     clearOutboxRoutes();

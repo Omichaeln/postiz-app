@@ -1,9 +1,8 @@
-import { createHmac } from 'node:crypto';
-
 /**
  * Spec 15.4: clicks are buffered and flushed in batches so a redirect never waits on the database; a flush failure
- * is logged and retried on the next tick (the batch is kept, bounded). The visitor id is a keyed hash of
- * IP + user agent + a daily salt, so the same visitor is stable for a day and never identifiable afterwards.
+ * is logged and retried on the next tick (the batch is kept, bounded). The visitor id is the per-tenant keyed hash
+ * of IP + user agent + the day (visitorHash in @oremedia/contracts/visitor-assignment, computed by server.ts), so
+ * the same visitor is stable for a day within a tenant and never identifiable afterwards.
  */
 /** Mirrors link_clicks (@oremedia/db/schema/measurement); kept dependency-free so the buffer is unit-testable alone. */
 export interface ClickRow {
@@ -16,12 +15,6 @@ export interface ClickRow {
 }
 export interface BufferLog {
   warn(fields: Record<string, unknown>, msg: string): void;
-}
-
-export function visitorHash(secret: string, ip: string, userAgent: string, at = new Date()): string {
-  const day = at.toISOString().slice(0, 10);
-  const salt = createHmac('sha256', secret).update(`salt:${day}`).digest('hex');
-  return createHmac('sha256', salt).update(`${ip}|${userAgent}`).digest('hex');
 }
 
 export interface ClickBufferOptions {

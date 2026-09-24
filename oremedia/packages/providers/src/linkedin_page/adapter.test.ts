@@ -88,7 +88,10 @@ describe('LinkedIn Page adapter (spec 14.5, 14.8)', () => {
     expect(grant.credentials.extra?.['organizationUrn']).toBe('urn:li:organization:2001');
     expect(missingScopes(adapter.capability.requiredScopes, grant.grantedScopes)).toEqual([]);
     expect(missingScopes(adapter.capability.requiredScopes, ['openid'])).toContain('w_organization_social');
-    expect(io.calls.every((c) => !c.mutation)).toBe(true);
+    // the code exchange is effecting (the code is spent); identity and organisation reads are not
+    expect(io.calls.filter((c) => c.mutation).map((c) => new URL(c.url).pathname)).toEqual([
+      '/oauth/v2/accessToken',
+    ]);
     expect(server.remaining()).toEqual([]);
   });
 
@@ -99,6 +102,7 @@ describe('LinkedIn Page adapter (spec 14.5, 14.8)', () => {
       ok: true,
       credentials: { accessToken: 'at_2_fake', refreshToken: 'rt_2_fake' },
     });
+    expect(io.calls.map((c) => c.mutation)).toEqual([true]); // a refresh issues new tokens: effecting
     load('auth', 'refresh_revoked');
     expect(await adapter.refresh(creds, client, io)).toEqual({ ok: false, reason: 'reconnect_required' });
     expect(await adapter.refresh({ accessToken: 'x' }, client, io)).toEqual({
@@ -279,6 +283,29 @@ describe('LinkedIn Page adapter (spec 14.5, 14.8)', () => {
     });
     const refused = await fixtureIO(server, { providerKey: adapter.key, refuse: true });
     expect(await adapter.findRemotePost(req, creds, refused)).toMatchObject({ status: 'cannot_determine' });
+  });
+
+  it('findRemotePost judges coverage by lastModifiedAt (the scan sort key), never by createdAt', async () => {
+    const req = {
+      publicationId: 'pub_1',
+      attemptStartedAt: new Date('2026-09-24T00:00:00.000Z'),
+      textFingerprint: textFingerprint(TEXT),
+      mediaFingerprints: [],
+      remoteAccountId: '2001',
+    };
+    // old posts edited after the attempt fill the first page; the attempt's post is on the second
+    load('reconcile', 'edited_old_post_first');
+    expect(await adapter.findRemotePost(req, creds, io)).toEqual({
+      status: 'found',
+      remotePostId: 'urn:li:share:7011',
+      remoteUrl: 'https://www.linkedin.com/feed/update/urn:li:share:7011',
+      matchedBy: 'fingerprint',
+    });
+    expect(io.calls.map((c) => new URL(c.url).searchParams.get('start'))).toEqual(['0', '20']);
+    // a full page that reaches a post last modified before the window proves absence without another page
+    load('reconcile', 'covered_by_last_modified');
+    expect(await adapter.findRemotePost(req, creds, io)).toEqual({ status: 'definitely_absent' });
+    expect(io.calls).toHaveLength(1);
   });
 
   it('fetchPostMetrics / fetchAccountMetrics: raw native points, unavailable as null rows', async () => {

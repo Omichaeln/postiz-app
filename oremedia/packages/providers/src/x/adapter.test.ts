@@ -134,11 +134,16 @@ describe('X adapter (spec 14.5, 14.8; D-04 open, X built as the fourth channel)'
       `Basic ${Buffer.from('cid:csecret').toString('base64')}`,
     );
     expect(missingScopes(adapter.capability.requiredScopes, grant.grantedScopes)).toEqual([]);
+    // the code exchange is effecting (the code is spent); the identity read is not
+    expect(io.calls.filter((c) => c.mutation).map((c) => new URL(c.url).pathname)).toEqual([
+      '/2/oauth2/token',
+    ]);
     load('auth', 'refresh_ok');
     expect(await adapter.refresh(creds, client, io)).toMatchObject({
       ok: true,
       credentials: { accessToken: 'xat_2_fake', refreshToken: 'xrt_2_fake' },
     });
+    expect(io.calls.map((c) => c.mutation)).toEqual([true]); // refresh tokens rotate: effecting
     load('auth', 'refresh_revoked');
     expect(await adapter.refresh(creds, client, io)).toEqual({ ok: false, reason: 'reconnect_required' });
   });

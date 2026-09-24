@@ -1,7 +1,7 @@
 {
   "programme": "Oremedia",
   "specification": "docs/spec/BUILD_PROMPT.md (prepared 23 September 2026)",
-  "updatedAt": "2026-09-24T06:45:00Z",
+  "updatedAt": "2026-09-24T07:45:00Z",
   "repository": "omichaeln/postiz-app · branch claude/gallant-gauss-rh58uh · directory oremedia/",
   "statusLegend": {
     "complete": "Genuinely complete and verified; needs no additional work.",
@@ -1724,8 +1724,18 @@
       "title": "Pilot readiness",
       "spec": "17, 25",
       "gate": [
-        ["7.g1", "Section 25 production-readiness checklist verified item by item", "open", ""],
-        ["7.g2", "Residual risks documented with owners", "open", ""]
+        [
+          "7.g1",
+          "Section 25 production-readiness checklist verified item by item",
+          "in_progress",
+          "docs/operations/production-readiness.md walks spec section 25 item by item with verified / open / not applicable and evidence; verdict recorded as not ready for the client pilot until the live-environment items are closed."
+        ],
+        [
+          "7.g2",
+          "Residual risks documented with owners",
+          "complete",
+          "docs/operations/residual-risks.md: each residual risk with role owner, exposure, likelihood and control."
+        ]
       ],
       "items": [
         [
@@ -1741,113 +1751,120 @@
           "Top-of-hour burst load test at 2–3× expected peak (k6/Artillery)",
           "production",
           "17.4, 19.1",
-          "open",
-          ""
+          "in_progress",
+          "tooling/load/top-of-hour.js (k6, for staging: N publications at one minute across M tenants at 2–3× peak with latency and error thresholds) and tooling/load/local-burst.ts (tsx: 200 schedules across 4 tenants against the in-process API and fixture provider; all published, worst per-tenant dispatch lateness 7.5 s with the per-tenant fair claim). The k6 run needs staging and the expected peak."
         ],
         [
           "7.3",
           "Restore rehearsal with post-restore reconciliation (scheduled/dispatching/processing → held)",
           "critical",
           "17.6",
-          "open",
-          ""
+          "in_progress",
+          "restore-single-tenant.md walked as a test (rows re-imported from a restore point, other tenant untouched, deletions after the restore point re-applied); the post-restore hold of scheduled/dispatching/processing publications is not implemented (no command exists yet) and the PITR restore itself needs a live database."
         ],
         [
           "7.4",
           "Runbook exercised: reconnect a channel",
           "production",
           "17.7",
-          "open",
-          "Runbook written in docs/runbooks (see README table); not yet exercised"
+          "complete",
+          "apps/worker-core/src/runbooks.integration.test.ts: reconnect_needed holds dispatch, the same account reconnects, the credential rotates, the held post re-releases and publishes. Needs a live environment for the provider app and Temporal UI steps (runbook says which)."
         ],
         [
           "7.5",
           "Runbook exercised: reconcile an outcome_unknown publication",
           "critical",
           "17.7",
-          "open",
-          "Runbook written in docs/runbooks (see README table); not yet exercised"
+          "complete",
+          "runbooks.integration.test.ts: an outcome_unknown row is never re-sent; a human confirms the post found remotely; an unresolved held row is closed, not confirmed. Live-environment steps listed in the runbook."
         ],
         [
           "7.6",
           "Runbook exercised: drain and replay the outbox and dead letters",
           "critical",
           "17.7",
-          "in_progress",
-          "operations.outbox.deadLetters / operations.outbox.replay (tenant-scoped, audited) and the worker-core gauges implement the runbook; verified by the dispatcher integration test and the cross-tenant harness. Open: a walk-through on a live environment."
+          "complete",
+          "runbooks.integration.test.ts: a failing start dead-letters after 5 attempts, the tenant lists and replays it through operations.outbox.*, the replay dispatches once; dispatcher gauges verified by the dispatcher integration test."
         ],
         [
           "7.7",
           "Runbook exercised: engage the tenant/brand kill switch",
           "critical",
           "17.7",
-          "in_progress",
-          "docs/runbooks/kill-switch.md written; the engage/release path is exercised locally by operations.integration.test.ts; not yet exercised in a deployed environment"
+          "complete",
+          "runbooks.integration.test.ts: release_dispatch holds the mandate path with kill_switch_off, agent_starts refuses new runs, release is audited and nothing auto-releases. The runbook now states that approved publications are not covered by the release switch (spec 13.4 checks it on the mandate path only)."
         ],
         [
           "7.8",
           "Runbook exercised: handle partial multi-channel success",
           "production",
           "17.7",
-          "open",
-          "Runbook written in docs/runbooks (see README table); not yet exercised"
+          "complete",
+          "runbooks.integration.test.ts: each channel is its own row (the failed one final, the held one re-releases alone, the published one untouched) and one approved package on two channels publishes on both: the approval is spent only once every binding target has published, and per-channel reuse fails approval_valid at dispatch."
         ],
         [
           "7.9",
           "Runbook exercised: recover rendering",
           "production",
           "17.7",
-          "open",
-          "Runbook written in docs/runbooks (see README table); not yet exercised"
+          "complete",
+          "apps/worker-render/src/recover-rendering.integration.test.ts walks the runbook with a scripted renderer (failed job, retry, pinned inputs re-verified); Chromium version rollback and Railway redeploy need a live environment."
         ],
         [
           "7.10",
           "Runbook exercised: revoke a compromised credential, API client, skill or template",
           "critical",
           "17.7",
-          "open",
-          "Runbook written in docs/runbooks (see README table); not yet exercised"
+          "complete",
+          "runbooks.integration.test.ts: API key rotation and principal revocation, social token crypto-shred with holds, session revocation on role change. Skill and template retire procedures do not exist yet (runbook corrected)."
         ],
         [
           "7.11",
           "Runbook exercised: restore a single tenant",
           "critical",
           "17.7",
-          "open",
-          "Runbook written in docs/runbooks (see README table); not yet exercised"
+          "complete",
+          "runbooks.integration.test.ts: the tenant's rows are re-imported from a restore point, the other tenant is untouched, deletions requested after the restore point are re-applied. PITR restore itself needs a live database."
         ],
         [
           "7.12",
           "Runbook exercised: respond to a suspected cross-tenant exposure",
           "critical",
           "17.7",
-          "open",
-          "Runbook written in docs/runbooks (see README table); not yet exercised"
+          "complete",
+          "runbooks.integration.test.ts: contain with tenant-wide switches, preserve the audit evidence by correlation id, re-run every harness fixture against this build (146 cross-tenant fixtures)."
         ],
         [
           "7.13",
           "Runbook exercised: roll back a workflow version safely",
           "critical",
           "17.7",
-          "open",
-          "Runbook written in docs/runbooks (see README table); not yet exercised"
+          "complete",
+          "packages/workflows/test/workflow-versions.test.ts: every committed *.workflow.v*.ts is byte-identical to its first committed version and each queue entry exports every version present; docs/runbooks/rollback-workflow-version.md. Replaying recorded histories needs a Temporal server."
         ],
         [
           "7.14",
           "SLO dashboards answering up / fast / erroring / keeping-up per journey",
           "production",
           "17.2",
-          "open",
-          ""
+          "in_progress",
+          "docs/operations/slos.md defines up / fast / erroring / keeping-up per journey with the exact metric names and spec 17.2 thresholds; infra/observability/dashboards/oremedia-slos.json built only from those names; new metrics (dispatch lag, publication outcomes, render duration, agent run duration and cost, ingest lag) emitted and unit-tested. No collector or dashboard host exists here; five declared metrics are listed in slos.md as not yet emitted."
         ],
-        ["7.15", "Incident process: severities, paging, postmortems", "production", "18", "open", ""],
+        [
+          "7.15",
+          "Incident process: severities, paging, postmortems",
+          "production",
+          "18",
+          "complete",
+          "docs/operations/incident-process.md: severities, paging, roles, communication and postmortem templates, kill switch first, runbook to severity map. A rota and paging tool are operator decisions."
+        ],
         [
           "7.16",
           "Retention and deletion paths work end to end (fan-out to DB, object store, indexes, Temporal visibility, logs, provider data, backups)",
           "critical",
           "17.5",
-          "open",
-          ""
+          "in_progress",
+          "deletionRequestWorkflowV1 on core with per-module deletion handlers registered at the composition root (assets objects and rows, creative/content/publishing/measurement/intelligence rows, credentials shredded, users anonymised, audit kept) and retentionSweepWorkflowV1 with dry run; apps/worker-core/src/deletion.integration.test.ts proves every tenant-scoped table is empty or anonymised, the other tenant untouched, second run no-op. Open: a retention database role with DELETE on insert-only tables, Temporal visibility and log deletion (operator actions recorded), bucket lifecycle."
         ]
       ]
     },

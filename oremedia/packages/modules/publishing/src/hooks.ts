@@ -7,7 +7,7 @@ import type { PublishMedia } from '@oremedia/providers';
 /**
  * Cross-module hooks (same pattern as registerAssetAuthoriser in the creative module: modules never import each
  * other's tables). The composition root wires the content module's `contentService.variants.get`, the review
- * module's `reviewService.evaluateRelease` and the assets module's release-URL minting; until then the defaults
+ * module's `reviewService.evaluateRelease` / `approvals.consume` and the assets module's release-URL minting; until then the defaults
  * are loud so a composition mistake cannot pass silently.
  */
 
@@ -39,6 +39,37 @@ export const resetReleaseEvaluator = (): void => {
 };
 export const review = {
   evaluateRelease: (pub: PublicationForRelease, at: Date, tx?: Tx) => releaseEvaluator(pub, at, tx),
+};
+
+/**
+ * Spec 13.1 approval valid → consumed once the approved release is out: the review module registers
+ * `reviewService.approvals.consume`. Called in the transaction that marks the publication published, so the same
+ * approval cannot authorise a second publication (another occurrence inside the timing tolerance).
+ */
+/**
+ * An approval binds every channel target of the revision (spec 13.2), so it is spent only once every target has
+ * published: the consumer receives the channels published under the approval so far (this publication included)
+ * and decides; per-target reuse is refused at dispatch by the release evaluator instead.
+ */
+export type ApprovalConsumer = (
+  approvalId: string,
+  publicationId: string,
+  publishedChannelConnectionIds: string[],
+  tx: Tx,
+) => Promise<void>;
+const unregisteredApprovalConsumer: ApprovalConsumer = async () => {
+  throw new Error('approval consumer not registered (composition root must call registerApprovalConsumer)');
+};
+let approvalConsumer: ApprovalConsumer = unregisteredApprovalConsumer;
+export const registerApprovalConsumer = (fn: ApprovalConsumer): void => {
+  approvalConsumer = fn;
+};
+export const resetApprovalConsumer = (): void => {
+  approvalConsumer = unregisteredApprovalConsumer;
+};
+export const approvals = {
+  consume: (approvalId: string, publicationId: string, publishedChannelConnectionIds: string[], tx: Tx) =>
+    approvalConsumer(approvalId, publicationId, publishedChannelConnectionIds, tx),
 };
 
 /**

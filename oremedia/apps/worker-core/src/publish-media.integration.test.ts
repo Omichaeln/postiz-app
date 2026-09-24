@@ -23,6 +23,7 @@ import {
   createPublishingRuntime,
   publicationService,
   registerProviderClients,
+  registerApprovalConsumer,
   registerReleaseEvaluator,
   registerVariantSource,
 } from '@oremedia/module-publishing';
@@ -212,7 +213,7 @@ describe('publish media source end to end (worker-core composition, fake Tempora
     // The real composition root (the media source is what this test is about); the seams a test controls
     // (providers, KMS, the release decision, the variant rows) are re-registered afterwards, as the worker does.
     composeModules();
-    configurePublishingProviders({ registry });
+    configurePublishingProviders({ registry, insecureAllowLoopback: true }); // the fixture's send is a loopback call
     configureCredentialBroker({ kms: new LocalKms('e2e-media-master-secret-0123456789abcdef') });
     registerProviderClients(() => ({ clientId: 'c', clientSecret: 's' }));
     registerVariantSource(async (id) => {
@@ -221,6 +222,7 @@ describe('publish media source end to end (worker-core composition, fake Tempora
       return v;
     });
     registerReleaseEvaluator(async () => ({ allow: true }));
+    registerApprovalConsumer(async () => undefined); // the review module's consume is not under test here
     const started = await inTenant(() =>
       withTransaction((tx) =>
         channelService.connect.start(

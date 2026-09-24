@@ -10,3 +10,6 @@ export { tokenRefreshWorkflowV1 } from '../token-refresh.workflow.v1';
 export { brandChangeImpactWorkflowV1 } from '../brand-change-impact.workflow.v1';
 export { brandAnalystWorkflowV1, brandAnalystSweepWorkflowV1 } from '../brand-analyst.workflow.v1';
 export { baselineComparisonWorkflowV1 } from '../baseline-comparison.workflow.v1';
+// Spec 17.5: deletion fan-out and the retention TTL sweep.
+export { deletionRequestWorkflowV1 } from '../deletion-request.workflow.v1';
+export { retentionSweepWorkflowV1 } from '../retention-sweep.workflow.v1';

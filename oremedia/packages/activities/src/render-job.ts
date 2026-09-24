@@ -31,7 +31,7 @@ import {
   type StorageProvider,
 } from '@oremedia/module-assets';
 import { brandService } from '@oremedia/module-brand';
-import { logger } from '@oremedia/observability';
+import { METRIC, count, logger, record } from '@oremedia/observability';
 import { loadActorGrants, resolveActivityActor } from './actor';
 import { heartbeat, inTenant } from './tenant';
 
@@ -317,6 +317,7 @@ export function createRenderJobActivities(deps: RenderJobDeps): RenderJobActivit
         for (const a of input.assets)
           assets.push({ assetVersionId: a.assetVersionId, mime: a.mime, bytes: await readPinned(a) });
         heartbeat('render:draw');
+        const startedAt = Date.now();
         const out = await deps.renderer.render({
           document: doc,
           page,
@@ -327,6 +328,8 @@ export function createRenderJobActivities(deps: RenderJobDeps): RenderJobActivit
           assets,
           ...(input.limits ? { limits: input.limits } : {}),
         });
+        // Spec 17.2 render journey: p95 duration per page (one page × format per call), by format.
+        record(METRIC.renderDurationMs, Date.now() - startedAt, { formatKey: input.target.formatKey });
         const storageKey = exportStorageKey(
           input.tenantId,
           input.brandId,
@@ -383,7 +386,9 @@ export function createRenderJobActivities(deps: RenderJobDeps): RenderJobActivit
           manifest: input.manifest,
           validation: { ok: !e.findings.some((f) => f.severity === 'blocking'), findings: e.findings },
         }));
-        return withTransaction((tx) => deps.store.markReady(input.renderJobId, exports, tx));
+        const ready = await withTransaction((tx) => deps.store.markReady(input.renderJobId, exports, tx));
+        count(METRIC.renderJobs, 1, { result: 'ready' });
+        return ready;
       }),
 
     failRender: (input) =>
@@ -400,6 +405,8 @@ export function createRenderJobActivities(deps: RenderJobDeps): RenderJobActivit
         }
         const error = input.detail ? `${input.reason}: ${input.detail}` : input.reason;
         await withTransaction((tx) => deps.store.markFailed(job.renderJobId, error.slice(0, 2000), tx));
+        count(METRIC.renderFailures, 1, { reason: input.reason });
+        count(METRIC.renderJobs, 1, { result: 'failed' });
       }),
   };
 }

@@ -6,7 +6,7 @@ import type {
   PrepareAnalysisResultV1,
 } from '@oremedia/contracts/intelligence';
 import type { MetricValueV1 } from '@oremedia/contracts/measurement';
-import { OremediaError, PolicyDeniedError } from '@oremedia/contracts/errors';
+import { ConflictError, OremediaError, PolicyDeniedError } from '@oremedia/contracts/errors';
 import type { ResolvedActor } from '@oremedia/contracts/policy';
 import { withTransaction, type Tx } from '@oremedia/db';
 import { newId } from '@oremedia/domain/ids';
@@ -17,11 +17,28 @@ import { brandService } from '@oremedia/module-brand';
 import { featureFlag } from '@oremedia/module-operations';
 import { logger } from '@oremedia/observability';
 import { analystTargets, metrics, MetricsSourceUnregisteredError } from './hooks';
-import { AnomalyRepository } from './repositories';
+import { AnomalyRepository, InsightRepository } from './repositories';
 import { intelligenceService } from './service';
 
 const anomaliesRepo = new AnomalyRepository();
+const insightsRepo = new InsightRepository();
 const TERMINAL: ReadonlySet<string> = new Set(agentRunMachine.terminal);
+
+/** The first evidence item of a deterministic movement insight names its metric key. */
+const MOVEMENT_EVIDENCE = 'metric_key';
+/** Recorded on the movements by the transaction that starts the run reviewing them (the retry's marker). */
+export const ANALYST_RUN_EVIDENCE = 'analyst_run';
+
+type InsightRow = Awaited<ReturnType<InsightRepository['listForPeriod']>>[number];
+
+/** The analyst's own movement insights of exactly this period (never a run's insights), oldest first. */
+async function movementInsightsFor(brandId: string, periodStart: Date, periodEnd: Date, tx: Tx) {
+  return (
+    await insightsRepo.listForPeriod(brandId, ['change', 'anomaly'], periodStart, periodEnd, tx)
+  ).filter((i) => i.agentRunId === null && i.evidence[0]?.kind === MOVEMENT_EVIDENCE);
+}
+const analystRunOf = (rows: readonly InsightRow[]): string | null =>
+  rows.flatMap((i) => i.evidence).find((e) => e.kind === ANALYST_RUN_EVIDENCE)?.ref ?? null;
 
 /** Movements at or beyond this share of the previous period are anomalies worth a row (spec 16.3 "anomalies"). */
 export const ANOMALY_THRESHOLD = 0.5;
@@ -179,17 +196,20 @@ export function createIntelligenceRuntime(opts: IntelligenceRuntimeOptions = {})
         throw err;
       }
       const movements = movementsOf(metricKeys, current, previous);
-      const changeInsightIds: string[] = [];
-      await withTransaction(async (tx) => {
+      // prepareAnalysis is a retried activity: the movements of (brand, period) are written once and the run that
+      // reviews them is recorded on them in the transaction that starts it, so a retry reuses both.
+      const written = await withTransaction(async (tx) => {
+        const existing = await movementInsightsFor(input.brandId, periodStart, periodEnd, tx);
+        if (existing.length) return existing;
         for (const m of movements) {
-          const { insightId } = await intelligenceService.insights.record(
+          await intelligenceService.insights.record(
             actor,
             {
               brandId: input.brandId,
               kind: m.change !== null && Math.abs(m.change) >= ANOMALY_THRESHOLD ? 'anomaly' : 'change',
               statement: statementFor(m),
               evidence: [
-                { kind: 'metric_key', ref: m.metricKey, note: `completeness=${m.completeness}` },
+                { kind: MOVEMENT_EVIDENCE, ref: m.metricKey, note: `completeness=${m.completeness}` },
                 ...m.snapshotIds.map((ref) => ({ kind: 'metric_snapshot', ref })),
               ],
               strength: 'observed',
@@ -199,7 +219,6 @@ export function createIntelligenceRuntime(opts: IntelligenceRuntimeOptions = {})
             },
             tx,
           );
-          changeInsightIds.push(insightId);
           if (
             m.change !== null &&
             Math.abs(m.change) >= ANOMALY_THRESHOLD &&
@@ -220,13 +239,27 @@ export function createIntelligenceRuntime(opts: IntelligenceRuntimeOptions = {})
               tx,
             );
         }
+        return movementInsightsFor(input.brandId, periodStart, periodEnd, tx);
       });
+      // In the order of the objective's metric keys (ids of one millisecond do not sort by creation).
+      const position = (i: InsightRow) => metricKeys.indexOf(i.evidence[0]?.ref ?? '');
+      written.sort((a, b) => position(a) - position(b));
+      const changeInsightIds = written.map((i) => i.id);
+      const recordedRun = analystRunOf(written);
+      if (recordedRun) return { runId: recordedRun, skippedReason: null, changeInsightIds, coverage };
       // The run: the performance-review skill over the movements (as labelled, untrusted evidence), the
       // experiments and the playbook it reads through its tools.
       let runId: string | null = null;
       try {
-        const started = await withTransaction((tx) =>
-          agentsService.runs.start(
+        runId = await withTransaction(async (tx) => {
+          // Re-read under the transaction: an attempt that raced this one may have started the run meanwhile.
+          const byId = new Map(
+            (await insightsRepo.listByIds(input.brandId, changeInsightIds, tx)).map((i) => [i.id, i]),
+          );
+          const current = changeInsightIds.flatMap((id) => byId.get(id) ?? []);
+          const raced = analystRunOf(current);
+          if (raced) return raced;
+          const started = await agentsService.runs.start(
             actor,
             {
               brandId: input.brandId,
@@ -240,21 +273,29 @@ export function createIntelligenceRuntime(opts: IntelligenceRuntimeOptions = {})
                 },
                 metricKeys,
                 experimentIds: [],
-                evidence: movements.map((m, i) => ({
-                  id: changeInsightIds[i] as string,
+                evidence: current.map((i) => ({
+                  id: i.id,
                   sourceKind: 'other',
-                  ref: `insight:${changeInsightIds[i] as string}`,
-                  text: statementFor(m),
+                  ref: `insight:${i.id}`,
+                  text: i.statement,
                 })),
               },
             },
             tx,
             { autonomyMode: actor.kind === 'service_principal' ? actor.maxAutonomy : undefined },
-          ),
-        );
-        runId = started.runId;
+          );
+          // Versioned updates: a racing attempt that started its own run conflicts here and rolls it back.
+          for (const i of current)
+            await insightsRepo.update(
+              i.id,
+              i.version,
+              { evidence: [...i.evidence, { kind: ANALYST_RUN_EVIDENCE, ref: started.runId }] },
+              tx,
+            );
+          return started.runId;
+        });
       } catch (err) {
-        if (!(err instanceof OremediaError)) throw err;
+        if (!(err instanceof OremediaError) || err instanceof ConflictError) throw err;
         // A paused brand (kill switch), an exhausted entitlement or a revoked principal: the movements stand,
         // the review does not run this week. Reported, never retried into a loop.
         return {

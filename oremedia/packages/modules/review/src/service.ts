@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { ApprovalBindingV1 } from '@oremedia/contracts/approval';
 import { ExternalLinkCreate, ExternalLinkRevoke } from '@oremedia/contracts/access';
 import { ConflictError, PolicyDeniedError, ValidationFailedError } from '@oremedia/contracts/errors';
 import type { ResolvedActor } from '@oremedia/contracts/policy';
@@ -222,7 +223,7 @@ const toApprovalDto = (a: ApprovalRow) => ({
   approverKind: a.approverKind,
   approverId: a.approverId,
   bindingHash: a.bindingHash,
-  binding: a.binding,
+  binding: ApprovalBindingV1.parse(a.binding),
   validUntil: a.validUntil ? a.validUntil.toISOString() : null,
   state: a.state,
   invalidatedReason: a.invalidatedReason,
@@ -636,9 +637,30 @@ export const reviewService = {
       return toApprovalDto(await approvalsRepo.getById(approvalId, tx));
     },
 
-    /** Spec 13.1 valid → consumed, for the publishing module once the approved release is out. */
-    async consume(approvalId: string, tx: Tx) {
+    /**
+     * Spec 13.1 valid → consumed, for the publishing module once the approved release is out (its approval consumer
+     * hook, in the transaction that marks the publication published). The post is already out, so an approval that
+     * is no longer valid (invalidated or expired after the release check, or consumed by a repeat) is left as it is.
+     */
+    /**
+     * Spec 13.1/13.2: the approval binds every channel target of the revision, so it is spent (valid → consumed)
+     * only once every target has published; with a partial set it stays valid for the remaining channels. Reuse
+     * on a channel that already published is refused at dispatch (approval_valid), not here.
+     */
+    async consume(
+      approvalId: string,
+      tx: Tx,
+      publicationId?: string,
+      publishedChannelConnectionIds?: string[],
+    ) {
       const apr = await approvalsRepo.getById(approvalId, tx);
+      if (apr.state !== 'valid') return { approvalId: apr.id, state: apr.state, version: apr.version };
+      if (publishedChannelConnectionIds) {
+        const published = new Set(publishedChannelConnectionIds);
+        const targets = ApprovalBindingV1.parse(apr.binding).targets.map((t) => t.channelConnectionId);
+        if (targets.some((c) => !published.has(c)))
+          return { approvalId: apr.id, state: apr.state, version: apr.version };
+      }
       const toState = transition(approvalMachine, apr.state, 'consume', 'approvalId');
       await approvalsRepo.setState(apr.id, apr.version, toState, null, tx);
       await audit.record(
@@ -647,7 +669,13 @@ export const reviewService = {
         { type: 'release_approval', id: apr.id },
         'allowed',
         tx,
-        { brandId: apr.brandId, revisionId: apr.contentRevisionId, fromState: apr.state, toState },
+        {
+          brandId: apr.brandId,
+          revisionId: apr.contentRevisionId,
+          fromState: apr.state,
+          toState,
+          ...(publicationId ? { publicationId } : {}),
+        },
       );
       return { approvalId: apr.id, state: toState, version: apr.version + 1 };
     },

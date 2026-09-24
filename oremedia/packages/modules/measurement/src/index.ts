@@ -50,10 +50,12 @@ export {
   configureAuthorHashing,
   authorHashingFromEnv,
   registerCommentSink,
+  registerCommentClassifier,
   resetCommentSinks,
   registerBrandChecker as registerMeasurementBrandChecker,
   type BrandChecker as MeasurementBrandChecker,
   type CommentSink,
+  type CommentClassifier,
   type IngestedComment,
   type LinkTrackingOptions,
 } from './hooks';

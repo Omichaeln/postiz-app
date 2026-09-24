@@ -18,3 +18,10 @@ export {
 } from './scoped-repository';
 export { GLOBAL_TABLES, GLOBAL_PLUS_TENANT_TABLES, INSERT_ONLY_TABLES } from './global-tables';
 export { runMigrations } from './migrate';
+export {
+  TenantPurgeRepository,
+  tenantScopedTables,
+  purgeOrder,
+  type PurgeScope,
+  type PurgeTableOptions,
+} from './tenant-purge';

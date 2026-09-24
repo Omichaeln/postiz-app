@@ -91,4 +91,53 @@ describe('ProviderIO (spec 14.5): timeouts, send tracking, before/after send cla
     expect(res.status).toBe(429);
     expect(details[0]).toMatch(/^read GET http:\/\/127\.0\.0\.1:\d+\/429$/);
   });
+
+  it('beforeSend runs once, before the first mutation only: reads never trigger it', async () => {
+    const order: string[] = [];
+    const tracked = createProviderIO({
+      providerKey: 'test',
+      tenantId: 'ten_1',
+      timeoutMs: 400,
+      limiter,
+      insecureAllowLoopback: true,
+      beforeSend: async () => {
+        order.push('beforeSend');
+      },
+    });
+    await tracked.request(`http://127.0.0.1:${port}/ok`, { method: 'GET' }, { mutation: false });
+    expect(order).toEqual([]);
+    await tracked.request(`http://127.0.0.1:${port}/ok`, { method: 'POST', body: '{}' }, { mutation: true });
+    await tracked.request(`http://127.0.0.1:${port}/ok`, { method: 'POST', body: '{}' }, { mutation: true });
+    await tracked.request(`http://127.0.0.1:${port}/ok`, { method: 'GET' }, { mutation: false });
+    expect(order).toEqual(['beforeSend']);
+  });
+  it('a throwing beforeSend aborts the mutation before anything is sent', async () => {
+    let hits = 0;
+    const counting = http.createServer((_req, res) => {
+      hits += 1;
+      res.end('{}');
+    });
+    await new Promise<void>((r) => counting.listen(0, '127.0.0.1', r));
+    const countingPort = (counting.address() as AddressInfo).port;
+    try {
+      const aborting = createProviderIO({
+        providerKey: 'test',
+        tenantId: 'ten_1',
+        timeoutMs: 400,
+        limiter,
+        insecureAllowLoopback: true,
+        beforeSend: async () => {
+          throw new Error('ledger unavailable');
+        },
+      });
+      const err = await aborting
+        .request(`http://127.0.0.1:${countingPort}/x`, { method: 'POST', body: '{}' }, { mutation: true })
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ProviderTransportError);
+      expect((err as ProviderTransportError).phase).toBe('before_send');
+      expect(hits).toBe(0);
+    } finally {
+      await new Promise<void>((r) => counting.close(() => r()));
+    }
+  });
 });

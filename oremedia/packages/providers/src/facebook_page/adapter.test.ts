@@ -104,7 +104,11 @@ describe('Facebook Page adapter (spec 14.5, 14.8)', () => {
     expect(missingScopes(adapter.capability.requiredScopes, grant.grantedScopes)).toEqual([
       'business_management',
     ]);
-    expect(io.calls.every((c) => !c.mutation)).toBe(true);
+    // token exchanges are effecting (the code is spent, a new token is issued); graph reads are not
+    expect(
+      io.calls.every((c) => c.mutation === new URL(c.url).pathname.endsWith('/oauth/access_token')),
+    ).toBe(true);
+    expect(io.calls.filter((c) => c.mutation)).toHaveLength(2);
     expect(server.remaining()).toEqual([]);
   });
 
@@ -117,6 +121,7 @@ describe('Facebook Page adapter (spec 14.5, 14.8)', () => {
         extra: { userAccessToken: 'long_user_2_fake' },
       },
     });
+    expect(io.calls.map((c) => `${c.mutation ? 'M' : 'R'} ${c.method}`)).toEqual(['M GET', 'R GET']);
     load('auth', 'refresh_revoked');
     expect(await adapter.refresh(creds, client, io)).toEqual({ ok: false, reason: 'reconnect_required' });
   });

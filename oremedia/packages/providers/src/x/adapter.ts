@@ -466,7 +466,7 @@ export class XAdapter implements ProviderAdapter {
         headers: { authorization: `Basic ${basic}`, 'content-type': 'application/x-www-form-urlencoded' },
         body: formEncode(params),
       },
-      { mutation: false },
+      { mutation: true }, // effecting: a code is spent and refresh tokens rotate
     );
     return readResponse(res);
   }

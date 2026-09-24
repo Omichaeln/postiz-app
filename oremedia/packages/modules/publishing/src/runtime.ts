@@ -5,7 +5,12 @@ import {
   ReleaseIntegrityError,
   ValidationFailedError,
 } from '@oremedia/contracts/errors';
-import type { PendingCheck, PublishOutcome, ReconcileResult } from '@oremedia/contracts/providers';
+import {
+  PendingState,
+  type PendingCheck,
+  type PublishOutcome,
+  type ReconcileResult,
+} from '@oremedia/contracts/providers';
 import type {
   AttemptInputV1,
   AttemptResult,
@@ -55,7 +60,7 @@ import {
   type AttemptRow,
   type PublicationRow,
 } from './common';
-import { providerClientFor, publishMedia, review, variants, workflowRunning } from './hooks';
+import { approvals, providerClientFor, publishMedia, review, variants, workflowRunning } from './hooks';
 import { adapterFor, providerIO, registry } from './providers';
 import {
   ChannelConnectionRepository,
@@ -155,7 +160,7 @@ const attemptResultOf = (a: AttemptRow): AttemptResult => ({
   outcome: a.outcome,
   ...(a.remotePostId ? { remotePostId: a.remotePostId } : {}),
   ...(a.remoteJobId ? { remoteJobId: a.remoteJobId } : {}),
-  ...(a.pendingState ? { pending: a.pendingState } : {}),
+  ...(a.pendingState ? { pending: PendingState.parse(a.pendingState) } : {}),
   ...(a.errorCode ? { errorCode: a.errorCode } : {}),
   ...(a.errorDetail ? { errorDetail: a.errorDetail } : {}),
 });
@@ -303,6 +308,7 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
       withTransaction(async (tx) => {
         const row = await publicationsRepo.lock(publicationId, tx);
         if (row.state === 'held') return unchanged(row);
+        count(METRIC.publicationOutcomes, 1, { outcome: 'held' });
         return move(
           row,
           'release_policy_failed',
@@ -442,6 +448,19 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
           );
         }
         if (attemptId) await attemptsRepo.attachRemotePost(attemptId, remotePostId, tx);
+        // Spec 13.1: the release approval is spent with the publication, in the same transaction.
+        if (row.authority === 'approval' && row.approvalId)
+          await approvals.consume(
+            row.approvalId,
+            row.id,
+            Array.from(
+              new Set([
+                ...(await publicationsRepo.listPublishedChannelsForApproval(row.approvalId, tx)),
+                row.channelConnectionId,
+              ]),
+            ),
+            tx,
+          );
         // Spec 15.1: measurement collection starts from the publication moment (worker-ingest, its own queue).
         const actor = workflowActor();
         await outbox.add(
@@ -456,6 +475,7 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
           tx,
           { brandId: row.brandId },
         );
+        count(METRIC.publicationOutcomes, 1, { outcome: 'published' });
         return result;
       }),
 
@@ -466,6 +486,7 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
         // publishOnce already held the row (export_hash_mismatch): a person resolves it; nothing to fail.
         if (row.state === 'held') return unchanged(row);
         const event: PublicationEvent = row.state === 'processing' ? 'poll_failed' : 'provider_rejected';
+        count(METRIC.publicationOutcomes, 1, { outcome: 'failed' });
         return move(
           row,
           event,
@@ -491,6 +512,7 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
         if (row.state === 'outcome_unknown') return unchanged(row);
         const event: PublicationEvent = row.state === 'processing' ? 'poll_unknown' : 'ambiguous_failure';
         count(METRIC.outcomeUnknownCount, 1);
+        count(METRIC.publicationOutcomes, 1, { outcome: 'outcome_unknown' });
         return move(
           row,
           event,
@@ -505,6 +527,7 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
       withTransaction(async (tx) => {
         const row = await publicationsRepo.lock(publicationId, tx);
         if (row.state === 'retry_eligible') return unchanged(row);
+        count(METRIC.publicationOutcomes, 1, { outcome: 'retry_eligible' });
         return move(
           row,
           'reconcile_absent',
@@ -519,6 +542,7 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
       withTransaction(async (tx) => {
         const row = await publicationsRepo.lock(publicationId, tx);
         if (row.state === 'held') return unchanged(row);
+        count(METRIC.publicationOutcomes, 1, { outcome: 'held' });
         return move(
           row,
           'reconcile_exhausted',
@@ -582,8 +606,9 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
 
   const provider: PublishProviderRuntimeV1 = {
     /**
-     * Spec 14.3/14.5: sentAt is committed immediately before the outbound mutation; a repeat after sentAt never
-     * re-sends (it reports unknown); transport failures before send are retryable, everything after is unknown.
+     * Spec 14.3/14.5: sentAt is committed immediately before the first outbound mutation; a repeat after sentAt never
+     * re-sends (it reports unknown). An adapter's retryable_error with no sentAt goes back to scheduled; with sentAt
+     * the workflow reconciles.
      */
     async publishOnce(input: PublishOnceInputV1, hooks?: ActivityHooks): Promise<AttemptResult> {
       const { tenantId, attemptId } = input;
@@ -620,9 +645,12 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
           mediaFingerprints: variant.exportHashes,
         };
         result = await credentialBroker.withCredentials(tenantId, connection.id, async (creds) => {
-          const io: ProviderIO = providerIO(adapter.key, tenantId, hooks);
-          hooks?.heartbeat(`publish:${attemptId}:before_send`);
-          await withTransaction((tx) => attemptsRepo.markSent(attemptId, now(), tx)); // the ledger, before the call
+          // The ledger commits sentAt immediately before the first mutation leaves (not before reads, media fetches
+          // or the rate limiter), so a failure proven before it is retried with backoff (spec 14.3).
+          const io: ProviderIO = providerIO(adapter.key, tenantId, hooks, async () => {
+            hooks?.heartbeat(`publish:${attemptId}:before_send`);
+            await withTransaction((tx) => attemptsRepo.markSent(attemptId, now(), tx));
+          });
           try {
             return fromOutcome(attemptId, await adapter.publish(req, creds, io));
           } catch (err) {
@@ -702,7 +730,7 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
         return { status: 'failed', code: 'not_supported', message: 'provider has no status check' };
       const check = await credentialBroker.withCredentials(input.tenantId, connection.id, (creds) =>
         checkStatus(
-          { data: {}, ...attempt.pendingState },
+          PendingState.parse(attempt.pendingState),
           creds,
           providerIO(adapter.key, input.tenantId, hooks),
         ),
@@ -720,7 +748,7 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
       if (!finalize) return { status: 'failed', code: 'not_supported', message: 'provider has no finalize' };
       const check = await credentialBroker.withCredentials(input.tenantId, connection.id, (creds) =>
         finalize(
-          { data: {}, ...attempt.pendingState },
+          PendingState.parse(attempt.pendingState),
           creds,
           providerIO(adapter.key, input.tenantId, hooks),
         ),
@@ -782,9 +810,14 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
           err instanceof PolicyDeniedError && err.reason === 'credential_destroyed'
             ? { ok: false, reason: 'reconnect_required' }
             : { ok: false, reason: 'transient' };
+        // Name and code only (as provider-io logs): a token endpoint error message can carry a URL with secrets.
         if (refreshed.reason === 'transient')
           log.warn(
-            { channelConnectionId, errorMessage: err instanceof Error ? err.message : String(err) },
+            {
+              channelConnectionId,
+              errorName: (err as Error)?.name,
+              errorCode: (err as { code?: string })?.code,
+            },
             'token refresh failed',
           );
       }

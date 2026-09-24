@@ -44,6 +44,15 @@ export function extractUrls(text: string): string[] {
   return out;
 }
 
+const isAbsoluteUrl = (value: string): boolean => {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export interface UtmContext {
   campaign: string;
   content: string;
@@ -161,6 +170,83 @@ export const linkService = {
         { brandId: input.brandId, count: pending.length },
       );
     return text;
+  },
+
+  /**
+   * Spec 16.6 randomised link experiments (the experiments module's arm-link hook, registered by the composition
+   * root, inside the start transaction): one tracked link per arm to the first URL of the arm's text, carrying the
+   * experiment variant, and the entry link the post carries (experiment set, no variant; its destination is the
+   * first arm's, where visitors go once the experiment is no longer running). The redirector assigns visitors on
+   * the entry link and records each click on the arm's link. Nothing is created unless every arm names a URL.
+   */
+  async trackExperimentArms(
+    input: { brandId: string; experimentId: string; arms: Array<{ variantId: string; text: string }> },
+    tx: Tx,
+  ): Promise<{ entryShortCode: string; shortUrl: string | null; armLinkIds: string[] } | null> {
+    await assertBrandExists(input.brandId, tx);
+    const existing = await linksRepo.listForExperiment(input.brandId, input.experimentId, tx);
+    const entry = existing.find((l) => !l.experimentVariantId);
+    const base = linkTrackingOptions().redirectBaseUrl;
+    if (entry)
+      return {
+        entryShortCode: entry.shortCode,
+        shortUrl: base ? `${base}/${entry.shortCode}` : null,
+        armLinkIds: existing.filter((l) => l.experimentVariantId).map((l) => l.id),
+      };
+    const arms = [];
+    for (const arm of input.arms) {
+      const url = extractUrls(arm.text).find((u) => isAbsoluteUrl(u) && !(base && u.startsWith(`${base}/`)));
+      if (!url) return null;
+      arms.push({ variantId: arm.variantId, url });
+    }
+    if (arms.length < 2) return null;
+    const rows = [
+      { experimentVariantId: null, url: (arms[0] as (typeof arms)[number]).url, content: 'entry' },
+      ...arms.map((a) => ({ experimentVariantId: a.variantId, url: a.url, content: a.variantId })),
+    ].map((r) => {
+      const utm = utmFor({ campaign: input.experimentId, content: r.content });
+      return {
+        id: newId('trackedLink'),
+        brandId: input.brandId,
+        publicationId: null,
+        variantId: null,
+        experimentId: input.experimentId,
+        experimentVariantId: r.experimentVariantId,
+        destination: withUtm(r.url, utm),
+        utm,
+        shortCode: newShortCode(),
+      };
+    });
+    for (const values of rows) await linksRepo.create(values, tx);
+    await audit.record(
+      requireTenant().actor,
+      'measurement.links.track',
+      { type: 'experiment', id: input.experimentId },
+      'allowed',
+      tx,
+      { brandId: input.brandId, count: rows.length },
+    );
+    const entryRow = rows[0] as (typeof rows)[number];
+    return {
+      entryShortCode: entryRow.shortCode,
+      shortUrl: base ? `${base}/${entryRow.shortCode}` : null,
+      armLinkIds: rows.slice(1).map((r) => r.id),
+    };
+  },
+
+  /**
+   * Spec 16.6 exposures per experiment variant: distinct visitors (hashed per tenant and day by the redirector)
+   * whose clicks the redirector recorded on each arm's link.
+   */
+  async experimentExposures(brandId: string, experimentId: string, tx?: Tx): Promise<Map<string, number>> {
+    const arms = (await linksRepo.listForExperiment(brandId, experimentId, tx)).filter(
+      (l) => l.experimentVariantId,
+    );
+    const visitors = await clicksRepo.countUniqueVisitorsByLink(
+      arms.map((l) => l.id),
+      tx,
+    );
+    return new Map(arms.map((l) => [l.experimentVariantId as string, visitors.get(l.id) ?? 0]));
   },
 
   /** insight.read on the brand; a publication id resolves through the publication's variant (spec 15.4). */

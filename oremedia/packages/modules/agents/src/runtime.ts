@@ -51,7 +51,7 @@ import {
 import { resolveTenantContext } from '@oremedia/module-access';
 import { budgets } from '@oremedia/module-billing';
 import { audit, outbox } from '@oremedia/module-operations';
-import { count, METRIC } from '@oremedia/observability';
+import { count, METRIC, record } from '@oremedia/observability';
 import { AgentRunRepository, AgentStepRepository, ToolInvocationRepository } from './repositories';
 import { transcripts as defaultTranscripts, type TranscriptStore } from './transcripts';
 
@@ -260,6 +260,10 @@ export function createAgentRunRuntime(opts: AgentRuntimeOptions): AgentRunRuntim
             tx,
             { runId: run.id, brandId: run.brandId, fromState: fresh.state, toState },
           );
+          // Spec 17.2 agent-run "keeping up": requested → started by the agents worker.
+          record(METRIC.agentRunStartLagMs, Math.max(0, now().getTime() - fresh.createdAt.getTime()), {
+            taskKind: fresh.taskKind,
+          });
         }
       });
       return {
@@ -563,6 +567,11 @@ export function createAgentRunRuntime(opts: AgentRuntimeOptions): AgentRunRuntim
           tx,
           { brandId: fresh.brandId },
         );
+        // Spec 17.2 agent-run journey: duration, cost and terminal state (no tenant attribute: bounded cardinality).
+        const attrs = { state: toState, taskKind: fresh.taskKind };
+        count(METRIC.agentRuns, 1, attrs);
+        record(METRIC.agentRunDurationMs, Math.max(0, now().getTime() - fresh.createdAt.getTime()), attrs);
+        record(METRIC.agentRunCostMicros, totals.costMicros, attrs);
         return { runId: fresh.id, state: toState, costMicros: totals.costMicros };
       });
       await store.delete(input.runId);

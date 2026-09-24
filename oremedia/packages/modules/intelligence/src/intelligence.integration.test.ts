@@ -44,6 +44,7 @@ import {
 } from './hooks';
 import { configureRanking, intelligenceService } from './service';
 import { intelligenceToolSource } from './tools';
+import { VERDICT_SCORE, compareRankings } from './ranking';
 import { configureVoiceClassifier } from './voice';
 
 interface Person {
@@ -867,6 +868,64 @@ describe('intelligence module (spec 16) against MySQL 8', () => {
       );
     });
 
+    it('the comparison never learns from the verdicts it scores: with every closed loop in the period, learned scores as with no history', async () => {
+      // Created in this order the id tie-break puts the losing recommendation first, so a ranker that had seen
+      // the period's verdicts would put the winner first and score a perfect ordering.
+      const asB = <T>(fn: (tx: Tx) => Promise<T>) =>
+        run(tenantB, { kind: 'service_principal', id: 'sp_b' }, fn);
+      const loser = await recommendationFor(tenantB, brandB1, 'sp_b', 'variant', 'loser');
+      const winner = await recommendationFor(tenantB, brandB1, 'sp_b', 'experiment', 'winner');
+      for (const [rec, verdict] of [
+        [loser, 'not_supported'],
+        [winner, 'supported'],
+      ] as const) {
+        await tdb.db
+          .update(recommendations)
+          .set({ state: 'executed', decidedByUserId: managerB.id })
+          .where(eq(recommendations.id, rec.recommendationId));
+        await tdb.db
+          .update(learningRecords)
+          .set({ humanDecision: 'accepted', verdict, observedOutcomeRef: 'experiment_result:x' })
+          .where(eq(learningRecords.recommendationId, rec.recommendationId));
+      }
+      const result = await asB((tx) =>
+        intelligenceService.learning.compareRankingBaseline(
+          principal(tenantB, 'sp_b'),
+          {
+            brandId: brandB1,
+            periodStart: new Date(Date.now() - 30 * 86_400_000),
+            periodEnd: new Date(Date.now() + 60_000),
+          },
+          tx,
+        ),
+      );
+      const rows = await tdb.db.select().from(recommendations).where(eq(recommendations.brandId, brandB1));
+      const items = rows
+        .filter((r) => r.state === 'executed')
+        .map((r) => ({
+          id: r.id,
+          proposedAction: r.proposedAction,
+          expectedBenefit: r.expectedBenefit,
+          effort: r.effort,
+          uncertainty: r.uncertainty,
+        }));
+      const outcomes = new Map([
+        [loser.recommendationId, VERDICT_SCORE.not_supported],
+        [winner.recommendationId, VERDICT_SCORE.supported],
+      ]);
+      const noHistory = compareRankings(
+        items,
+        { primaryMetricKey: 'qualified_enquiries', guardrailMetricKeys: ['complaints'] },
+        [],
+        outcomes,
+        result.margin,
+      );
+      expect(result.evaluated).toBe(2);
+      expect(noHistory.learnedScore).toBeLessThan(1);
+      expect(result.learnedScore).toBe(noHistory.learnedScore);
+      expect(result.selected).toBe('baseline');
+    });
+
     it('exploration reserves a share for untested actions once the brand has the volume', async () => {
       await recommendationFor(tenantA, brandA1, spA, 'playbook_entry', 'untested action');
       const before = await runSp((tx) =>
@@ -927,10 +986,21 @@ describe('intelligence module (spec 16) against MySQL 8', () => {
       expect(prepared.runId).toMatch(/^run_|^ar_|^agr_/);
       expect(prepared.changeInsightIds).toHaveLength(2);
       expect(prepared.coverage.sources).toEqual(['qualified_enquiries', 'complaints']);
+      // An activity retry with the same input reuses the movements and the run: one set of insights, one run.
+      const retried = await runInTenant(ctx(tenantA, { kind: 'service_principal', id: spA }), () =>
+        runtime.analyst.prepareAnalysis(input),
+      );
+      expect(retried).toEqual(prepared);
+      const reviewRuns = (await tdb.db.select().from(agentRuns).where(eq(agentRuns.brandId, brandA1))).filter(
+        (r) => r.taskKind === 'performance_review' && 'period' in r.brief,
+      );
+      expect(reviewRuns.map((r) => r.id)).toEqual([prepared.runId]);
       const movements = await tdb.db
         .select()
         .from(insights)
         .where(and(eq(insights.brandId, brandA1), eq(insights.periodEnd, new Date(periodEnd))));
+      expect(movements.map((m) => m.id).sort()).toEqual([...prepared.changeInsightIds].sort());
+      expect(movements.every((m) => m.evidence.at(-1)?.ref === prepared.runId)).toBe(true);
       const enquiries = movements.find((m) => m.statement.startsWith('qualified_enquiries'))!;
       expect(enquiries).toMatchObject({ kind: 'anomaly', strength: 'observed' });
       expect(enquiries.statement).toBe(

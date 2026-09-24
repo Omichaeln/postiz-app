@@ -60,8 +60,10 @@ export function createServer(opts: ServerOptions = {}): Express {
     }
     res.on('finish', () => {
       const durationMs = Date.now() - started;
-      count(METRIC.httpRequests, 1, { status: res.statusCode });
-      record(METRIC.httpDurationMs, durationMs, { path: req.path.split('/').slice(0, 3).join('/') });
+      // The procedure path (bounded: the router map) on both, so each journey's error ratio is per procedure.
+      const path = req.path.split('/').slice(0, 3).join('/');
+      count(METRIC.httpRequests, 1, { status: res.statusCode, path });
+      record(METRIC.httpDurationMs, durationMs, { path });
       log.info(
         { method: req.method, path: req.path.slice(0, 200), statusCode: res.statusCode, durationMs },
         'request',

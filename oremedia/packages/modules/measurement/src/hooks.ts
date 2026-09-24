@@ -1,4 +1,8 @@
+import type { z } from 'zod';
+import type { MessageClassification as MessageClassificationSchema } from '@oremedia/contracts/intelligence';
 import type { Tx } from '@oremedia/db';
+
+type MessageClassification = z.infer<typeof MessageClassificationSchema>;
 
 /**
  * Cross-module hooks and process configuration (same pattern as the publishing module's hooks.ts). The
@@ -54,10 +58,36 @@ export interface IngestedComment {
   authorHash: string;
   text: string;
   remoteCreatedAt: string;
+  /** Set when a classifier is registered: computed before the ingesting transaction opened. */
+  classification: MessageClassification | null;
 }
+
+/**
+ * Spec 16.5: the intelligence module classifies each new comment. The classifier is a model call, so ingestion
+ * calls it before its transaction opens (no connection held across the call) and stores the answer on the message
+ * and hands it to the sinks; without one, messages stay unclassified and a sink classifies on its own.
+ */
+export type CommentClassifier = (comment: {
+  brandId: string;
+  text: string;
+}) => Promise<MessageClassification>;
+let commentClassifier: CommentClassifier | null = null;
+export const registerCommentClassifier = (fn: CommentClassifier | null): void => {
+  commentClassifier = fn;
+};
+export async function classifyComment(comment: {
+  brandId: string;
+  text: string;
+}): Promise<MessageClassification | null> {
+  return commentClassifier ? commentClassifier(comment) : null;
+}
+
 export type CommentSink = (comments: IngestedComment[], tx: Tx) => Promise<void>;
 const commentSinks: CommentSink[] = [];
-/** Spec 16.5: the intelligence module subscribes here; sinks run inside the ingesting transaction. */
+/**
+ * Spec 16.5: the intelligence module subscribes here; sinks run inside the ingesting transaction, so they write
+ * only (the classification arrives on the comment; network and model calls belong before the transaction).
+ */
 export const registerCommentSink = (fn: CommentSink): void => {
   commentSinks.push(fn);
 };

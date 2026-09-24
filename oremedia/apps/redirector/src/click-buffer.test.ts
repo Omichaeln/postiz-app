@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createClickBuffer, visitorHash, type ClickRow } from './click-buffer';
+import { createClickBuffer, type ClickRow } from './click-buffer';
 
 const row = (n: number): ClickRow => ({
   id: `lc_${n}`,
@@ -10,15 +10,7 @@ const row = (n: number): ClickRow => ({
   occurredAt: new Date(),
 });
 
-describe('redirector click buffer (spec 15.4: buffered writes, hashed visitor)', () => {
-  it('hashes the visitor with a daily salt: stable within a day, different across days and secrets', () => {
-    const d1 = new Date('2026-09-24T10:00:00Z');
-    const a = visitorHash('secret', '203.0.113.5', 'UA', d1);
-    expect(a).toBe(visitorHash('secret', '203.0.113.5', 'UA', new Date('2026-09-24T23:00:00Z')));
-    expect(a).not.toBe(visitorHash('secret', '203.0.113.5', 'UA', new Date('2026-09-25T00:00:00Z')));
-    expect(a).not.toBe(visitorHash('other', '203.0.113.5', 'UA', d1));
-    expect(a).not.toContain('203.0.113.5');
-  });
+describe('redirector click buffer (spec 15.4: buffered writes)', () => {
   it('flushes in batches, keeps the batch on a failed write and drains on stop', async () => {
     const written: ClickRow[][] = [];
     let fail = true;

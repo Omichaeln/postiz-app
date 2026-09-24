@@ -1,3 +1,5 @@
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import type {
   AccountGrant,
   DecryptedCredentials,
@@ -13,6 +15,7 @@ import {
   plainMeasure,
   validateVariantAgainstCapability,
   type ProviderAdapter,
+  type ProviderIO,
   type PublishMedia,
   type PublishRequest,
 } from '@oremedia/providers';
@@ -20,7 +23,9 @@ import {
 /**
  * Test fixture only (never registered in production): an in-memory platform whose behaviour a test scripts per
  * call. `certifiedAt` is set so the registry's certification gate lets tests through; `posts` is the remote
- * account, so a test can assert that a crash after send produced exactly one post.
+ * account, so a test can assert that a crash after send produced exactly one post. The post-creating call goes
+ * through the real ProviderIO to a loopback endpoint (configure publishing providers with `insecureAllowLoopback`),
+ * so the send boundary the runtime relies on (sentAt before the first mutation) is exercised, not simulated.
  */
 export const FIXTURE_PROVIDER_KEY = 'fixture_provider';
 
@@ -81,6 +86,24 @@ export interface FixturePost {
   finalised: boolean;
 }
 
+let endpoint: Promise<string> | null = null;
+/** One loopback HTTP endpoint per process that accepts the fixture's post-creating request (the platform is in memory). */
+function fixtureEndpoint(): Promise<string> {
+  return (endpoint ??= new Promise<string>((resolve) => {
+    const server = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end('{}');
+      });
+    });
+    server.unref();
+    server.listen(0, '127.0.0.1', () =>
+      resolve(`http://127.0.0.1:${(server.address() as AddressInfo).port}`),
+    );
+  }));
+}
+
 export class FixtureProviderAdapter implements ProviderAdapter {
   readonly key = FIXTURE_PROVIDER_KEY;
   readonly capability: ProviderCapabilityV1;
@@ -127,16 +150,22 @@ export class FixtureProviderAdapter implements ProviderAdapter {
   measureText(text: string) {
     return plainMeasure(this.capability.text.maxLength)(text);
   }
-  async publish(req: PublishRequest, creds: DecryptedCredentials): Promise<PublishOutcome> {
+  async publish(req: PublishRequest, creds: DecryptedCredentials, io: ProviderIO): Promise<PublishOutcome> {
     this.calls.push(`publish:${req.attemptId}`);
     if (creds.accessToken !== this.grant.credentials.accessToken && creds.accessToken !== 'at_refreshed')
       return { outcome: 'rejected', code: 'unauthorised', message: 'bad token' };
     const b = this.behaviour;
+    // A failure before the post-creating mutation left (e.g. a refused connection on a pre-boundary step).
     if (b.kind === 'before_send_failure')
       throw new ProviderTransportError(
         Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }),
         'before_send',
       );
+    await io.request(
+      `${await fixtureEndpoint()}/posts`,
+      { method: 'POST', body: JSON.stringify({ idempotencyKey: req.idempotencyKey }) },
+      { mutation: true },
+    );
     if (b.kind === 'reject')
       return { outcome: 'rejected', code: b.code ?? 'validation', message: 'rejected by fixture' };
     const existing = this.posts.find((p) => p.idempotencyKey === req.idempotencyKey);

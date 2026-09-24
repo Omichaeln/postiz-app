@@ -79,6 +79,43 @@ export class UserDirectory extends PlatformRepository {
       .set({ revokedAt: new Date() })
       .where(and(eq(sessions.userId, userId), isNull(sessions.revokedAt)));
   }
+  /**
+   * Spec 17.5 user identity after a tenant deletion: a user left with no membership in any tenant keeps a
+   * pseudonymous row (audit events refer to the id) with the personal fields replaced, and every session revoked.
+   * A user who still belongs to another tenant is untouched. Returns whether the user was anonymised.
+   */
+  async anonymiseIfUnaffiliated(userId: string, tx?: Tx): Promise<boolean> {
+    const remaining = await this.conn(tx)
+      .select({ id: memberships.id })
+      .from(memberships)
+      .where(eq(memberships.userId, userId))
+      .limit(1);
+    if (remaining.length) return false;
+    await this.conn(tx)
+      .update(users)
+      .set({
+        email: `deleted+${userId.toLowerCase()}@deleted.invalid`,
+        name: 'Deleted user',
+        status: 'deleted',
+        passwordHash: null,
+        mfaEnrolled: false,
+      })
+      .where(eq(users.id, userId));
+    await this.revokeSessionsForUser(userId, tx);
+    return true;
+  }
+  /** Spec 17.5 tenant deletion: the tenant row stays as a tombstone (audit rows name it) without its name. */
+  async closeTenant(tenantId: string, tx?: Tx) {
+    await this.conn(tx)
+      .update(tenants)
+      .set({
+        name: 'Deleted tenant',
+        slug: `deleted-${tenantId.toLowerCase()}`.slice(0, 80),
+        status: 'closing',
+        policy: null,
+      })
+      .where(eq(tenants.id, tenantId));
+  }
   async revokeSession(id: string, tx?: Tx) {
     await this.conn(tx).update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, id));
   }

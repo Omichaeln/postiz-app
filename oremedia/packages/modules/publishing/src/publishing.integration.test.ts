@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Writable } from 'node:stream';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import {
   ApprovalInvalidError,
@@ -24,17 +25,20 @@ import {
   remoteEvidence,
 } from '@oremedia/db/schema/publishing';
 import { newId } from '@oremedia/domain/ids';
+import { createLogger } from '@oremedia/observability';
 import { ProviderRegistry, ProviderTransportError } from '@oremedia/providers';
 import { configureCredentialBroker, credentialBroker } from './broker';
 import { channelService } from './channels';
 import { publicationWorkflowId } from './common';
 import {
   registerBrandChecker,
+  registerApprovalConsumer,
   registerProviderClients,
   registerPublishMediaSource,
   registerReleaseEvaluator,
   registerVariantSource,
   registerWorkflowProbe,
+  resetApprovalConsumer,
   resetReleaseEvaluator,
   resetVariantSource,
   type ReleaseEvaluator,
@@ -94,6 +98,11 @@ describe('publishing module (spec 14) against MySQL 8', () => {
   const variantsById = new Map<string, ChannelVariantForPublishing>();
   let releaseDecision: ReleaseDecision = { allow: true };
   const releaseCalls: Array<{ id: string; state: string }> = [];
+  /** Approvals the review module would have moved valid → consumed (the consumer hook, spec 13.1). */
+  let consumedApprovals: Array<{ approvalId: string; publicationId: string }> = [];
+  const recordingConsumer = async (approvalId: string, publicationId: string) => {
+    consumedApprovals.push({ approvalId, publicationId });
+  };
   let mediaFailure: Error | null = null;
   let runningWorkflows = new Set<string>();
   let connA = '';
@@ -101,6 +110,9 @@ describe('publishing module (spec 14) against MySQL 8', () => {
   const runtime = createPublishingRuntime();
   const recordingEvaluator: ReleaseEvaluator = async (pub) => {
     releaseCalls.push({ id: pub.id, state: pub.state });
+    // as reviewService.evaluateRelease: a consumed approval fails approval_valid
+    if (consumedApprovals.some((c) => c.approvalId === pub.approvalId))
+      return { allow: false, hold: true, reasons: ['approval_valid'] };
     return releaseDecision;
   };
 
@@ -138,6 +150,7 @@ describe('publishing module (spec 14) against MySQL 8', () => {
     variantId: string,
     at = new Date(Date.now() - 1000),
     occurrence?: string,
+    approvalId: string = newId('releaseApproval'),
   ) =>
     run(tenantId, (tx) =>
       publicationService.schedule(
@@ -146,7 +159,7 @@ describe('publishing module (spec 14) against MySQL 8', () => {
           channelVariantId: variantId,
           scheduledFor: at.toISOString(),
           authority: 'approval',
-          approvalId: 'apr_test',
+          approvalId,
           ...(occurrence ? { occurrence } : {}),
         },
         tx,
@@ -206,7 +219,7 @@ describe('publishing module (spec 14) against MySQL 8', () => {
       { id: brandA, tenantId: tenantA, name: 'A1', timezone: 'UTC', defaultLocale: 'en', status: 'active' },
       { id: brandB, tenantId: tenantB, name: 'B1', timezone: 'UTC', defaultLocale: 'en', status: 'active' },
     ]);
-    configurePublishingProviders({ registry });
+    configurePublishingProviders({ registry, insecureAllowLoopback: true }); // the fixture's send is a loopback call
     configureCredentialBroker({ kms });
     registerProviderClients(() => ({ clientId: 'fixture-client', clientSecret: 'fixture-secret' }));
     registerBrandChecker({
@@ -221,6 +234,7 @@ describe('publishing module (spec 14) against MySQL 8', () => {
       return v;
     });
     registerReleaseEvaluator(recordingEvaluator);
+    registerApprovalConsumer(recordingConsumer);
     registerPublishMediaSource({
       describe: async () => [],
       release: async () => {
@@ -244,6 +258,7 @@ describe('publishing module (spec 14) against MySQL 8', () => {
     releaseDecision = { allow: true };
     mediaFailure = null;
     runningWorkflows = new Set();
+    consumedApprovals = [];
   });
 
   describe('hooks', () => {
@@ -680,6 +695,134 @@ describe('publishing module (spec 14) against MySQL 8', () => {
       ).rejects.toBeInstanceOf(ValidationFailedError);
     });
 
+    it('an adapter retryable_error before the first mutation leaves no sentAt → retried with backoff and a new attempt; after send → unknown', async () => {
+      const v = newVariant(tenantA, brandA, connA, 'Pre-send adapter failure caption');
+      const pub = await schedule(tenantA, v.id);
+      const { attemptId } = await dispatch(pub.id);
+      fixture.behaviour = { kind: 'before_send_failure' };
+      const postsBefore = fixture.posts.length;
+      const result = await inTenant(tenantA, () =>
+        runtime.provider.publishOnce({ ...wfInput(pub.id), attemptId, fencingToken: 1 }),
+      );
+      expect(result.outcome).toBe('retryable_error');
+      expect((await attemptsOf(pub.id))[0]!.sentAt).toBeNull(); // nothing mutating left the process
+      const before = await row(pub.id);
+      const retry = await inTenant(tenantA, () =>
+        runtime.control.retryAfterProvenNoEffect({ ...wfInput(pub.id), attempt: result }),
+      );
+      expect(retry).toMatchObject({ retried: true });
+      const after = await row(pub.id);
+      expect(after.state).toBe('scheduled');
+      expect(after.scheduledFor.getTime()).toBeGreaterThan(before.scheduledFor.getTime());
+      expect(fixture.posts.length).toBe(postsBefore);
+      // the next dispatch opens a second attempt; this time the post-creating call fails after it left
+      fixture.behaviour = { kind: 'after_send_failure' };
+      const second = await dispatch(pub.id);
+      expect(second.claim.fencingToken).toBe(2);
+      expect((await attemptsOf(pub.id)).map((a) => a.attemptNumber).sort()).toEqual([1, 2]);
+      const unknown = await inTenant(tenantA, () =>
+        runtime.provider.publishOnce({ ...wfInput(pub.id), attemptId: second.attemptId, fencingToken: 2 }),
+      );
+      expect(unknown.outcome).toBe('unknown');
+      const sentAttempt = (await attemptsOf(pub.id)).find((a) => a.id === second.attemptId)!;
+      expect(sentAttempt.sentAt).not.toBeNull();
+      expect(
+        await inTenant(tenantA, () =>
+          runtime.control.retryAfterProvenNoEffect({
+            ...wfInput(pub.id),
+            attempt: { ...unknown, outcome: 'retryable_error' },
+          }),
+        ),
+      ).toEqual({ retried: false, reason: 'sent' });
+    });
+
+    it('publishing spends the release approval in the same transaction: another occurrence under it is refused at dispatch with approval_valid', async () => {
+      const v = newVariant(tenantA, brandA, connA, 'Single-use approval caption');
+      const approvalId = newId('releaseApproval');
+      const first = await schedule(tenantA, v.id, undefined, 'first', approvalId);
+      const second = await schedule(tenantA, v.id, undefined, 'second', approvalId); // inside the timing tolerance
+      const { attemptId } = await dispatch(first.id);
+      const accepted = await inTenant(tenantA, () =>
+        runtime.provider.publishOnce({ ...wfInput(first.id), attemptId, fencingToken: 1 }),
+      );
+      // the consumer failing rolls the whole publish back: never published with a still-valid approval
+      registerApprovalConsumer(async () => {
+        throw new Error('review unavailable');
+      });
+      await expect(
+        inTenant(tenantA, () => runtime.control.markPublished({ ...wfInput(first.id), attempt: accepted })),
+      ).rejects.toThrow(/review unavailable/);
+      expect((await row(first.id)).state).toBe('dispatching');
+      expect(await evidenceOf(first.id)).toHaveLength(0);
+      registerApprovalConsumer(recordingConsumer);
+      await inTenant(tenantA, () =>
+        runtime.control.markPublished({ ...wfInput(first.id), attempt: accepted }),
+      );
+      await inTenant(tenantA, () =>
+        runtime.control.markPublished({ ...wfInput(first.id), attempt: accepted }),
+      );
+      expect(consumedApprovals).toEqual([{ approvalId, publicationId: first.id }]); // once, with the publication
+      const claim = await inTenant(tenantA, () =>
+        runtime.control.claimForDispatch({ ...wfInput(second.id), claimant: 'pub:wf:run-1' }),
+      );
+      if (!claim.ok) throw new Error('claim failed');
+      expect(
+        await inTenant(tenantA, () =>
+          runtime.control.evaluateRelease({ ...wfInput(second.id), fencingToken: claim.fencingToken }),
+        ),
+      ).toEqual({ allow: false, reasons: ['approval_valid'] });
+      // the loud default: an unwired composition root cannot publish silently with a reusable approval
+      resetApprovalConsumer();
+      try {
+        const v3 = newVariant(tenantA, brandA, connA, 'Unwired consumer caption');
+        const third = await schedule(tenantA, v3.id);
+        const d3 = await dispatch(third.id);
+        const ok = await inTenant(tenantA, () =>
+          runtime.provider.publishOnce({ ...wfInput(third.id), attemptId: d3.attemptId, fencingToken: 1 }),
+        );
+        await expect(
+          inTenant(tenantA, () => runtime.control.markPublished({ ...wfInput(third.id), attempt: ok })),
+        ).rejects.toThrow(/approval consumer not registered/);
+      } finally {
+        registerApprovalConsumer(recordingConsumer);
+      }
+    });
+
+    it('JSON columns are validated on read: a malformed pending state or hold-reason list is refused, never spread raw', async () => {
+      const v = newVariant(tenantA, brandA, connA, 'Malformed JSON caption');
+      const pub = await schedule(tenantA, v.id);
+      const { attemptId } = await dispatch(pub.id);
+      fixture.behaviour = { kind: 'pending' };
+      await inTenant(tenantA, () =>
+        runtime.provider.publishOnce({ ...wfInput(pub.id), attemptId, fencingToken: 1 }),
+      );
+      await tdb.db
+        .update(publicationAttempts)
+        .set({ pendingState: { remoteJobId: 42, data: 'not-an-object' } })
+        .where(eq(publicationAttempts.id, attemptId));
+      const call = { ...wfInput(pub.id), attemptId, fencingToken: 1 };
+      const checksBefore = fixture.calls.filter((c) => c === 'checkStatus').length;
+      await expect(inTenant(tenantA, () => runtime.provider.checkStatus(call))).rejects.toThrow();
+      await expect(inTenant(tenantA, () => runtime.provider.finalize(call))).rejects.toThrow();
+      expect(fixture.calls.filter((c) => c === 'checkStatus').length).toBe(checksBefore); // the adapter never saw it
+      await tdb.db
+        .update(publications)
+        .set({ holdReasons: 'channel_active' as unknown as string[] })
+        .where(eq(publications.id, pub.id));
+      await expect(
+        inTenant(tenantA, () => publicationService.get(A, { publicationId: pub.id })),
+      ).rejects.toThrow();
+      await tdb.db
+        .update(publications)
+        .set({ holdReasons: ['channel_active'] })
+        .where(eq(publications.id, pub.id));
+      expect(
+        await inTenant(tenantA, () => publicationService.get(A, { publicationId: pub.id })),
+      ).toMatchObject({
+        holdReasons: ['channel_active'],
+      });
+    });
+
     it('rejected → failed; pending → processing → poll (finalize) → published', async () => {
       const v = newVariant(tenantA, brandA, connA);
       const pub = await schedule(tenantA, v.id);
@@ -937,6 +1080,7 @@ describe('publishing module (spec 14) against MySQL 8', () => {
       );
       expect(done).toMatchObject({ state: 'published', remotePostId: 'post_manual' });
       expect((await evidenceOf(pub.id))[0]).toMatchObject({ kind: 'human_confirmation', attemptId });
+      expect(consumedApprovals).toEqual([{ approvalId: done.approvalId, publicationId: pub.id }]);
       const v2 = newVariant(tenantA, brandA, connA);
       const pub2 = await schedule(tenantA, v2.id);
       const d2 = await dispatch(pub2.id);
@@ -950,6 +1094,40 @@ describe('publishing module (spec 14) against MySQL 8', () => {
           )
         ).state,
       ).toBe('retry_eligible');
+    });
+
+    it('confirm_published is refused on a held row (it would stay held); cancel still resolves it', async () => {
+      const v = newVariant(tenantA, brandA, connA, 'Held then confirmed caption');
+      const pub = await schedule(tenantA, v.id);
+      const { attemptId } = await dispatch(pub.id);
+      await inTenant(tenantA, () => runtime.control.markOutcomeUnknown({ ...wfInput(pub.id), attemptId }));
+      await inTenant(tenantA, () =>
+        runtime.control.holdForHuman({ ...wfInput(pub.id), reason: 'outcome_unknown_unresolved' }),
+      );
+      const held = await row(pub.id);
+      expect(held.state).toBe('held');
+      const err = await run(tenantA, (tx) =>
+        publicationService.reconcile(
+          A,
+          { publicationId: pub.id, resolution: 'confirm_published', remotePostId: 'post_manual_held' },
+          tx,
+        ),
+      ).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ValidationFailedError);
+      expect((err as ValidationFailedError).message).toMatch(/outcome_unknown/);
+      expect((err as ValidationFailedError).details).toEqual([
+        { path: 'resolution', issue: 'confirm_published_not_allowed_in_state:held' },
+      ]);
+      expect(await row(pub.id)).toMatchObject({ state: 'held', version: held.version, remotePostId: null });
+      expect(await evidenceOf(pub.id)).toHaveLength(0);
+      expect(consumedApprovals).toEqual([]);
+      expect(
+        (
+          await run(tenantA, (tx) =>
+            publicationService.reconcile(A, { publicationId: pub.id, resolution: 'cancel' }, tx),
+          )
+        ).state,
+      ).toBe('cancelled');
     });
   });
 
@@ -987,6 +1165,54 @@ describe('publishing module (spec 14) against MySQL 8', () => {
       expect(again.id).toBe(conn2.id);
       expect(again.status).toBe('active');
       expect((await connectionRow(conn2.id)).credentialRefId).not.toBe(before.credentialRefId);
+    });
+
+    it('a transient refresh failure is logged by error name and code only: never a message that can carry a secret URL', async () => {
+      fixture.grant.remoteAccountId = 'acct_A_refresh_log';
+      const conn = await connect(tenantA, brandA);
+      fixture.grant.remoteAccountId = 'acct_A';
+      const chunks: string[] = [];
+      createLogger({
+        service: 'publishing-test',
+        level: 'info',
+        destination: new Writable({
+          write(chunk, _enc, cb) {
+            chunks.push(String(chunk));
+            cb();
+          },
+        }),
+      });
+      const failing = Object.assign(
+        new Error('POST https://oauth.fixture.example/token?client_id=cid&client_secret=SUPERSECRET failed'),
+        { code: 'ETIMEDOUT' },
+      );
+      const refresh = vi.spyOn(fixture, 'refresh').mockRejectedValueOnce(failing);
+      try {
+        expect(
+          await inTenant(tenantA, () =>
+            createPublishingRuntime().tokenRefresh.refreshCredentials({
+              tenantId: tenantA,
+              actor: { kind: 'user' as const, id: USER },
+              correlationId: 'c',
+              channelConnectionId: conn.id,
+            }),
+          ),
+        ).toEqual({ ok: false, reason: 'transient' });
+      } finally {
+        refresh.mockRestore();
+        createLogger({ service: 'oremedia' });
+      }
+      const line = chunks.find((c) => c.includes('token refresh failed'));
+      expect(line).toBeDefined();
+      const logged = JSON.parse(line!) as Record<string, unknown>;
+      expect(logged).toMatchObject({
+        errorName: 'Error',
+        errorCode: 'ETIMEDOUT',
+        channelConnectionId: conn.id,
+      });
+      expect(logged).not.toHaveProperty('errorMessage');
+      expect(line).not.toContain('SUPERSECRET');
+      expect(line).not.toContain('client_secret');
     });
 
     it('refreshCredentials writes a new credential row version, destroys the old one, and flags failures', async () => {

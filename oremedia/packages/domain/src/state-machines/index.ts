@@ -15,3 +15,4 @@ export * from './mandate';
 export * from './brief';
 export * from './content-package';
 export * from './experiment';
+export * from './deletion-request';

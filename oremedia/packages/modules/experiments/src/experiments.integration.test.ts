@@ -10,10 +10,15 @@ import { brands } from '@oremedia/db/schema/brand';
 import { contentPackages, contentRevisions } from '@oremedia/db/schema/content';
 import { experimentAssignments, experimentResults, experiments } from '@oremedia/db/schema/experiments';
 import { auditEvents, featureFlags, outboxEvents } from '@oremedia/db/schema/operations';
-import { assignVariant } from '@oremedia/domain/experiments/index';
+import { assignVariant, visitorHash } from '@oremedia/domain/experiments/index';
 import { hashCanonical } from '@oremedia/domain/hash';
 import { newId } from '@oremedia/domain/ids';
-import { registerExperimentListener, resetExperimentListeners, type ExperimentMilestone } from './hooks';
+import {
+  registerExperimentArmLinks,
+  registerExperimentListener,
+  resetExperimentListeners,
+  type ExperimentMilestone,
+} from './hooks';
 import { experimentsService } from './service';
 
 interface Person {
@@ -159,6 +164,7 @@ describe('experiments module (spec 16.6) against MySQL 8', () => {
       variants: dto.variants.map((v) => v.id),
       version: started.version,
       startedAt: new Date(dto.startedAt!),
+      entryLink: started.entryLink,
     };
   }
   const after = (startedAt: Date, hours: number) =>
@@ -578,6 +584,78 @@ describe('experiments module (spec 16.6) against MySQL 8', () => {
         ),
       );
       expect(later).toMatchObject({ verdict: 'supported', state: 'analysed' });
+    });
+
+    it('a link experiment creates its arm links at start; results read the exposure per arm from the arm links', async () => {
+      // The measurement module stands behind this hook in the API composition (linkService.trackExperimentArms /
+      // experimentExposures); here it records the request and counts the clicks a redirector would record.
+      const requested: Array<{ experimentId: string; arms: Array<{ variantId: string; text: string }> }> = [];
+      const clicks: Array<{ experimentId: string; variantId: string; visitorHash: string }> = [];
+      registerExperimentArmLinks({
+        create: async (input) => {
+          requested.push({ experimentId: input.experimentId, arms: input.arms });
+          return { entryShortCode: 'entry00001', shortUrl: 'https://ore.link/entry00001' };
+        },
+        exposures: async (_brandId, experimentId) => {
+          const visitors = new Map<string, Set<string>>();
+          for (const c of clicks.filter((c) => c.experimentId === experimentId))
+            visitors.set(c.variantId, (visitors.get(c.variantId) ?? new Set()).add(c.visitorHash));
+          return new Map([...visitors].map(([variantId, set]) => [variantId, set.size]));
+        },
+      });
+      try {
+        const withUrls = [
+          await revision(tenantA, brandA, 'Book now https://brand.example/a'),
+          await revision(tenantA, brandA, 'Ask us https://brand.example/b'),
+        ];
+        const x = await running({
+          variants: [
+            { label: 'control', contentRevisionId: withUrls[0]!, allocationWeight: 1 },
+            { label: 'question_hook', contentRevisionId: withUrls[1]!, allocationWeight: 1 },
+          ],
+        });
+        expect(x.entryLink).toEqual({ shortCode: 'entry00001', shortUrl: 'https://ore.link/entry00001' });
+        expect(requested).toHaveLength(1);
+        expect(new Map(requested[0]!.arms.map((a) => [a.variantId, a.text]))).toEqual(
+          new Map([
+            [x.variants[0]!, expect.stringContaining('https://brand.example/')],
+            [x.variants[1]!, expect.stringContaining('https://brand.example/')],
+          ]),
+        );
+        // What the redirector does on the entry link: hash per tenant and day, assign with the shared function.
+        const arms = [...x.variants].sort().map((id) => ({ id, allocationWeight: 1 }));
+        for (let i = 0; i < 600; i++) {
+          const hash = visitorHash('link-secret', tenantA, `198.51.100.${i % 300}|UA`, x.startedAt);
+          clicks.push({ experimentId: x.id, variantId: assignVariant(hash, x.id, arms), visitorHash: hash });
+        }
+        const expected = (variantId: string) =>
+          new Set(clicks.filter((c) => c.variantId === variantId).map((c) => c.visitorHash)).size;
+        expect(expected(x.variants[0]!) + expected(x.variants[1]!)).toBe(300); // each visitor in one arm
+        const result = await runA((tx) =>
+          experimentsService.results(
+            analyst.actor,
+            {
+              experimentId: x.id,
+              preRegistrationHash: x.hash,
+              observations: [
+                { variantId: x.variants[0]!, n: 1000, x: 50, guardrails: {} },
+                { variantId: x.variants[1]!, n: 1000, x: 52, exposure: 7, guardrails: {} },
+              ],
+              at: after(x.startedAt, 25),
+            },
+            tx,
+          ),
+        );
+        expect(result.perVariant[x.variants[0]!]?.exposure).toBe(expected(x.variants[0]!));
+        expect(result.perVariant[x.variants[1]!]?.exposure).toBe(7); // a stated exposure is kept as given
+        // Without composed link tracking the start creates nothing and returns no entry link.
+        registerExperimentArmLinks(null);
+        const plain = await running();
+        expect(plain.entryLink).toBeNull();
+        expect(requested).toHaveLength(1);
+      } finally {
+        registerExperimentArmLinks(null);
+      }
     });
 
     it('assigns hashed visitors with the shared pure function, deterministically and idempotently', async () => {

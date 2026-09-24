@@ -5,6 +5,7 @@ import { composeModules } from './composition';
 import { startAgentsWorker } from './agents-worker';
 import { runDispatchLoop } from './dispatch-loop';
 import { ensureIntelligenceSchedulesRunning } from './intelligence-worker';
+import { ensureRetentionScheduleRunning } from './operations-worker';
 import { TemporalWorkflowProbe, ensureSweeperRunning, startPublishingWorkers } from './publishing-worker';
 import { TemporalWorkflowStarter, connectTemporal, temporalConfigFromEnv } from './temporal';
 
@@ -52,6 +53,7 @@ try {
   publishingWorkers = await startPublishingWorkers(temporalConfig);
   await ensureSweeperRunning(client);
   await ensureIntelligenceSchedulesRunning(client); // spec 16.3 weekly analyst, 16.8 monthly baseline comparison
+  await ensureRetentionScheduleRunning(client); // spec 17.5 daily TTL sweep (dry run unless RETENTION_SWEEP_APPLY)
 } catch (err) {
   log.error(
     { errorMessage: err instanceof Error ? err.message : String(err) },

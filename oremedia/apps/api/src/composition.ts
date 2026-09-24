@@ -1,5 +1,9 @@
 import { registerBrandChecker, MembershipRepository } from '@oremedia/module-access';
-import { experimentsService, registerExperimentListener } from '@oremedia/module-experiments';
+import {
+  experimentsService,
+  registerExperimentArmLinks,
+  registerExperimentListener,
+} from '@oremedia/module-experiments';
 import {
   intelligenceService,
   registerExperimentDesigner,
@@ -40,6 +44,7 @@ import {
   registerProviderClients,
   providerClientsFromEnv,
   registerPublishMediaSource,
+  registerApprovalConsumer,
   registerReleaseEvaluator,
   registerVariantSource,
   registerPublishingBrandChecker,
@@ -99,6 +104,10 @@ export function composeModules(): void {
   registerPublishingBrandChecker({ assertExist: (ids, tx) => brandService.assertExist(ids, tx) });
   registerVariantSource((variantId, tx) => contentService.variants.read(variantId, tx));
   registerReleaseEvaluator((pub, at, tx) => reviewService.evaluateRelease(pub, at, tx));
+  // Spec 13.1: a release approval is spent (valid → consumed) with the publication it authorised.
+  registerApprovalConsumer(async (approvalId, publicationId, publishedChannelConnectionIds, tx) => {
+    await reviewService.approvals.consume(approvalId, tx, publicationId, publishedChannelConnectionIds);
+  });
   // Spec 9.3 / 14.5: the exports a variant publishes, as signed release URLs minted at dispatch. The creative
   // module reads the export rows; the assets module re-verifies the bytes against the pinned hash (spec 3.g4)
   // and mints the URL for the provider's processing window.
@@ -121,6 +130,13 @@ export function composeModules(): void {
     channelUsable: (channelConnectionId, tx) => channelService.channelUsable(channelConnectionId, tx),
     validateVariant: (channelVariantId, tx) => channelService.validateVariant(channelVariantId, tx),
     countForMandateOnDay: (mandateId, at, tx) => publicationService.countForMandateOnDay(mandateId, at, tx),
+    publishedElsewhereForApprovalChannel: (approvalId, channelConnectionId, exceptPublicationId, tx) =>
+      publicationService.publishedElsewhereForApprovalChannel(
+        approvalId,
+        channelConnectionId,
+        exceptPublicationId,
+        tx,
+      ),
   });
   registerChannelResolver((channelConnectionId, tx) => channelService.describe(channelConnectionId, tx));
   registerCalendarSource((brandId, from, to, tx) => publicationService.calendarRange(brandId, from, to, tx));
@@ -129,6 +145,11 @@ export function composeModules(): void {
   registerMeasurementBrandChecker({ assertExist: (ids, tx) => brandService.assertExist(ids, tx) });
   configureLinkTracking(linkTrackingFromEnv());
   registerLinkTracker((input, tx) => linkService.trackVariantLinks(input, tx));
+  // Spec 16.6: a randomised link experiment's arm links at start and its exposures from the redirector's clicks.
+  registerExperimentArmLinks({
+    create: (input, tx) => linkService.trackExperimentArms(input, tx),
+    exposures: (brandId, experimentId, tx) => linkService.experimentExposures(brandId, experimentId, tx),
+  });
   registerAttributeCapturer(async (input, tx) => {
     await attributeService.capture(input, tx);
   });
@@ -187,6 +208,7 @@ export function composeModules(): void {
           text: c.text,
           authorHash: c.authorHash,
           remoteCreatedAt: c.remoteCreatedAt,
+          ...(c.classification ? { classification: c.classification } : {}),
         },
         tx,
       );

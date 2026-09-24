@@ -38,6 +38,13 @@ export interface ProviderIOOptions extends SafeDispatcherOptions {
   tenantId: string;
   timeoutMs: number;
   limiter: RateLimiter;
+  /**
+   * Awaited once, immediately before the first `mutation: true` request is dispatched (after the SSRF and rate-limit
+   * checks, which never reach the platform). The publishing runtime commits the attempt's sentAt here (spec 14.3),
+   * so read-only requests and pre-send failures before the first mutation leave the ledger unsent. A throw aborts
+   * the request (and every later mutation of this IO) as `before_send`: nothing left the process.
+   */
+  beforeSend?: () => Promise<void>;
 }
 
 /**
@@ -52,6 +59,7 @@ export interface ProviderIOOptions extends SafeDispatcherOptions {
 export function createProviderIO(opts: ProviderIOOptions): ProviderIO {
   const log = logger().child('provider-io');
   const base = ssrfSafeDispatcher(opts);
+  let beforeSend: Promise<void> | null = null;
   return {
     async request(url, init, meta) {
       const target = assertSafeUrl(url, opts);
@@ -59,6 +67,25 @@ export function createProviderIO(opts: ProviderIOOptions): ProviderIO {
       const method = (init.method ?? 'GET').toUpperCase();
       const detail = `${meta.mutation ? 'mutation' : 'read'} ${method} ${target.origin}${target.pathname}`;
       meta.heartbeat?.(detail);
+      if (meta.mutation && opts.beforeSend) {
+        try {
+          await (beforeSend ??= opts.beforeSend());
+        } catch (err) {
+          log.warn(
+            {
+              providerKey: opts.providerKey,
+              tenantId: opts.tenantId,
+              method,
+              path: target.pathname,
+              phase: 'before_send',
+              errorName: (err as Error)?.name,
+              errorCode: (err as { code?: string })?.code,
+            },
+            'provider request aborted before send',
+          );
+          throw new ProviderTransportError(err, 'before_send');
+        }
+      }
       let sent = false;
       const dispatcher = sendTracking(base, () => {
         sent = true;

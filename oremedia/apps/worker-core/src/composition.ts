@@ -15,6 +15,8 @@ import {
   registerPublicationVolumeSource,
 } from '@oremedia/module-intelligence';
 import { runInTenant } from '@oremedia/db';
+import { registerOperationsOutboxRoutes, registerRetentionTenantSource } from '@oremedia/module-operations';
+import { registerDeletionHandlers, registerRetentionHandlers } from './deletion-handlers';
 import { assetService, registerAssetOutboxRoutes } from '@oremedia/module-assets';
 import { registerUsageCounters } from '@oremedia/module-billing';
 import { brandService } from '@oremedia/module-brand';
@@ -61,6 +63,7 @@ import {
   providerClientsFromEnv,
   registerPublishingOutboxRoutes,
   registerPublishMediaSource,
+  registerApprovalConsumer,
   registerReleaseEvaluator,
   registerVariantSource,
   registerWorkflowProbe,
@@ -105,6 +108,10 @@ export function composeModules(opts: { workflowProbe?: WorkflowProbe } = {}): vo
   registerPublishingBrandChecker({ assertExist: (ids, tx) => brandService.assertExist(ids, tx) });
   registerVariantSource((variantId, tx) => contentService.variants.read(variantId, tx));
   registerReleaseEvaluator((pub, at, tx) => reviewService.evaluateRelease(pub, at, tx));
+  // Spec 13.1: a release approval is spent (valid → consumed) with the publication it authorised.
+  registerApprovalConsumer(async (approvalId, publicationId, publishedChannelConnectionIds, tx) => {
+    await reviewService.approvals.consume(approvalId, tx, publicationId, publishedChannelConnectionIds);
+  });
   // Spec 9.3 / 14.5: the exports a variant publishes, as signed release URLs minted at dispatch. The creative
   // module reads the export rows; the assets module re-verifies the bytes against the pinned hash (spec 3.g4)
   // and mints the URL for the provider's processing window.
@@ -127,6 +134,13 @@ export function composeModules(opts: { workflowProbe?: WorkflowProbe } = {}): vo
     channelUsable: (channelConnectionId, tx) => channelService.channelUsable(channelConnectionId, tx),
     validateVariant: (channelVariantId, tx) => channelService.validateVariant(channelVariantId, tx),
     countForMandateOnDay: (mandateId, at, tx) => publicationService.countForMandateOnDay(mandateId, at, tx),
+    publishedElsewhereForApprovalChannel: (approvalId, channelConnectionId, exceptPublicationId, tx) =>
+      publicationService.publishedElsewhereForApprovalChannel(
+        approvalId,
+        channelConnectionId,
+        exceptPublicationId,
+        tx,
+      ),
   });
   registerChannelResolver((channelConnectionId, tx) => channelService.describe(channelConnectionId, tx));
   registerCalendarSource((brandId, from, to, tx) => publicationService.calendarRange(brandId, from, to, tx));
@@ -199,10 +213,20 @@ export function composeModules(opts: { workflowProbe?: WorkflowProbe } = {}): vo
           text: c.text,
           authorHash: c.authorHash,
           remoteCreatedAt: c.remoteCreatedAt,
+          ...(c.classification ? { classification: c.classification } : {}),
         },
         tx,
       );
   });
+  // Spec 17.5: operations.deletion_requested → deletionRequestWorkflowV1 on `core`; each module's rows, objects and
+  // credentials are removed by the handlers registered here; the daily retention sweep visits every tenant with an
+  // active brand and applies the TTL handlers.
+  registerOperationsOutboxRoutes();
+  registerDeletionHandlers();
+  registerRetentionHandlers();
+  registerRetentionTenantSource(async (correlationId) =>
+    (await brandService.listActiveAcrossTenants('retention-sweep', correlationId)).map((r) => r.tenantId),
+  );
   // Spec 16.3 weekly sweep / 16.8 monthly comparison: every active brand whose tenant has an active agent
   // principal granted agent.start_run and insight.manage (the analyst principal); brands without one are skipped.
   const principals = new ServicePrincipalRepository();
