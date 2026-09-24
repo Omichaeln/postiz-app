@@ -492,10 +492,16 @@ describe.skipIf(!enabled)('agent runs smoke (built app in Chromium, mock transpo
     await page.goto(`${origin}${agentsPath()}`);
     await expect.poll(() => page.getByRole('heading', { level: 1 }).textContent()).toBe('Agent activity');
     await expect.poll(() => runRows().count(), { timeout: 15_000 }).toBe(6);
-    const states = await runRows().evaluateAll((els) => els.map((e) => e.getAttribute('data-run-state')));
-    expect(states.sort()).toEqual(
-      ['budget_exhausted', 'completed', 'failed', 'policy_denied', 'running', 'waiting_for_review'].sort(),
-    );
+    // Each row loads its run separately, so the state attribute arrives after the row: poll until all six are set.
+    await expect
+      .poll(
+        async () =>
+          (await runRows().evaluateAll((els) => els.map((e) => e.getAttribute('data-run-state')))).sort(),
+        { timeout: 15_000 },
+      )
+      .toEqual(
+        ['budget_exhausted', 'completed', 'failed', 'policy_denied', 'running', 'waiting_for_review'].sort(),
+      );
     const list = await page.getByRole('list', { name: 'Runs' }).textContent();
     for (const label of [
       'Waiting for review',
