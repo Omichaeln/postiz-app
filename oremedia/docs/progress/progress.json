@@ -1,7 +1,7 @@
 {
   "programme": "Oremedia",
   "specification": "docs/spec/BUILD_PROMPT.md (prepared 23 September 2026)",
-  "updatedAt": "2026-09-24T05:20:00Z",
+  "updatedAt": "2026-09-24T05:30:00Z",
   "repository": "omichaeln/postiz-app · branch claude/gallant-gauss-rh58uh · directory oremedia/",
   "statusLegend": {
     "complete": "Genuinely complete and verified; needs no additional work.",
@@ -1194,8 +1194,8 @@
           "Agent runs UI: runs, steps, costs, exceptions; required states",
           "production",
           "21.1, 21.2",
-          "open",
-          "Agent runs UI (runs, steps, costs, exceptions) is not built yet; the API surface (agents.runs.get/steps) returns actions, redacted inputs, outputs and costs without private reasoning."
+          "complete",
+          "apps/web/src/features/agents: runs list (audit-derived plus this device's runs), run detail with the step timeline, tokens/cost/duration, invocations with policy decision and redacted input tree, needs-attention section, start-run form with a stable Idempotency-Key per intent, cancel with confirmation, proposal Accept / Modify / Reject from the verbatim payload; never renders private reasoning. Required states (waiting for review, budget exhausted, policy denied, cancelled, failed with the recorded exception, empty, permission denied) covered by apps/web/e2e/agents.e2e.test.ts (9) and run-helpers.test.ts (11)."
         ]
       ]
     },
@@ -1271,8 +1271,8 @@
           "Review portal app (separate origin build target)",
           "production",
           "21.1",
-          "in_progress",
-          "apps/web/src/review-portal.tsx is a separate Vite build target on REVIEW_PORTAL_ORIGIN; the reviewer flow works over tRPC with Bearer rl_ tokens (review.requests.get, review.decisions.submit). The portal screen itself is the Phase 5 UI stream (5.35)."
+          "complete",
+          "apps/web/src/app/review-portal/route.tsx on the separate build target (apps/web/src/review-portal.tsx, REVIEW_PORTAL_ORIGIN): own query and tRPC clients sending Bearer rl_ from memory only, link fragment read once and stripped, shows only the frozen manifest, decides once; states expired, revoked, already decided, stale, incomplete link. phase5.e2e.test.ts."
         ],
         [
           "5.5",
@@ -1511,16 +1511,16 @@
           "Calendar and publishing UI with required states (token expiry, invalid media, partial success, outcome_unknown with reconcile action, cancel race, held with reasons)",
           "production",
           "21.2",
-          "open",
-          ""
+          "complete",
+          "apps/web/src/app/c/$company/b/$brand/calendar/route.tsx + features/publishing: month/week grid with keyboard navigation, per-day list, schedule form (channel status, variant validation findings block scheduling), publication detail with hold reasons verbatim, attempts, per-channel outcomes and partial-success banner, cancel (prevented:false shown honestly), reschedule, reconcile, remote-deletion request. Required states covered by apps/web/e2e/phase5.e2e.test.ts (14) and publication-state.test.ts (16)."
         ],
         [
           "5.35",
           "Review inbox UI with required states (changes requested, stale approval, revoked external access)",
           "production",
           "21.2",
-          "open",
-          ""
+          "complete",
+          "apps/web/src/app/c/$company/b/$brand/review/route.tsx + features/review: inbox with all six attention flags as text chips, request detail with stale / changes-requested / approved / invalidated / revoked banners, decision form, external links (token shown once, revoke). phase5.e2e.test.ts, review-attention.test.ts (7)."
         ]
       ]
     },
