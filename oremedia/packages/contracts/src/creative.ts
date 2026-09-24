@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ElementId as Id } from './ids';
+import { PageRequest } from './pagination';
 
 /**
  * Spec 11.2: the creative document schema. Owned here (contracts) so that packages/db and
@@ -241,3 +242,96 @@ export const RenderJobState = z.enum(['pending', 'rendering', 'ready', 'failed']
 export type RenderJobState = z.infer<typeof RenderJobState>;
 
 export const ElementCommentState = z.enum(['open', 'resolved', 'outdated']);
+export type ElementCommentState = z.infer<typeof ElementCommentState>;
+
+/** Spec 6.3 templates / template_versions: a template is active once a version is approved; versions are approved one by one. */
+export const TemplateState = z.enum(['draft', 'active', 'retired']);
+export type TemplateState = z.infer<typeof TemplateState>;
+export const TemplateVersionState = z.enum(['draft', 'approved', 'retired']);
+export type TemplateVersionState = z.infer<typeof TemplateVersionState>;
+
+/** A slot binds a key to an element of the template page; applyTemplate maps slot keys to existing element ids. */
+export const TemplateSlot = z.object({
+  key: z.string().min(1).max(80),
+  elementId: Id,
+  kind: z.string().min(1).max(40),
+  required: z.boolean().default(false),
+});
+export type TemplateSlot = z.infer<typeof TemplateSlot>;
+
+// ---- router DTOs (spec 7.5 creative router) ----
+export const DocumentCreate = z.object({
+  brandId: z.string(),
+  title: z.string().min(1).max(200),
+  contentPackageId: z.string().optional(),
+  /** Optional initial document; its brandVersionId is replaced by the published brand version resolved on the server. */
+  document: CreativeDocumentV1.optional(),
+});
+export const DocumentGet = z.object({ documentId: z.string() });
+export const RevisionList = z.object({ documentId: z.string(), page: PageRequest });
+export const RevisionGet = z.object({ documentId: z.string(), revisionId: z.string() });
+/** Spec 11.4 applyOperations(docId, batch): the batch plus the document it targets. */
+export const OperationsApply = OperationBatch.extend({ documentId: z.string() });
+export type OperationsApply = z.infer<typeof OperationsApply>;
+/** Same input as apply; runs the same guards and validation as a dry run (agent preview). */
+export const OperationsPropose = OperationsApply;
+export const RenderRequest = z.object({
+  documentId: z.string(),
+  revisionId: z.string(),
+  formatKeys: z.array(z.string().min(1).max(40)).min(1).max(20),
+});
+export const RenderGet = z.object({ renderJobId: z.string() });
+export const CommentAdd = z.object({
+  documentId: z.string(),
+  revisionId: z.string(),
+  elementId: Id,
+  body: z.string().min(1).max(5000),
+});
+export const CommentResolve = z.object({
+  documentId: z.string(),
+  commentId: z.string(),
+  expectedVersion: z.number().int(),
+});
+export const CommentList = z.object({
+  documentId: z.string(),
+  state: ElementCommentState.optional(),
+  page: PageRequest,
+});
+export const TemplateCreate = z.object({ brandId: z.string(), name: z.string().min(1).max(200) });
+export const TemplateVersionCreate = z.object({
+  templateId: z.string(),
+  document: CreativeDocumentV1,
+  slots: z.array(TemplateSlot).max(100).default([]),
+  constraints: z.record(z.unknown()).default({}),
+  formats: z.array(z.string().min(1).max(40)).max(20).default([]),
+});
+export const TemplateApprove = z.object({
+  templateId: z.string(),
+  templateVersionId: z.string(),
+  /** The template row's version (optimistic concurrency); the version row moves by state transition. */
+  expectedVersion: z.number().int(),
+});
+export const TemplateList = z.object({ brandId: z.string(), page: PageRequest });
+export const TemplateGet = z.object({ templateId: z.string(), templateVersionId: z.string().optional() });
+
+// ---- render worker DTOs (spec 11.5: the worker reports through the creative module, never by writing state) ----
+export const RenderExportInput = z.object({
+  pageId: z.string().min(1).max(40),
+  formatKey: z.string().min(1).max(40),
+  mime: z.string().min(1).max(40),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  bytes: z.number().int().nonnegative(),
+  storageKey: z.string().min(1).max(300),
+  contentHash: z.string().length(64),
+  rendererVersion: z.string().min(1).max(40),
+  manifest: RenderManifest,
+  validation: RenderValidationResult,
+});
+export type RenderExportInput = z.infer<typeof RenderExportInput>;
+export const RenderMarkRendering = z.object({ renderJobId: z.string() });
+export const RenderMarkReady = z.object({
+  renderJobId: z.string(),
+  exports: z.array(RenderExportInput).min(1).max(100),
+});
+export const RenderMarkFailed = z.object({ renderJobId: z.string(), error: z.string().min(1).max(2000) });

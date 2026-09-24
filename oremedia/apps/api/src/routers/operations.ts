@@ -1,10 +1,23 @@
 import { z } from 'zod';
-import { AuditQuery, DeletionRequestCreate, KillSwitchScope } from '@oremedia/contracts/operations';
+import {
+  AuditQuery,
+  DeletionRequestCreate,
+  KillSwitchScope,
+  OutboxReplay,
+} from '@oremedia/contracts/operations';
 import { PageRequest } from '@oremedia/contracts/pagination';
-import { PolicyDeniedError } from '@oremedia/contracts/errors';
+import { NotFoundError, PolicyDeniedError } from '@oremedia/contracts/errors';
 import { policy } from '@oremedia/module-access';
 import { brandService } from '@oremedia/module-brand';
-import { deletion, featureFlag, idempotent, killSwitch, audit } from '@oremedia/module-operations';
+import {
+  audit,
+  deletion,
+  featureFlag,
+  idempotent,
+  killSwitch,
+  listDeadLetters,
+  replayDeadLetter,
+} from '@oremedia/module-operations';
 import { router, tenantMutation, tenantQuery, type MutationCtx } from '../trpc';
 
 const mutationCtx = (ctx: MutationCtx) => ({
@@ -72,6 +85,39 @@ export const operationsRouter = router({
           return { ok: true };
         }),
       ),
+  }),
+  /** Runbook "drain and replay the outbox": the tenant's own dead letters; the platform view is worker-core's metric. */
+  outbox: router({
+    deadLetters: tenantQuery.query(async ({ ctx }) => {
+      await policy.assert(ctx.tenant.actor, 'audit.read', {
+        type: 'tenant',
+        tenantId: ctx.tenant.context.tenantId,
+        id: ctx.tenant.context.tenantId,
+      });
+      return listDeadLetters({ tenantId: ctx.tenant.context.tenantId });
+    }),
+    replay: tenantMutation.input(OutboxReplay).mutation(({ ctx, input }) =>
+      idempotent(mutationCtx(ctx), async (tx) => {
+        await policy.assert(
+          ctx.tenant.actor,
+          'billing.manage',
+          { type: 'tenant', tenantId: ctx.tenant.context.tenantId, id: ctx.tenant.context.tenantId },
+          {},
+          tx,
+        );
+        if (ctx.tenant.actor.kind !== 'user') throw new PolicyDeniedError('agent_never');
+        const replayed = await replayDeadLetter(input.eventId, { tenantId: ctx.tenant.context.tenantId });
+        if (!replayed) throw new NotFoundError('OutboxEvent', input.eventId);
+        await audit.record(
+          ctx.tenant.actorRef,
+          'operations.outbox.replay',
+          { type: 'outbox_event', id: input.eventId },
+          'allowed',
+          tx,
+        );
+        return { ok: true };
+      }),
+    ),
   }),
   deletion: router({
     request: tenantMutation.input(DeletionRequestCreate).mutation(({ ctx, input }) =>

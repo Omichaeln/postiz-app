@@ -45,3 +45,4 @@ export {
   AssetUsageRepository,
   UploadIntentRepository,
 } from './repositories';
+export { registerAssetOutboxRoutes, MEDIA_TASK_QUEUE } from './outbox-routes';

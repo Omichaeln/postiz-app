@@ -1,0 +1,40 @@
+{
+  "name": "@oremedia/worker-render",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsup",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@oremedia/activities": "workspace:*",
+    "@oremedia/contracts": "workspace:*",
+    "@oremedia/db": "workspace:*",
+    "@oremedia/domain": "workspace:*",
+    "@oremedia/editor": "workspace:*",
+    "@oremedia/module-assets": "workspace:*",
+    "@oremedia/module-creative": "workspace:*",
+    "@oremedia/observability": "workspace:*",
+    "@oremedia/workflows": "workspace:*",
+    "@temporalio/activity": "^1.24.0",
+    "@temporalio/client": "^1.24.0",
+    "@temporalio/worker": "^1.24.0",
+    "playwright": "^1.63.0",
+    "sharp": "^0.35.4",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/pixelmatch": "^7.1.0",
+    "@types/pngjs": "^6.0.5",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.6"
+  }
+}

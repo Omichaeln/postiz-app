@@ -8,11 +8,16 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build:renderer": "tsup --config tsup.renderer.config.ts"
   },
   "dependencies": {
     "@oremedia/contracts": "workspace:*",
     "@oremedia/domain": "workspace:*",
+    "konva": "^10.7.0",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0"
   }
 }

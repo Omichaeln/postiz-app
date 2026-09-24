@@ -1,0 +1,32 @@
+{
+  "name": "@oremedia/worker-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsup",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@oremedia/contracts": "workspace:*",
+    "@oremedia/db": "workspace:*",
+    "@oremedia/module-access": "workspace:*",
+    "@oremedia/module-assets": "workspace:*",
+    "@oremedia/module-billing": "workspace:*",
+    "@oremedia/module-brand": "workspace:*",
+    "@oremedia/module-creative": "workspace:*",
+    "@oremedia/module-operations": "workspace:*",
+    "@oremedia/observability": "workspace:*",
+    "@temporalio/client": "^1.24.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.6"
+  }
+}

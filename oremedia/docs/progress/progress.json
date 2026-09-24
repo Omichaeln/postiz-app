@@ -550,8 +550,8 @@
         [
           "2.g2",
           "Every revision records its brand version",
-          "open",
-          "creative_revisions.brand_version_id is NOT NULL in the schema; resolveBrandSnapshot supplies brandVersionId and hash. Verified when the creative module (Phase 3) records it on every revision."
+          "complete",
+          "creative_revisions.brand_version_id is NOT NULL and the creative module writes snapshot.brandVersionId on every revision; asserted on rows in creative.integration.test.ts."
         ],
         [
           "2.g3",
@@ -774,8 +774,8 @@
           "Templates and template versions (slots, constraints, formats)",
           "production",
           "6.3",
-          "open",
-          ""
+          "in_progress",
+          "templates + template_versions: creativeService.templates.{create,createVersion,approve,list,get}; templateVersionMachine (draft → approved → retired) and templateMachine (draft → active → retired); documents pin specific versions; applyTemplate refuses unapproved versions and authorises the template page's assets (creative.integration.test.ts). Open: slot semantics beyond page replacement, and feeding eligibleTemplateVersionIds into the brand snapshot."
         ],
         [
           "2.28",
@@ -792,9 +792,24 @@
       "title": "Creative studio",
       "spec": "11, 21.4",
       "gate": [
-        ["3.g1", "Save / reopen / undo work", "open", ""],
-        ["3.g2", "Stale edits return 409 and the client rebases", "open", ""],
-        ["3.g3", "Protected elements are immune to agent operations", "open", ""],
+        [
+          "3.g1",
+          "Save / reopen / undo work",
+          "in_progress",
+          "Server side verified (create → apply → get returns the committed snapshot; undo is a new revision with the earlier content hash; history never rewritten). The studio UI path is the web stream (in progress)."
+        ],
+        [
+          "3.g2",
+          "Stale edits return 409 and the client rebases",
+          "in_progress",
+          "Server returns STALE_REVISION (409) carrying the current revision id and accepts the rebased batch (creative.integration.test.ts). The client rebase (packages/editor rebase.ts + studio flow) is the web stream (in progress)."
+        ],
+        [
+          "3.g3",
+          "Protected elements are immune to agent operations",
+          "complete",
+          "guardProtected runs per operation in applyOperations; agent batches touching protected elements are PolicyDeniedError(protected_element) with nothing written; agents cannot insert logos; origin cannot be spoofed by a service principal. creative.integration.test.ts."
+        ],
         [
           "3.g4",
           "The export file approved in review is byte-identical (same hash) to the file handed to the provider",
@@ -833,51 +848,65 @@
           "applyOperations: tenant-scoped load, policy assert, stale revision → 409",
           "critical",
           "11.4",
-          "open",
-          ""
+          "complete",
+          "packages/modules/creative/src/service.ts operations.apply: document row lock (SELECT … FOR UPDATE), policy.assert creative.edit, currentRevisionId ≠ baseRevisionId → StaleRevisionError carrying the head (409). Tests: stale apply rejected and succeeds after rebase; two concurrent applies → exactly one commits."
         ],
         [
           "3.6",
           "applyOperations: guardProtected (agents cannot touch protected elements)",
           "critical",
           "11.4",
-          "in_progress",
-          "guardProtected and guardLogoInsertion in packages/editor/src/guard.ts with tests (agents cannot move/resize/restyle/replace/remove protected elements or insert logos); wiring into applyOperations is Phase 3 creative-module work"
+          "complete",
+          "guardProtected + guardLogoInsertion run per operation inside applyOperations; an agent batch touching a protected element or inserting a logo is PolicyDeniedError (protected_element / agent_logo_insert) with nothing written; a service principal must submit origin agent (origin_mismatch). creative.integration.test.ts."
         ],
         [
           "3.7",
           "applyOperations: guardAssets via assets.authoriseUse for every referenced asset version",
           "critical",
           "11.4",
-          "open",
-          ""
+          "complete",
+          "Every asset version an operation introduces (image/logo/background layers → purpose creative, text fonts and setStyle font patches → purpose font, replaceAsset, addPage, applyTemplate pages) goes through the registered authoriser; composition wires assetService.authoriseUse. RightsIneligibleError aborts the apply with nothing written; an unregistered authoriser fails loudly. Tests in creative.integration.test.ts."
         ],
         [
           "3.8",
           "applyOperations: validateAgainstBrand (tokens, logo rules, min sizes, contrast); agent proposals must be clean",
           "production",
           "11.4",
-          "in_progress",
-          "validateAgainstBrand in packages/editor/src/validate.ts: token existence, raw colour warning, minimum type sizes, WCAG contrast, approved-fact references, prohibited phrases, logo rules (min width, allowed background, clear space, rotation), safe areas, approximate overflow; validate.test.ts passes. Agent-blocking behaviour is enforced in applyOperations (pending)."
+          "complete",
+          "validateAgainstBrand runs on the reduced snapshot in apply, propose and documents.create; blocking findings reject agent batches (ValidationFailedError, nothing written) and are returned as findings to people. creative.integration.test.ts."
         ],
         [
           "3.9",
           "applyOperations: revision create, setCurrentRevision (optimistic), comments marked outdated, outbox event, approval invalidation",
           "critical",
           "11.4",
-          "open",
-          ""
+          "complete",
+          "Revision insert (parent, number + 1, brandVersionId, operations batch, snapshot, hashCanonical content hash, author kind/id, agentRunId, summary), setCurrentRevision with optimistic version, comments.markOutdatedFor(changedElementIds), outbox creative.revision_created, revision-change hook (approvals, Phase 5) and audit in one transaction; every revision records its brand version (asserted on rows)."
         ],
         [
           "3.10",
           "operations.propose: dry-run with preview render and diff; accept / modify / reject",
           "production",
           "11.4",
-          "open",
-          ""
+          "in_progress",
+          "operations.propose: same stale check, guards, reduce and validation with no writes; returns {baseRevisionId, snapshot, contentHash, findings, changedElementIds, blocking} for the overlay diff. Open: the preview render of a proposal (rendering is asynchronous through render jobs)."
         ],
-        ["3.11", "Undo as a new revision; history never rewritten", "production", "11.4", "open", ""],
-        ["3.12", "Element comments add/resolve; outdated badge", "production", "7.5, 21.4", "open", ""],
+        [
+          "3.11",
+          "Undo as a new revision; history never rewritten",
+          "production",
+          "11.4",
+          "complete",
+          "Undo applies the inverse operations as a new batch: the new revision's content hash equals the earlier revision's, numbers only increase, revisions.list shows the full chain (creative.integration.test.ts \"undo is a new revision…\")."
+        ],
+        [
+          "3.12",
+          "Element comments add/resolve; outdated badge",
+          "production",
+          "7.5, 21.4",
+          "complete",
+          "comments.add/resolve/list on element anchors; an open comment on an element becomes outdated when that element changes and untouched comments stay open; resolve is version-checked (CONFLICT on a stale version). creative.integration.test.ts."
+        ],
         [
           "3.13",
           "Render worker: headless Chromium, render-only bundle of the same renderer, pinned fonts, manifest, PNG/JPEG/PDF",
@@ -1207,8 +1236,8 @@
           "Outbox dispatcher: lease-based claiming, backoff, stable workflow IDs with USE_EXISTING, dead-letter view with replay, alerts on age > 60 s and attempts ≥ 5",
           "critical",
           "14.2",
-          "open",
-          ""
+          "in_progress",
+          "packages/modules/operations/src/outbox-dispatcher.ts: lease-based claiming (UPDATE … ORDER BY available_at LIMIT n, no SKIP LOCKED), per-worker select, route registry (modules register event → workflow start: asset.upload_completed → assetIngestWorkflowV1 on media, creative.render_requested → renderJobWorkflowV1 on render), stable workflow ids, exponential backoff with jitter capped at 15 min, dead letters at ≥ 5 attempts, replay, oldest-age and dead-letter gauges; apps/worker-core runs the loop with a Temporal starter (USE_EXISTING + ALLOW_DUPLICATE_FAILED_ONLY). outbox-dispatcher.integration.test.ts (7): exactly-once across concurrent workers, lease expiry re-claim, backoff, dead letters and replay. Open: the Temporal starter has not been exercised against a live server (test server download blocked)."
         ],
         [
           "5.14",
@@ -1613,8 +1642,8 @@
           "Runbook exercised: drain and replay the outbox and dead letters",
           "critical",
           "17.7",
-          "open",
-          "Runbook written in docs/runbooks (see README table); not yet exercised"
+          "in_progress",
+          "operations.outbox.deadLetters / operations.outbox.replay (tenant-scoped, audited) and the worker-core gauges implement the runbook; verified by the dispatcher integration test and the cross-tenant harness. Open: a walk-through on a live environment."
         ],
         [
           "7.7",

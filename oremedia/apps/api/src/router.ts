@@ -3,12 +3,14 @@ import { accessRouter } from './routers/access';
 import { operationsRouter } from './routers/operations';
 import { brandRouter } from './routers/brand';
 import { assetsRouter } from './routers/assets';
+import { creativeRouter } from './routers/creative';
 
 /** Spec 7.5 router map. Routers are added per phase; the cross-tenant harness enumerates every procedure. */
 export const appRouter = router({
   access: accessRouter,
   brand: brandRouter,
   assets: assetsRouter,
+  creative: creativeRouter,
   operations: operationsRouter,
 });
 export type AppRouter = typeof appRouter;

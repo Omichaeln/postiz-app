@@ -12,6 +12,8 @@ export const meter = (): Meter => metrics.getMeter(METER_NAME);
 export const METRIC = {
   outboxOldestAgeMs: 'oremedia.outbox.oldest_undispatched_age_ms',
   outboxDeadLetters: 'oremedia.outbox.dead_letters',
+  outboxDispatched: 'oremedia.outbox.dispatched',
+  outboxDispatchFailures: 'oremedia.outbox.dispatch_failures',
   scheduleToStartMs: 'oremedia.temporal.schedule_to_start_ms',
   dispatchLatenessMs: 'oremedia.publish.dispatch_lateness_ms',
   renderDurationMs: 'oremedia.render.duration_ms',

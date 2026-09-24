@@ -88,6 +88,11 @@ export default tseslint.config(
           default: 'disallow',
           policies: [
             policy('app-web', ['module', 'contracts', 'observability', 'ui', 'db', 'editor', 'tooling']),
+            // The tRPC client is typed from the API router (spec 21.1 lib/trpc.ts): a type-only edge, never runtime.
+            {
+              from: { element: { type: 'app-web' } },
+              allow: { to: { element: { type: 'app' } }, importKind: 'type' },
+            },
             policy('app', [
               'module',
               'contracts',

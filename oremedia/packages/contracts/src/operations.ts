@@ -46,3 +46,7 @@ export type FeatureFlagKey = z.infer<typeof FeatureFlagKey>;
 
 export const KillSwitchScope = z.enum(['agent_starts', 'release_dispatch']);
 export type KillSwitchScope = z.infer<typeof KillSwitchScope>;
+
+/** Runbook "drain and replay the outbox": replay one dead-lettered event of the caller's tenant. */
+export const OutboxReplay = z.object({ eventId: z.string() });
+export type OutboxReplay = z.infer<typeof OutboxReplay>;

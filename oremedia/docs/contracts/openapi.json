@@ -28,10 +28,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "servicePrincipalId",
-                  "scopes"
-                ]
+                "required": ["servicePrincipalId", "scopes"]
               }
             }
           }
@@ -52,9 +49,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "apiClientId"
-                ]
+                "required": ["apiClientId"]
               }
             }
           }
@@ -84,11 +79,7 @@
                     }
                   }
                 },
-                "required": [
-                  "membershipId",
-                  "brandId",
-                  "roles"
-                ]
+                "required": ["membershipId", "brandId", "roles"]
               }
             }
           }
@@ -137,10 +128,7 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "email",
-                  "role"
-                ]
+                "required": ["email", "role"]
               }
             }
           }
@@ -180,11 +168,7 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "membershipId",
-                  "expectedVersion",
-                  "role"
-                ]
+                "required": ["membershipId", "expectedVersion", "role"]
               }
             }
           }
@@ -203,12 +187,7 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "agent",
-                      "api_client",
-                      "mcp_client",
-                      "integration"
-                    ]
+                    "enum": ["agent", "api_client", "mcp_client", "integration"]
                   },
                   "name": {
                     "type": "string"
@@ -281,27 +260,15 @@
                           ]
                         }
                       },
-                      "required": [
-                        "action",
-                        "brandIds"
-                      ]
+                      "required": ["action", "brandIds"]
                     }
                   },
                   "maxAutonomy": {
                     "type": "string",
-                    "enum": [
-                      "assist",
-                      "create",
-                      "prepare_release",
-                      "managed_autopublish"
-                    ]
+                    "enum": ["assist", "create", "prepare_release", "managed_autopublish"]
                   }
                 },
-                "required": [
-                  "kind",
-                  "name",
-                  "grants"
-                ]
+                "required": ["kind", "name", "grants"]
               }
             }
           }
@@ -325,10 +292,7 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "servicePrincipalId",
-                  "expectedVersion"
-                ]
+                "required": ["servicePrincipalId", "expectedVersion"]
               }
             }
           }
@@ -349,9 +313,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "tenantId"
-                ]
+                "required": ["tenantId"]
               }
             }
           }
@@ -375,10 +337,7 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "assetId",
-                  "expectedVersion"
-                ]
+                "required": ["assetId", "expectedVersion"]
               }
             }
           }
@@ -399,9 +358,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "assetId"
-                ]
+                "required": ["assetId"]
               }
             }
           }
@@ -426,22 +383,13 @@
                   },
                   "purpose": {
                     "type": "string",
-                    "enum": [
-                      "creative",
-                      "logo",
-                      "font",
-                      "reference"
-                    ]
+                    "enum": ["creative", "logo", "font", "reference"]
                   },
                   "expiresAt": {
                     "type": "string"
                   }
                 },
-                "required": [
-                  "assetId",
-                  "granteeBrandId",
-                  "purpose"
-                ]
+                "required": ["assetId", "granteeBrandId", "purpose"]
               }
             }
           }
@@ -468,18 +416,12 @@
                       },
                       {
                         "type": "string",
-                        "enum": [
-                          "thumbnail",
-                          "preview",
-                          "web"
-                        ]
+                        "enum": ["thumbnail", "preview", "web"]
                       }
                     ]
                   }
                 },
-                "required": [
-                  "assetVersionId"
-                ]
+                "required": ["assetVersionId"]
               }
             }
           }
@@ -506,10 +448,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "assetId",
-                  "expectedVersion"
-                ]
+                "required": ["assetId", "expectedVersion"]
               }
             }
           }
@@ -571,20 +510,13 @@
                       "properties": {
                         "kind": {
                           "type": "string",
-                          "enum": [
-                            "model",
-                            "property",
-                            "talent"
-                          ]
+                          "enum": ["model", "property", "talent"]
                         },
                         "ref": {
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "kind",
-                        "ref"
-                      ]
+                      "required": ["kind", "ref"]
                     }
                   },
                   "restrictions": {
@@ -594,12 +526,7 @@
                     }
                   }
                 },
-                "required": [
-                  "assetId",
-                  "owner",
-                  "permittedChannels",
-                  "territories"
-                ]
+                "required": ["assetId", "owner", "permittedChannels", "territories"]
               }
             }
           }
@@ -624,12 +551,7 @@
                       },
                       "purpose": {
                         "type": "string",
-                        "enum": [
-                          "creative",
-                          "logo",
-                          "font",
-                          "reference"
-                        ]
+                        "enum": ["creative", "logo", "font", "reference"]
                       },
                       "channelConnectionIds": {
                         "type": "array",
@@ -664,10 +586,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "brandId",
-                      "purpose"
-                    ]
+                    "required": ["brandId", "purpose"]
                   },
                   "page": {
                     "type": "object",
@@ -682,10 +601,7 @@
                     "required": []
                   }
                 },
-                "required": [
-                  "query",
-                  "page"
-                ]
+                "required": ["query", "page"]
               }
             }
           }
@@ -706,9 +622,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "intentId"
-                ]
+                "required": ["intentId"]
               }
             }
           }
@@ -752,13 +666,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "brandId",
-                  "kind",
-                  "declaredMime",
-                  "declaredBytes",
-                  "originalFilename"
-                ]
+                "required": ["brandId", "kind", "declaredMime", "declaredBytes", "originalFilename"]
               }
             }
           }
@@ -791,10 +699,7 @@
                     "required": []
                   }
                 },
-                "required": [
-                  "assetId",
-                  "page"
-                ]
+                "required": ["assetId", "page"]
               }
             }
           }
@@ -827,10 +732,7 @@
                     "required": []
                   }
                 },
-                "required": [
-                  "assetId",
-                  "page"
-                ]
+                "required": ["assetId", "page"]
               }
             }
           }
@@ -857,11 +759,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "name",
-                  "timezone",
-                  "defaultLocale"
-                ]
+                "required": ["name", "timezone", "defaultLocale"]
               }
             }
           }
@@ -888,11 +786,7 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "brandId",
-                  "factId",
-                  "expectedVersion"
-                ]
+                "required": ["brandId", "factId", "expectedVersion"]
               }
             }
           }
@@ -914,11 +808,7 @@
                   },
                   "state": {
                     "type": "string",
-                    "enum": [
-                      "proposed",
-                      "approved",
-                      "revoked"
-                    ]
+                    "enum": ["proposed", "approved", "revoked"]
                   },
                   "page": {
                     "type": "object",
@@ -933,10 +823,7 @@
                     "required": []
                   }
                 },
-                "required": [
-                  "brandId",
-                  "page"
-                ]
+                "required": ["brandId", "page"]
               }
             }
           }
@@ -958,15 +845,7 @@
                   },
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "product",
-                      "claim",
-                      "offer",
-                      "contact",
-                      "price",
-                      "statistic",
-                      "legal"
-                    ]
+                    "enum": ["product", "claim", "offer", "contact", "price", "statistic", "legal"]
                   },
                   "statement": {
                     "type": "string"
@@ -999,10 +878,7 @@
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "kind",
-                        "ref"
-                      ]
+                      "required": ["kind", "ref"]
                     }
                   },
                   "validFrom": {
@@ -1012,12 +888,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "brandId",
-                  "kind",
-                  "statement",
-                  "evidence"
-                ]
+                "required": ["brandId", "kind", "statement", "evidence"]
               }
             }
           }
@@ -1047,11 +918,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "brandId",
-                  "factId",
-                  "expectedVersion"
-                ]
+                "required": ["brandId", "factId", "expectedVersion"]
               }
             }
           }
@@ -1072,9 +939,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "brandId"
-                ]
+                "required": ["brandId"]
               }
             }
           }
@@ -1116,10 +981,7 @@
                     "required": []
                   }
                 },
-                "required": [
-                  "brandId",
-                  "page"
-                ]
+                "required": ["brandId", "page"]
               }
             }
           }
@@ -1164,13 +1026,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "brandId",
-                  "name",
-                  "primaryMetricKey",
-                  "guardrailMetricKeys",
-                  "activeFrom"
-                ]
+                "required": ["brandId", "name", "primaryMetricKey", "guardrailMetricKeys", "activeFrom"]
               }
             }
           }
@@ -1203,9 +1059,7 @@
                     }
                   }
                 },
-                "required": [
-                  "brandId"
-                ]
+                "required": ["brandId"]
               }
             }
           }
@@ -1232,11 +1086,7 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "brandId",
-                  "policyVersionId",
-                  "expectedVersion"
-                ]
+                "required": ["brandId", "policyVersionId", "expectedVersion"]
               }
             }
           }
@@ -1273,10 +1123,7 @@
                           },
                           "blockOnBrandReviewSeverity": {
                             "type": "string",
-                            "enum": [
-                              "blocking",
-                              "warning"
-                            ]
+                            "enum": ["blocking", "warning"]
                           }
                         },
                         "required": []
@@ -1303,16 +1150,10 @@
                         "type": "boolean"
                       }
                     },
-                    "required": [
-                      "schemaVersion",
-                      "reviewThresholds"
-                    ]
+                    "required": ["schemaVersion", "reviewThresholds"]
                   }
                 },
-                "required": [
-                  "brandId",
-                  "document"
-                ]
+                "required": ["brandId", "document"]
               }
             }
           }
@@ -1336,9 +1177,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "brandId"
-                ]
+                "required": ["brandId"]
               }
             }
           }
@@ -1359,9 +1198,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "brandId"
-                ]
+                "required": ["brandId"]
               }
             }
           }
@@ -1385,10 +1222,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "brandId",
-                  "versionId"
-                ]
+                "required": ["brandId", "versionId"]
               }
             }
           }
@@ -1421,10 +1255,7 @@
                     "required": []
                   }
                 },
-                "required": [
-                  "brandId",
-                  "page"
-                ]
+                "required": ["brandId", "page"]
               }
             }
           }
@@ -1451,11 +1282,7 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "brandId",
-                  "versionId",
-                  "expectedVersion"
-                ]
+                "required": ["brandId", "versionId", "expectedVersion"]
               }
             }
           }
@@ -1482,11 +1309,7 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "brandId",
-                  "versionId",
-                  "expectedVersion"
-                ]
+                "required": ["brandId", "versionId", "expectedVersion"]
               }
             }
           }
@@ -1542,10 +1365,7 @@
                                   "type": "string"
                                 }
                               },
-                              "required": [
-                                "key",
-                                "description"
-                              ]
+                              "required": ["key", "description"]
                             }
                           },
                           "preferredTerms": {
@@ -1563,10 +1383,7 @@
                                   }
                                 }
                               },
-                              "required": [
-                                "use",
-                                "avoid"
-                              ]
+                              "required": ["use", "avoid"]
                             }
                           },
                           "prohibitedPhrases": {
@@ -1591,20 +1408,13 @@
                                 },
                                 "verdict": {
                                   "type": "string",
-                                  "enum": [
-                                    "on_brand",
-                                    "off_brand"
-                                  ]
+                                  "enum": ["on_brand", "off_brand"]
                                 },
                                 "note": {
                                   "type": "string"
                                 }
                               },
-                              "required": [
-                                "text",
-                                "verdict",
-                                "note"
-                              ]
+                              "required": ["text", "verdict", "note"]
                             }
                           }
                         },
@@ -1645,11 +1455,7 @@
                                   ]
                                 }
                               },
-                              "required": [
-                                "key",
-                                "value",
-                                "role"
-                              ]
+                              "required": ["key", "value", "role"]
                             }
                           },
                           "typeRoles": {
@@ -1659,13 +1465,7 @@
                               "properties": {
                                 "role": {
                                   "type": "string",
-                                  "enum": [
-                                    "display",
-                                    "heading",
-                                    "body",
-                                    "label",
-                                    "caption"
-                                  ]
+                                  "enum": ["display", "heading", "body", "label", "caption"]
                                 },
                                 "fontAssetId": {
                                   "type": "string"
@@ -1680,12 +1480,7 @@
                                   "type": "number"
                                 }
                               },
-                              "required": [
-                                "role",
-                                "fontAssetId",
-                                "weight",
-                                "minSizePx"
-                              ]
+                              "required": ["role", "fontAssetId", "weight", "minSizePx"]
                             }
                           },
                           "spacingScale": {
@@ -1702,18 +1497,10 @@
                           },
                           "contrastTarget": {
                             "type": "string",
-                            "enum": [
-                              "AA",
-                              "AAA"
-                            ]
+                            "enum": ["AA", "AAA"]
                           }
                         },
-                        "required": [
-                          "colours",
-                          "typeRoles",
-                          "spacingScale",
-                          "radii"
-                        ]
+                        "required": ["colours", "typeRoles", "spacingScale", "radii"]
                       },
                       "logoRules": {
                         "type": "array",
@@ -1725,12 +1512,7 @@
                             },
                             "variant": {
                               "type": "string",
-                              "enum": [
-                                "primary",
-                                "reversed",
-                                "mono",
-                                "mark_only"
-                              ]
+                              "enum": ["primary", "reversed", "mono", "mark_only"]
                             },
                             "allowedBackgroundColourKeys": {
                               "type": "array",
@@ -1778,12 +1560,7 @@
                               }
                             }
                           },
-                          "required": [
-                            "key",
-                            "description",
-                            "exampleAssetIds",
-                            "templateVersionIds"
-                          ]
+                          "required": ["key", "description", "exampleAssetIds", "templateVersionIds"]
                         }
                       },
                       "channelGuidance": {
@@ -1807,12 +1584,7 @@
                               "type": "string"
                             }
                           },
-                          "required": [
-                            "providerKey",
-                            "captionStyle",
-                            "preferredFormats",
-                            "ctaConventions"
-                          ]
+                          "required": ["providerKey", "captionStyle", "preferredFormats", "ctaConventions"]
                         }
                       }
                     },
@@ -1826,12 +1598,1269 @@
                     ]
                   }
                 },
-                "required": [
-                  "brandId",
-                  "versionId",
-                  "expectedVersion",
-                  "document"
-                ]
+                "required": ["brandId", "versionId", "expectedVersion", "document"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.comments.add": {
+      "post": {
+        "operationId": "creative.comments.add",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string"
+                  },
+                  "revisionId": {
+                    "type": "string"
+                  },
+                  "elementId": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "string"
+                  }
+                },
+                "required": ["documentId", "revisionId", "elementId", "body"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.comments.list": {
+      "get": {
+        "operationId": "creative.comments.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": ["open", "resolved", "outdated"]
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["documentId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.comments.resolve": {
+      "post": {
+        "operationId": "creative.comments.resolve",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string"
+                  },
+                  "commentId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["documentId", "commentId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.documents.create": {
+      "post": {
+        "operationId": "creative.documents.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "contentPackageId": {
+                    "type": "string"
+                  },
+                  "document": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "brandVersionId": {
+                        "type": "string"
+                      },
+                      "templateVersionId": {
+                        "type": "string"
+                      },
+                      "pages": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "formatKey": {
+                              "type": "string"
+                            },
+                            "width": {
+                              "type": "number"
+                            },
+                            "height": {
+                              "type": "number"
+                            },
+                            "elements": {
+                              "type": "array",
+                              "items": {
+                                "$comment": "recursive"
+                              }
+                            },
+                            "layoutConstraints": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "elementId": {
+                                    "type": "string"
+                                  },
+                                  "anchor": {
+                                    "type": "string",
+                                    "enum": ["top", "bottom", "left", "right", "center"]
+                                  },
+                                  "marginPx": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": ["elementId", "anchor", "marginPx"]
+                              }
+                            }
+                          },
+                          "required": ["id", "name", "formatKey", "width", "height", "elements"]
+                        }
+                      },
+                      "variants": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "formatKey": {
+                              "type": "string"
+                            },
+                            "derivedFromPageIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "overrides": {
+                              "type": "object",
+                              "additionalProperties": {}
+                            }
+                          },
+                          "required": ["formatKey", "derivedFromPageIds", "overrides"]
+                        }
+                      }
+                    },
+                    "required": ["schemaVersion", "brandVersionId", "pages"]
+                  }
+                },
+                "required": ["brandId", "title"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.documents.get": {
+      "get": {
+        "operationId": "creative.documents.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["documentId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.operations.applyBatch": {
+      "post": {
+        "operationId": "creative.operations.applyBatch",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "baseRevisionId": {
+                    "type": "string"
+                  },
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "insertElement"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "element": {
+                              "$comment": "recursive"
+                            },
+                            "index": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["op", "pageId", "element"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "removeElement"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "setText"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "text": {
+                              "type": "string"
+                            },
+                            "factRefs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "text"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "setStyle"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "patch": {
+                              "type": "object",
+                              "additionalProperties": {}
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "patch"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "replaceAsset"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "assetVersionId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "assetVersionId"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "moveElement"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "x", "y"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "resizeElement"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "width": {
+                              "type": "number"
+                            },
+                            "height": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "width", "height"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "reorderElement"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "toIndex": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "toIndex"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "setCrop"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "crop": {
+                              "type": "object",
+                              "properties": {
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": ["x", "y", "width", "height"]
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "crop"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "applyTemplate"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "templateVersionId": {
+                              "type": "string"
+                            },
+                            "slotBindings": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["op", "pageId", "templateVersionId", "slotBindings"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "addPage"
+                            },
+                            "page": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "formatKey": {
+                                  "type": "string"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "elements": {
+                                  "type": "array",
+                                  "items": {
+                                    "$comment": "recursive"
+                                  }
+                                },
+                                "layoutConstraints": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "elementId": {
+                                        "type": "string"
+                                      },
+                                      "anchor": {
+                                        "type": "string",
+                                        "enum": ["top", "bottom", "left", "right", "center"]
+                                      },
+                                      "marginPx": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": ["elementId", "anchor", "marginPx"]
+                                  }
+                                }
+                              },
+                              "required": ["id", "name", "formatKey", "width", "height", "elements"]
+                            },
+                            "index": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["op", "page"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "createFormatVariant"
+                            },
+                            "sourcePageId": {
+                              "type": "string"
+                            },
+                            "formatKey": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["op", "sourcePageId", "formatKey"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "setLock"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "locked": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "locked"]
+                        }
+                      ]
+                    }
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "origin": {
+                    "type": "string",
+                    "enum": ["user", "agent"]
+                  },
+                  "agentRunId": {
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["baseRevisionId", "operations", "summary", "origin", "documentId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.operations.propose": {
+      "post": {
+        "operationId": "creative.operations.propose",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "baseRevisionId": {
+                    "type": "string"
+                  },
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "insertElement"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "element": {
+                              "$comment": "recursive"
+                            },
+                            "index": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["op", "pageId", "element"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "removeElement"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "setText"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "text": {
+                              "type": "string"
+                            },
+                            "factRefs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "text"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "setStyle"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "patch": {
+                              "type": "object",
+                              "additionalProperties": {}
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "patch"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "replaceAsset"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "assetVersionId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "assetVersionId"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "moveElement"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "x", "y"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "resizeElement"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "width": {
+                              "type": "number"
+                            },
+                            "height": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "width", "height"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "reorderElement"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "toIndex": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "toIndex"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "setCrop"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "crop": {
+                              "type": "object",
+                              "properties": {
+                                "x": {
+                                  "type": "number"
+                                },
+                                "y": {
+                                  "type": "number"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": ["x", "y", "width", "height"]
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "crop"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "applyTemplate"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "templateVersionId": {
+                              "type": "string"
+                            },
+                            "slotBindings": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["op", "pageId", "templateVersionId", "slotBindings"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "addPage"
+                            },
+                            "page": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "formatKey": {
+                                  "type": "string"
+                                },
+                                "width": {
+                                  "type": "number"
+                                },
+                                "height": {
+                                  "type": "number"
+                                },
+                                "elements": {
+                                  "type": "array",
+                                  "items": {
+                                    "$comment": "recursive"
+                                  }
+                                },
+                                "layoutConstraints": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "elementId": {
+                                        "type": "string"
+                                      },
+                                      "anchor": {
+                                        "type": "string",
+                                        "enum": ["top", "bottom", "left", "right", "center"]
+                                      },
+                                      "marginPx": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": ["elementId", "anchor", "marginPx"]
+                                  }
+                                }
+                              },
+                              "required": ["id", "name", "formatKey", "width", "height", "elements"]
+                            },
+                            "index": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["op", "page"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "createFormatVariant"
+                            },
+                            "sourcePageId": {
+                              "type": "string"
+                            },
+                            "formatKey": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["op", "sourcePageId", "formatKey"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "op": {
+                              "const": "setLock"
+                            },
+                            "pageId": {
+                              "type": "string"
+                            },
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "locked": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": ["op", "pageId", "elementId", "locked"]
+                        }
+                      ]
+                    }
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "origin": {
+                    "type": "string",
+                    "enum": ["user", "agent"]
+                  },
+                  "agentRunId": {
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["baseRevisionId", "operations", "summary", "origin", "documentId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.renders.get": {
+      "get": {
+        "operationId": "creative.renders.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "renderJobId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["renderJobId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.renders.request": {
+      "post": {
+        "operationId": "creative.renders.request",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string"
+                  },
+                  "revisionId": {
+                    "type": "string"
+                  },
+                  "formatKeys": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["documentId", "revisionId", "formatKeys"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.revisions.get": {
+      "get": {
+        "operationId": "creative.revisions.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string"
+                  },
+                  "revisionId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["documentId", "revisionId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.revisions.list": {
+      "get": {
+        "operationId": "creative.revisions.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["documentId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.templates.approve": {
+      "post": {
+        "operationId": "creative.templates.approve",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "templateId": {
+                    "type": "string"
+                  },
+                  "templateVersionId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["templateId", "templateVersionId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.templates.create": {
+      "post": {
+        "operationId": "creative.templates.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": ["brandId", "name"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.templates.createVersion": {
+      "post": {
+        "operationId": "creative.templates.createVersion",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "templateId": {
+                    "type": "string"
+                  },
+                  "document": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "brandVersionId": {
+                        "type": "string"
+                      },
+                      "templateVersionId": {
+                        "type": "string"
+                      },
+                      "pages": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "formatKey": {
+                              "type": "string"
+                            },
+                            "width": {
+                              "type": "number"
+                            },
+                            "height": {
+                              "type": "number"
+                            },
+                            "elements": {
+                              "type": "array",
+                              "items": {
+                                "$comment": "recursive"
+                              }
+                            },
+                            "layoutConstraints": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "elementId": {
+                                    "type": "string"
+                                  },
+                                  "anchor": {
+                                    "type": "string",
+                                    "enum": ["top", "bottom", "left", "right", "center"]
+                                  },
+                                  "marginPx": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": ["elementId", "anchor", "marginPx"]
+                              }
+                            }
+                          },
+                          "required": ["id", "name", "formatKey", "width", "height", "elements"]
+                        }
+                      },
+                      "variants": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "formatKey": {
+                              "type": "string"
+                            },
+                            "derivedFromPageIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "overrides": {
+                              "type": "object",
+                              "additionalProperties": {}
+                            }
+                          },
+                          "required": ["formatKey", "derivedFromPageIds", "overrides"]
+                        }
+                      }
+                    },
+                    "required": ["schemaVersion", "brandVersionId", "pages"]
+                  },
+                  "slots": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "elementId": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "required": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["key", "elementId", "kind"]
+                    }
+                  },
+                  "constraints": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "formats": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["templateId", "document"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.templates.get": {
+      "get": {
+        "operationId": "creative.templates.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "templateId": {
+                    "type": "string"
+                  },
+                  "templateVersionId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["templateId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/creative.templates.list": {
+      "get": {
+        "operationId": "creative.templates.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["brandId", "page"]
               }
             }
           }
@@ -1882,10 +2911,7 @@
                     "required": []
                   }
                 },
-                "required": [
-                  "query",
-                  "page"
-                ]
+                "required": ["query", "page"]
               }
             }
           }
@@ -1904,14 +2930,7 @@
                 "properties": {
                   "subjectType": {
                     "type": "string",
-                    "enum": [
-                      "user",
-                      "asset",
-                      "brand",
-                      "tenant",
-                      "channel_connection",
-                      "customer_voice"
-                    ]
+                    "enum": ["user", "asset", "brand", "tenant", "channel_connection", "customer_voice"]
                   },
                   "subjectId": {
                     "type": "string"
@@ -1920,11 +2939,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "subjectType",
-                  "subjectId",
-                  "reason"
-                ]
+                "required": ["subjectType", "subjectId", "reason"]
               }
             }
           }
@@ -1949,18 +2964,13 @@
                 "properties": {
                   "scope": {
                     "type": "string",
-                    "enum": [
-                      "agent_starts",
-                      "release_dispatch"
-                    ]
+                    "enum": ["agent_starts", "release_dispatch"]
                   },
                   "brandId": {
                     "type": "string"
                   }
                 },
-                "required": [
-                  "scope"
-                ]
+                "required": ["scope"]
               }
             }
           }
@@ -1979,10 +2989,7 @@
                 "properties": {
                   "scope": {
                     "type": "string",
-                    "enum": [
-                      "agent_starts",
-                      "release_dispatch"
-                    ]
+                    "enum": ["agent_starts", "release_dispatch"]
                   },
                   "brandId": {
                     "type": "string"
@@ -1994,10 +3001,34 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "scope",
-                  "engaged"
-                ]
+                "required": ["scope", "engaged"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/operations.outbox.deadLetters": {
+      "get": {
+        "operationId": "operations.outbox.deadLetters",
+        "x-trpc-type": "query"
+      }
+    },
+    "/trpc/operations.outbox.replay": {
+      "post": {
+        "operationId": "operations.outbox.replay",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "eventId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["eventId"]
               }
             }
           }
@@ -2026,10 +3057,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "servicePrincipalId",
-            "scopes"
-          ]
+          "required": ["servicePrincipalId", "scopes"]
         }
       },
       "access.apiClients.rotate": {
@@ -2041,9 +3069,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "apiClientId"
-          ]
+          "required": ["apiClientId"]
         }
       },
       "access.brandGrants.set": {
@@ -2064,11 +3090,7 @@
               }
             }
           },
-          "required": [
-            "membershipId",
-            "brandId",
-            "roles"
-          ]
+          "required": ["membershipId", "brandId", "roles"]
         }
       },
       "access.listCompanies": {
@@ -2104,10 +3126,7 @@
               "type": "boolean"
             }
           },
-          "required": [
-            "email",
-            "role"
-          ]
+          "required": ["email", "role"]
         }
       },
       "access.members.setRole": {
@@ -2138,11 +3157,7 @@
               "type": "boolean"
             }
           },
-          "required": [
-            "membershipId",
-            "expectedVersion",
-            "role"
-          ]
+          "required": ["membershipId", "expectedVersion", "role"]
         }
       },
       "access.servicePrincipals.create": {
@@ -2152,12 +3167,7 @@
           "properties": {
             "kind": {
               "type": "string",
-              "enum": [
-                "agent",
-                "api_client",
-                "mcp_client",
-                "integration"
-              ]
+              "enum": ["agent", "api_client", "mcp_client", "integration"]
             },
             "name": {
               "type": "string"
@@ -2230,27 +3240,15 @@
                     ]
                   }
                 },
-                "required": [
-                  "action",
-                  "brandIds"
-                ]
+                "required": ["action", "brandIds"]
               }
             },
             "maxAutonomy": {
               "type": "string",
-              "enum": [
-                "assist",
-                "create",
-                "prepare_release",
-                "managed_autopublish"
-              ]
+              "enum": ["assist", "create", "prepare_release", "managed_autopublish"]
             }
           },
-          "required": [
-            "kind",
-            "name",
-            "grants"
-          ]
+          "required": ["kind", "name", "grants"]
         }
       },
       "access.servicePrincipals.revoke": {
@@ -2265,10 +3263,7 @@
               "type": "number"
             }
           },
-          "required": [
-            "servicePrincipalId",
-            "expectedVersion"
-          ]
+          "required": ["servicePrincipalId", "expectedVersion"]
         }
       },
       "access.switchCompany": {
@@ -2280,9 +3275,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "tenantId"
-          ]
+          "required": ["tenantId"]
         }
       },
       "assets.approve": {
@@ -2297,10 +3290,7 @@
               "type": "number"
             }
           },
-          "required": [
-            "assetId",
-            "expectedVersion"
-          ]
+          "required": ["assetId", "expectedVersion"]
         }
       },
       "assets.get": {
@@ -2312,9 +3302,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "assetId"
-          ]
+          "required": ["assetId"]
         }
       },
       "assets.grants.create": {
@@ -2330,22 +3318,13 @@
             },
             "purpose": {
               "type": "string",
-              "enum": [
-                "creative",
-                "logo",
-                "font",
-                "reference"
-              ]
+              "enum": ["creative", "logo", "font", "reference"]
             },
             "expiresAt": {
               "type": "string"
             }
           },
-          "required": [
-            "assetId",
-            "granteeBrandId",
-            "purpose"
-          ]
+          "required": ["assetId", "granteeBrandId", "purpose"]
         }
       },
       "assets.media.signedUrl": {
@@ -2363,18 +3342,12 @@
                 },
                 {
                   "type": "string",
-                  "enum": [
-                    "thumbnail",
-                    "preview",
-                    "web"
-                  ]
+                  "enum": ["thumbnail", "preview", "web"]
                 }
               ]
             }
           },
-          "required": [
-            "assetVersionId"
-          ]
+          "required": ["assetVersionId"]
         }
       },
       "assets.retire": {
@@ -2392,10 +3365,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "assetId",
-            "expectedVersion"
-          ]
+          "required": ["assetId", "expectedVersion"]
         }
       },
       "assets.rights.set": {
@@ -2448,20 +3418,13 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "model",
-                      "property",
-                      "talent"
-                    ]
+                    "enum": ["model", "property", "talent"]
                   },
                   "ref": {
                     "type": "string"
                   }
                 },
-                "required": [
-                  "kind",
-                  "ref"
-                ]
+                "required": ["kind", "ref"]
               }
             },
             "restrictions": {
@@ -2471,12 +3434,7 @@
               }
             }
           },
-          "required": [
-            "assetId",
-            "owner",
-            "permittedChannels",
-            "territories"
-          ]
+          "required": ["assetId", "owner", "permittedChannels", "territories"]
         }
       },
       "assets.search": {
@@ -2492,12 +3450,7 @@
                 },
                 "purpose": {
                   "type": "string",
-                  "enum": [
-                    "creative",
-                    "logo",
-                    "font",
-                    "reference"
-                  ]
+                  "enum": ["creative", "logo", "font", "reference"]
                 },
                 "channelConnectionIds": {
                   "type": "array",
@@ -2532,10 +3485,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "brandId",
-                "purpose"
-              ]
+              "required": ["brandId", "purpose"]
             },
             "page": {
               "type": "object",
@@ -2550,10 +3500,7 @@
               "required": []
             }
           },
-          "required": [
-            "query",
-            "page"
-          ]
+          "required": ["query", "page"]
         }
       },
       "assets.uploads.complete": {
@@ -2565,9 +3512,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "intentId"
-          ]
+          "required": ["intentId"]
         }
       },
       "assets.uploads.createIntent": {
@@ -2602,13 +3547,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "brandId",
-            "kind",
-            "declaredMime",
-            "declaredBytes",
-            "originalFilename"
-          ]
+          "required": ["brandId", "kind", "declaredMime", "declaredBytes", "originalFilename"]
         }
       },
       "assets.usages.list": {
@@ -2632,10 +3571,7 @@
               "required": []
             }
           },
-          "required": [
-            "assetId",
-            "page"
-          ]
+          "required": ["assetId", "page"]
         }
       },
       "assets.versions.list": {
@@ -2659,10 +3595,7 @@
               "required": []
             }
           },
-          "required": [
-            "assetId",
-            "page"
-          ]
+          "required": ["assetId", "page"]
         }
       },
       "brand.create": {
@@ -2680,11 +3613,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "name",
-            "timezone",
-            "defaultLocale"
-          ]
+          "required": ["name", "timezone", "defaultLocale"]
         }
       },
       "brand.facts.approve": {
@@ -2702,11 +3631,7 @@
               "type": "number"
             }
           },
-          "required": [
-            "brandId",
-            "factId",
-            "expectedVersion"
-          ]
+          "required": ["brandId", "factId", "expectedVersion"]
         }
       },
       "brand.facts.list": {
@@ -2719,11 +3644,7 @@
             },
             "state": {
               "type": "string",
-              "enum": [
-                "proposed",
-                "approved",
-                "revoked"
-              ]
+              "enum": ["proposed", "approved", "revoked"]
             },
             "page": {
               "type": "object",
@@ -2738,10 +3659,7 @@
               "required": []
             }
           },
-          "required": [
-            "brandId",
-            "page"
-          ]
+          "required": ["brandId", "page"]
         }
       },
       "brand.facts.propose": {
@@ -2754,15 +3672,7 @@
             },
             "kind": {
               "type": "string",
-              "enum": [
-                "product",
-                "claim",
-                "offer",
-                "contact",
-                "price",
-                "statistic",
-                "legal"
-              ]
+              "enum": ["product", "claim", "offer", "contact", "price", "statistic", "legal"]
             },
             "statement": {
               "type": "string"
@@ -2795,10 +3705,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "kind",
-                  "ref"
-                ]
+                "required": ["kind", "ref"]
               }
             },
             "validFrom": {
@@ -2808,12 +3715,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "brandId",
-            "kind",
-            "statement",
-            "evidence"
-          ]
+          "required": ["brandId", "kind", "statement", "evidence"]
         }
       },
       "brand.facts.revoke": {
@@ -2834,11 +3736,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "brandId",
-            "factId",
-            "expectedVersion"
-          ]
+          "required": ["brandId", "factId", "expectedVersion"]
         }
       },
       "brand.get": {
@@ -2850,9 +3748,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "brandId"
-          ]
+          "required": ["brandId"]
         }
       },
       "brand.list": {
@@ -2883,10 +3779,7 @@
               "required": []
             }
           },
-          "required": [
-            "brandId",
-            "page"
-          ]
+          "required": ["brandId", "page"]
         }
       },
       "brand.objectives.set": {
@@ -2922,13 +3815,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "brandId",
-            "name",
-            "primaryMetricKey",
-            "guardrailMetricKeys",
-            "activeFrom"
-          ]
+          "required": ["brandId", "name", "primaryMetricKey", "guardrailMetricKeys", "activeFrom"]
         }
       },
       "brand.onboarding.start": {
@@ -2952,9 +3839,7 @@
               }
             }
           },
-          "required": [
-            "brandId"
-          ]
+          "required": ["brandId"]
         }
       },
       "brand.policy.activate": {
@@ -2972,11 +3857,7 @@
               "type": "number"
             }
           },
-          "required": [
-            "brandId",
-            "policyVersionId",
-            "expectedVersion"
-          ]
+          "required": ["brandId", "policyVersionId", "expectedVersion"]
         }
       },
       "brand.policy.createVersion": {
@@ -3004,10 +3885,7 @@
                     },
                     "blockOnBrandReviewSeverity": {
                       "type": "string",
-                      "enum": [
-                        "blocking",
-                        "warning"
-                      ]
+                      "enum": ["blocking", "warning"]
                     }
                   },
                   "required": []
@@ -3034,16 +3912,10 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "schemaVersion",
-                "reviewThresholds"
-              ]
+              "required": ["schemaVersion", "reviewThresholds"]
             }
           },
-          "required": [
-            "brandId",
-            "document"
-          ]
+          "required": ["brandId", "document"]
         }
       },
       "brand.policy.get": {
@@ -3058,9 +3930,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "brandId"
-          ]
+          "required": ["brandId"]
         }
       },
       "brand.versions.createDraft": {
@@ -3072,9 +3942,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "brandId"
-          ]
+          "required": ["brandId"]
         }
       },
       "brand.versions.get": {
@@ -3089,10 +3957,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "brandId",
-            "versionId"
-          ]
+          "required": ["brandId", "versionId"]
         }
       },
       "brand.versions.list": {
@@ -3116,10 +3981,7 @@
               "required": []
             }
           },
-          "required": [
-            "brandId",
-            "page"
-          ]
+          "required": ["brandId", "page"]
         }
       },
       "brand.versions.publish": {
@@ -3137,11 +3999,7 @@
               "type": "number"
             }
           },
-          "required": [
-            "brandId",
-            "versionId",
-            "expectedVersion"
-          ]
+          "required": ["brandId", "versionId", "expectedVersion"]
         }
       },
       "brand.versions.submitForReview": {
@@ -3159,11 +4017,7 @@
               "type": "number"
             }
           },
-          "required": [
-            "brandId",
-            "versionId",
-            "expectedVersion"
-          ]
+          "required": ["brandId", "versionId", "expectedVersion"]
         }
       },
       "brand.versions.update": {
@@ -3210,10 +4064,7 @@
                             "type": "string"
                           }
                         },
-                        "required": [
-                          "key",
-                          "description"
-                        ]
+                        "required": ["key", "description"]
                       }
                     },
                     "preferredTerms": {
@@ -3231,10 +4082,7 @@
                             }
                           }
                         },
-                        "required": [
-                          "use",
-                          "avoid"
-                        ]
+                        "required": ["use", "avoid"]
                       }
                     },
                     "prohibitedPhrases": {
@@ -3259,20 +4107,13 @@
                           },
                           "verdict": {
                             "type": "string",
-                            "enum": [
-                              "on_brand",
-                              "off_brand"
-                            ]
+                            "enum": ["on_brand", "off_brand"]
                           },
                           "note": {
                             "type": "string"
                           }
                         },
-                        "required": [
-                          "text",
-                          "verdict",
-                          "note"
-                        ]
+                        "required": ["text", "verdict", "note"]
                       }
                     }
                   },
@@ -3313,11 +4154,7 @@
                             ]
                           }
                         },
-                        "required": [
-                          "key",
-                          "value",
-                          "role"
-                        ]
+                        "required": ["key", "value", "role"]
                       }
                     },
                     "typeRoles": {
@@ -3327,13 +4164,7 @@
                         "properties": {
                           "role": {
                             "type": "string",
-                            "enum": [
-                              "display",
-                              "heading",
-                              "body",
-                              "label",
-                              "caption"
-                            ]
+                            "enum": ["display", "heading", "body", "label", "caption"]
                           },
                           "fontAssetId": {
                             "type": "string"
@@ -3348,12 +4179,7 @@
                             "type": "number"
                           }
                         },
-                        "required": [
-                          "role",
-                          "fontAssetId",
-                          "weight",
-                          "minSizePx"
-                        ]
+                        "required": ["role", "fontAssetId", "weight", "minSizePx"]
                       }
                     },
                     "spacingScale": {
@@ -3370,18 +4196,10 @@
                     },
                     "contrastTarget": {
                       "type": "string",
-                      "enum": [
-                        "AA",
-                        "AAA"
-                      ]
+                      "enum": ["AA", "AAA"]
                     }
                   },
-                  "required": [
-                    "colours",
-                    "typeRoles",
-                    "spacingScale",
-                    "radii"
-                  ]
+                  "required": ["colours", "typeRoles", "spacingScale", "radii"]
                 },
                 "logoRules": {
                   "type": "array",
@@ -3393,12 +4211,7 @@
                       },
                       "variant": {
                         "type": "string",
-                        "enum": [
-                          "primary",
-                          "reversed",
-                          "mono",
-                          "mark_only"
-                        ]
+                        "enum": ["primary", "reversed", "mono", "mark_only"]
                       },
                       "allowedBackgroundColourKeys": {
                         "type": "array",
@@ -3446,12 +4259,7 @@
                         }
                       }
                     },
-                    "required": [
-                      "key",
-                      "description",
-                      "exampleAssetIds",
-                      "templateVersionIds"
-                    ]
+                    "required": ["key", "description", "exampleAssetIds", "templateVersionIds"]
                   }
                 },
                 "channelGuidance": {
@@ -3475,31 +4283,1132 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "providerKey",
-                      "captionStyle",
-                      "preferredFormats",
-                      "ctaConventions"
-                    ]
+                    "required": ["providerKey", "captionStyle", "preferredFormats", "ctaConventions"]
                   }
                 }
               },
-              "required": [
-                "schemaVersion",
-                "voice",
-                "tokens",
-                "logoRules",
-                "patterns",
-                "channelGuidance"
-              ]
+              "required": ["schemaVersion", "voice", "tokens", "logoRules", "patterns", "channelGuidance"]
             }
           },
-          "required": [
-            "brandId",
-            "versionId",
-            "expectedVersion",
-            "document"
-          ]
+          "required": ["brandId", "versionId", "expectedVersion", "document"]
+        }
+      },
+      "creative.comments.add": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "documentId": {
+              "type": "string"
+            },
+            "revisionId": {
+              "type": "string"
+            },
+            "elementId": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            }
+          },
+          "required": ["documentId", "revisionId", "elementId", "body"]
+        }
+      },
+      "creative.comments.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "documentId": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": ["open", "resolved", "outdated"]
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["documentId", "page"]
+        }
+      },
+      "creative.comments.resolve": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "documentId": {
+              "type": "string"
+            },
+            "commentId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": ["documentId", "commentId", "expectedVersion"]
+        }
+      },
+      "creative.documents.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "contentPackageId": {
+              "type": "string"
+            },
+            "document": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "const": 1
+                },
+                "brandVersionId": {
+                  "type": "string"
+                },
+                "templateVersionId": {
+                  "type": "string"
+                },
+                "pages": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "formatKey": {
+                        "type": "string"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      },
+                      "elements": {
+                        "type": "array",
+                        "items": {
+                          "$comment": "recursive"
+                        }
+                      },
+                      "layoutConstraints": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "anchor": {
+                              "type": "string",
+                              "enum": ["top", "bottom", "left", "right", "center"]
+                            },
+                            "marginPx": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["elementId", "anchor", "marginPx"]
+                        }
+                      }
+                    },
+                    "required": ["id", "name", "formatKey", "width", "height", "elements"]
+                  }
+                },
+                "variants": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "formatKey": {
+                        "type": "string"
+                      },
+                      "derivedFromPageIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "overrides": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": ["formatKey", "derivedFromPageIds", "overrides"]
+                  }
+                }
+              },
+              "required": ["schemaVersion", "brandVersionId", "pages"]
+            }
+          },
+          "required": ["brandId", "title"]
+        }
+      },
+      "creative.documents.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "documentId": {
+              "type": "string"
+            }
+          },
+          "required": ["documentId"]
+        }
+      },
+      "creative.operations.applyBatch": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "baseRevisionId": {
+              "type": "string"
+            },
+            "operations": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "insertElement"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "element": {
+                        "$comment": "recursive"
+                      },
+                      "index": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["op", "pageId", "element"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "removeElement"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "setText"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "factRefs": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "text"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "setStyle"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "patch": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "patch"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "replaceAsset"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "assetVersionId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "assetVersionId"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "moveElement"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "x", "y"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "resizeElement"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "width", "height"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "reorderElement"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "toIndex": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "toIndex"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "setCrop"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "crop": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          },
+                          "width": {
+                            "type": "number"
+                          },
+                          "height": {
+                            "type": "number"
+                          }
+                        },
+                        "required": ["x", "y", "width", "height"]
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "crop"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "applyTemplate"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "templateVersionId": {
+                        "type": "string"
+                      },
+                      "slotBindings": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["op", "pageId", "templateVersionId", "slotBindings"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "addPage"
+                      },
+                      "page": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "formatKey": {
+                            "type": "string"
+                          },
+                          "width": {
+                            "type": "number"
+                          },
+                          "height": {
+                            "type": "number"
+                          },
+                          "elements": {
+                            "type": "array",
+                            "items": {
+                              "$comment": "recursive"
+                            }
+                          },
+                          "layoutConstraints": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "elementId": {
+                                  "type": "string"
+                                },
+                                "anchor": {
+                                  "type": "string",
+                                  "enum": ["top", "bottom", "left", "right", "center"]
+                                },
+                                "marginPx": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": ["elementId", "anchor", "marginPx"]
+                            }
+                          }
+                        },
+                        "required": ["id", "name", "formatKey", "width", "height", "elements"]
+                      },
+                      "index": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["op", "page"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "createFormatVariant"
+                      },
+                      "sourcePageId": {
+                        "type": "string"
+                      },
+                      "formatKey": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["op", "sourcePageId", "formatKey"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "setLock"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "locked": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "locked"]
+                  }
+                ]
+              }
+            },
+            "summary": {
+              "type": "string"
+            },
+            "origin": {
+              "type": "string",
+              "enum": ["user", "agent"]
+            },
+            "agentRunId": {
+              "type": "string"
+            },
+            "documentId": {
+              "type": "string"
+            }
+          },
+          "required": ["baseRevisionId", "operations", "summary", "origin", "documentId"]
+        }
+      },
+      "creative.operations.propose": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "baseRevisionId": {
+              "type": "string"
+            },
+            "operations": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "insertElement"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "element": {
+                        "$comment": "recursive"
+                      },
+                      "index": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["op", "pageId", "element"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "removeElement"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "setText"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "factRefs": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "text"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "setStyle"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "patch": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "patch"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "replaceAsset"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "assetVersionId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "assetVersionId"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "moveElement"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "x", "y"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "resizeElement"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "width", "height"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "reorderElement"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "toIndex": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "toIndex"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "setCrop"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "crop": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          },
+                          "width": {
+                            "type": "number"
+                          },
+                          "height": {
+                            "type": "number"
+                          }
+                        },
+                        "required": ["x", "y", "width", "height"]
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "crop"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "applyTemplate"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "templateVersionId": {
+                        "type": "string"
+                      },
+                      "slotBindings": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["op", "pageId", "templateVersionId", "slotBindings"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "addPage"
+                      },
+                      "page": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "formatKey": {
+                            "type": "string"
+                          },
+                          "width": {
+                            "type": "number"
+                          },
+                          "height": {
+                            "type": "number"
+                          },
+                          "elements": {
+                            "type": "array",
+                            "items": {
+                              "$comment": "recursive"
+                            }
+                          },
+                          "layoutConstraints": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "elementId": {
+                                  "type": "string"
+                                },
+                                "anchor": {
+                                  "type": "string",
+                                  "enum": ["top", "bottom", "left", "right", "center"]
+                                },
+                                "marginPx": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": ["elementId", "anchor", "marginPx"]
+                            }
+                          }
+                        },
+                        "required": ["id", "name", "formatKey", "width", "height", "elements"]
+                      },
+                      "index": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["op", "page"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "createFormatVariant"
+                      },
+                      "sourcePageId": {
+                        "type": "string"
+                      },
+                      "formatKey": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["op", "sourcePageId", "formatKey"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": {
+                        "const": "setLock"
+                      },
+                      "pageId": {
+                        "type": "string"
+                      },
+                      "elementId": {
+                        "type": "string"
+                      },
+                      "locked": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["op", "pageId", "elementId", "locked"]
+                  }
+                ]
+              }
+            },
+            "summary": {
+              "type": "string"
+            },
+            "origin": {
+              "type": "string",
+              "enum": ["user", "agent"]
+            },
+            "agentRunId": {
+              "type": "string"
+            },
+            "documentId": {
+              "type": "string"
+            }
+          },
+          "required": ["baseRevisionId", "operations", "summary", "origin", "documentId"]
+        }
+      },
+      "creative.renders.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "renderJobId": {
+              "type": "string"
+            }
+          },
+          "required": ["renderJobId"]
+        }
+      },
+      "creative.renders.request": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "documentId": {
+              "type": "string"
+            },
+            "revisionId": {
+              "type": "string"
+            },
+            "formatKeys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["documentId", "revisionId", "formatKeys"]
+        }
+      },
+      "creative.revisions.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "documentId": {
+              "type": "string"
+            },
+            "revisionId": {
+              "type": "string"
+            }
+          },
+          "required": ["documentId", "revisionId"]
+        }
+      },
+      "creative.revisions.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "documentId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["documentId", "page"]
+        }
+      },
+      "creative.templates.approve": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "templateId": {
+              "type": "string"
+            },
+            "templateVersionId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": ["templateId", "templateVersionId", "expectedVersion"]
+        }
+      },
+      "creative.templates.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": ["brandId", "name"]
+        }
+      },
+      "creative.templates.createVersion": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "templateId": {
+              "type": "string"
+            },
+            "document": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "const": 1
+                },
+                "brandVersionId": {
+                  "type": "string"
+                },
+                "templateVersionId": {
+                  "type": "string"
+                },
+                "pages": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "formatKey": {
+                        "type": "string"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      },
+                      "elements": {
+                        "type": "array",
+                        "items": {
+                          "$comment": "recursive"
+                        }
+                      },
+                      "layoutConstraints": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "elementId": {
+                              "type": "string"
+                            },
+                            "anchor": {
+                              "type": "string",
+                              "enum": ["top", "bottom", "left", "right", "center"]
+                            },
+                            "marginPx": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["elementId", "anchor", "marginPx"]
+                        }
+                      }
+                    },
+                    "required": ["id", "name", "formatKey", "width", "height", "elements"]
+                  }
+                },
+                "variants": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "formatKey": {
+                        "type": "string"
+                      },
+                      "derivedFromPageIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "overrides": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": ["formatKey", "derivedFromPageIds", "overrides"]
+                  }
+                }
+              },
+              "required": ["schemaVersion", "brandVersionId", "pages"]
+            },
+            "slots": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "elementId": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["key", "elementId", "kind"]
+              }
+            },
+            "constraints": {
+              "type": "object",
+              "additionalProperties": {}
+            },
+            "formats": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["templateId", "document"]
+        }
+      },
+      "creative.templates.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "templateId": {
+              "type": "string"
+            },
+            "templateVersionId": {
+              "type": "string"
+            }
+          },
+          "required": ["templateId"]
+        }
+      },
+      "creative.templates.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["brandId", "page"]
         }
       },
       "operations.audit.query": {
@@ -3541,10 +5450,7 @@
               "required": []
             }
           },
-          "required": [
-            "query",
-            "page"
-          ]
+          "required": ["query", "page"]
         }
       },
       "operations.deletion.request": {
@@ -3554,14 +5460,7 @@
           "properties": {
             "subjectType": {
               "type": "string",
-              "enum": [
-                "user",
-                "asset",
-                "brand",
-                "tenant",
-                "channel_connection",
-                "customer_voice"
-              ]
+              "enum": ["user", "asset", "brand", "tenant", "channel_connection", "customer_voice"]
             },
             "subjectId": {
               "type": "string"
@@ -3570,11 +5469,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "subjectType",
-            "subjectId",
-            "reason"
-          ]
+          "required": ["subjectType", "subjectId", "reason"]
         }
       },
       "operations.flags.snapshot": {
@@ -3588,18 +5483,13 @@
           "properties": {
             "scope": {
               "type": "string",
-              "enum": [
-                "agent_starts",
-                "release_dispatch"
-              ]
+              "enum": ["agent_starts", "release_dispatch"]
             },
             "brandId": {
               "type": "string"
             }
           },
-          "required": [
-            "scope"
-          ]
+          "required": ["scope"]
         }
       },
       "operations.killSwitch.set": {
@@ -3609,10 +5499,7 @@
           "properties": {
             "scope": {
               "type": "string",
-              "enum": [
-                "agent_starts",
-                "release_dispatch"
-              ]
+              "enum": ["agent_starts", "release_dispatch"]
             },
             "brandId": {
               "type": "string"
@@ -3624,10 +5511,23 @@
               "type": "string"
             }
           },
-          "required": [
-            "scope",
-            "engaged"
-          ]
+          "required": ["scope", "engaged"]
+        }
+      },
+      "operations.outbox.deadLetters": {
+        "type": "query",
+        "input": null
+      },
+      "operations.outbox.replay": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "eventId": {
+              "type": "string"
+            }
+          },
+          "required": ["eventId"]
         }
       }
     }
