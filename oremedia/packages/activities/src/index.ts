@@ -23,3 +23,11 @@ export {
 export { createPublishControlActivities, createPublicationSweepActivities } from './publish-control';
 export { createPublishProviderActivities } from './publish-provider';
 export { createTokenRefreshActivities } from './token-refresh';
+export { createBrandChangeImpactActivities } from './brand-change-impact';
+export { createMetricCollectionActivities } from './metric-collection';
+export { createCommentIngestionActivities } from './comment-ingestion';
+export {
+  createBrandAnalystActivities,
+  createAnalystSweepActivities,
+  createBaselineComparisonActivities,
+} from './intelligence';

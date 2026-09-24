@@ -14,3 +14,4 @@ export * from './skill-version';
 export * from './mandate';
 export * from './brief';
 export * from './content-package';
+export * from './experiment';

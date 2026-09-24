@@ -808,6 +808,21 @@ export const creativeService = {
       return { renderJobId: id, state: 'pending' as const, version: 0 };
     },
 
+    /**
+     * Spec 14.5: the exports a channel variant publishes, in the variant's order, for the composition root's
+     * publish media source (the assets module mints the release URLs). A missing or foreign export is NOT_FOUND:
+     * a variant can never publish with fewer files than its approval pinned.
+     */
+    async exportsByIds(brandId: string, exportIds: readonly string[], tx?: Tx) {
+      const rows = await exportsRepo.listByIds(brandId, exportIds, tx);
+      const byId = new Map(rows.map((e) => [e.id, e]));
+      return exportIds.map((id) => {
+        const e = byId.get(id);
+        if (!e) throw new NotFoundError('RenderedExport', id);
+        return toExportDto(e);
+      });
+    },
+
     /** The job with its exports: storage keys and hashes only (delivery is the assets media endpoint). */
     async get(actor: ResolvedActor, input: z.infer<typeof RenderGet>, tx?: Tx) {
       const parsed = RenderGet.parse(input);

@@ -3,6 +3,7 @@ import { IllegalTransitionError } from './machine';
 import { mandateMachine } from './mandate';
 import { briefMachine } from './brief';
 import { contentPackageMachine } from './content-package';
+import { experimentMachine } from './experiment';
 
 describe('mandate state machine (spec 6.3 publishing_mandates)', () => {
   it('active ↔ paused; revoked and expired are final', () => {
@@ -40,5 +41,20 @@ describe('content package state machine (spec 6.3 content_packages)', () => {
     expect(contentPackageMachine.transition('draft', 'revise')).toBe('draft');
     for (const e of contentPackageMachine.events)
       expect(contentPackageMachine.can('archived', e)).toBe(false);
+  });
+});
+
+describe('experiment state machine (spec 16.6)', () => {
+  it('designed → pre_registered → running → stopped → analysed; a sequential rule may analyse while running', () => {
+    expect(experimentMachine.transition('designed', 'pre_register')).toBe('pre_registered');
+    expect(experimentMachine.transition('pre_registered', 'start')).toBe('running');
+    expect(experimentMachine.transition('running', 'stop')).toBe('stopped');
+    expect(experimentMachine.transition('running', 'analyse')).toBe('analysed');
+    expect(experimentMachine.transition('stopped', 'analyse')).toBe('analysed');
+    expect(experimentMachine.can('designed', 'start')).toBe(false);
+    expect(() => experimentMachine.transition('pre_registered', 'pre_register')).toThrow(
+      IllegalTransitionError,
+    );
+    for (const e of experimentMachine.events) expect(experimentMachine.can('analysed', e)).toBe(false);
   });
 });

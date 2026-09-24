@@ -15,6 +15,7 @@ export {
   type ReleaseAssetAuthoriser,
   type ReleaseAssetPurpose,
 } from './evaluate-release';
+export { registerReviewOutboxRoutes, BRAND_CHANGE_IMPACT_WORKFLOW_TYPE } from './outbox-routes';
 export {
   ReviewRequestRepository,
   ReviewDecisionRepository,

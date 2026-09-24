@@ -13,6 +13,7 @@ import {
   plainMeasure,
   validateVariantAgainstCapability,
   type ProviderAdapter,
+  type PublishMedia,
   type PublishRequest,
 } from '@oremedia/providers';
 
@@ -74,6 +75,8 @@ export interface FixturePost {
   text: string;
   textFingerprint: string;
   idempotencyKey: string;
+  /** What the platform received: the signed release URLs and hashes minted at dispatch (spec 9.3). */
+  media: PublishMedia[];
   createdAt: Date;
   finalised: boolean;
 }
@@ -200,6 +203,7 @@ export class FixtureProviderAdapter implements ProviderAdapter {
       text: req.text,
       textFingerprint: req.textFingerprint,
       idempotencyKey: req.idempotencyKey,
+      media: req.media.map((m) => ({ ...m })),
       createdAt: new Date(),
       finalised: false,
     };

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { z } from 'zod';
 import {
   ACCEPTED_MIMES,
@@ -26,12 +27,13 @@ import {
 import {
   NotFoundError,
   PolicyDeniedError,
+  ReleaseIntegrityError,
   RightsIneligibleError,
   ValidationFailedError,
 } from '@oremedia/contracts/errors';
 import type { Page, PageRequest } from '@oremedia/contracts/pagination';
 import type { ResolvedActor } from '@oremedia/contracts/policy';
-import { requireTenant, type Tx } from '@oremedia/db';
+import { requireTenant, withTransaction, type Tx } from '@oremedia/db';
 import { assetMachine, uploadIntentMachine } from '@oremedia/domain';
 import { newId } from '@oremedia/domain/ids';
 import { policy } from '@oremedia/module-access';
@@ -60,6 +62,7 @@ const usagesRepo = new AssetUsageRepository();
 const intentsRepo = new UploadIntentRepository();
 
 const actorRef = (actor: ResolvedActor) => ({ kind: actor.kind, id: actor.id });
+const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 
 const brandResource = (brandId: string) => ({
   type: 'brand',
@@ -586,6 +589,61 @@ export const assetService = {
       storageKey: releaseKey,
       contentHash: source.contentHash,
       mime: source.mime,
+    };
+  },
+
+  /**
+   * Spec 9.3 / 14.3 for a rendered export (an object under the tenant prefix that is not an asset version): the
+   * bytes are re-read and re-hashed against the hash the approval binding pinned (spec 3.g4) before a release
+   * copy is minted with a signed URL covering the provider's processing window. A mismatch is a
+   * ReleaseIntegrityError: nothing is minted and the caller holds the publication. Audited in the caller's
+   * transaction (or its own) as the tenant context's actor.
+   */
+  async releaseExport(
+    input: {
+      brandId: string;
+      exportId: string;
+      storageKey: string;
+      contentHash: string;
+      mime: string;
+      width: number;
+      height: number;
+      bytes: number;
+    },
+    providerProcessingWindowSec: number,
+    tx?: Tx,
+  ) {
+    const { tenantId } = requireTenant();
+    const bytes = await storage().getObject(input.storageKey);
+    if (!bytes) throw new NotFoundError('RenderedExportObject', input.storageKey);
+    const actual = sha256(bytes);
+    if (actual !== input.contentHash || bytes.length !== input.bytes)
+      throw new ReleaseIntegrityError(input.storageKey, input.contentHash, actual);
+    const id = newId('assetDerivative');
+    const releaseKey = storageKeys.release(tenantId, input.brandId, input.exportId, 'export', id);
+    await storage().copyObject(input.storageKey, releaseKey);
+    const signed = await storage().signDownloadUrl(releaseKey, {
+      expiresInSec: providerProcessingWindowSec,
+    });
+    await withTransaction(tx, (t) =>
+      audit.record(
+        requireTenant().actor,
+        'asset.release_minted',
+        { type: 'rendered_export', id: input.exportId },
+        'allowed',
+        t,
+        { brandId: input.brandId, path: releaseKey, reason: `window:${providerProcessingWindowSec}s` },
+      ),
+    );
+    return {
+      url: signed.url,
+      expiresAt: signed.expiresAt,
+      storageKey: releaseKey,
+      contentHash: input.contentHash,
+      mime: input.mime,
+      width: input.width,
+      height: input.height,
+      bytes: input.bytes,
     };
   },
 };

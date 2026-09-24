@@ -29,6 +29,7 @@ export const Action = z.enum([
   'skill.author',
   'skill.publish',
   'insight.read',
+  'insight.manage',
   'experiment.manage',
   'playbook.approve',
   'inbox.respond',

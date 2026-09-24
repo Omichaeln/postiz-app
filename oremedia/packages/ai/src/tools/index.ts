@@ -3,15 +3,12 @@ import { assetsSearchEligible } from './assets';
 import { brandGetSnapshot, factsList } from './brand';
 import { creativeProposeOperations, creativeRequestRender } from './creative';
 import { imagesGenerate } from './images';
+import { experimentsProposeDesign, metricsQuery, recommendationsCreate, voiceClusters } from './intelligence';
 import {
   contentCreateBrief,
   contentDraftCopy,
-  experimentsProposeDesign,
-  metricsQuery,
   publicationsProposeSchedule,
-  recommendationsCreate,
   reviewRequest,
-  voiceClusters,
 } from './not-available-yet';
 import { reviewRunBrandReview } from './review';
 
@@ -51,10 +48,13 @@ export { applyProposalBatch, CreativeProposalPayload } from './creative';
 export { imagesGenerate, IMAGE_COST_MICROS } from './images';
 export { reviewRunBrandReview } from './review';
 export { NOT_AVAILABLE_YET } from './not-available-yet';
+export { metricsQuery, voiceClusters, recommendationsCreate, experimentsProposeDesign } from './intelligence';
 export {
   defaultToolServices,
   imageGeneratorFromEnv,
   registerImageGenerator,
+  registerIntelligenceToolSource,
   type ImageGenerator,
+  type IntelligenceToolSource,
   type ToolServices,
 } from './services';

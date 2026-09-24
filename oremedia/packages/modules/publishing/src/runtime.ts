@@ -1,5 +1,10 @@
 import type { ActivityHooks } from '@oremedia/contracts/agents';
-import { NotFoundError, PolicyDeniedError, ValidationFailedError } from '@oremedia/contracts/errors';
+import {
+  NotFoundError,
+  PolicyDeniedError,
+  ReleaseIntegrityError,
+  ValidationFailedError,
+} from '@oremedia/contracts/errors';
 import type { PendingCheck, PublishOutcome, ReconcileResult } from '@oremedia/contracts/providers';
 import type {
   AttemptInputV1,
@@ -88,6 +93,8 @@ const workflowActor = () => requireTenant().actor;
 
 const MAX_PRE_SEND_ATTEMPTS = 8;
 const REFRESH_LOCK_SECONDS = 60;
+/** Hold reason when an export's bytes no longer hash to what the approval pinned (spec 3.g4). */
+export const EXPORT_HASH_MISMATCH = 'export_hash_mismatch';
 
 /** 30 s · 2^(n-1) capped at 30 minutes, never below the provider's Retry-After (spec 14.3 backoff). */
 export function preSendBackoffMs(attemptNumber: number, retryAfterMs?: number): number {
@@ -435,6 +442,20 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
           );
         }
         if (attemptId) await attemptsRepo.attachRemotePost(attemptId, remotePostId, tx);
+        // Spec 15.1: measurement collection starts from the publication moment (worker-ingest, its own queue).
+        const actor = workflowActor();
+        await outbox.add(
+          'measurement.collection_due',
+          { type: 'publication', id: row.id, version: row.version + 1 },
+          {
+            publicationId: row.id,
+            channelConnectionId: row.channelConnectionId,
+            actorKind: actor.kind,
+            actorId: actor.id,
+          },
+          tx,
+          { brandId: row.brandId },
+        );
         return result;
       }),
 
@@ -442,6 +463,8 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
       withTransaction(async (tx) => {
         const row = await publicationsRepo.lock(publicationId, tx);
         if (row.state === 'failed') return unchanged(row);
+        // publishOnce already held the row (export_hash_mismatch): a person resolves it; nothing to fail.
+        if (row.state === 'held') return unchanged(row);
         const event: PublicationEvent = row.state === 'processing' ? 'poll_failed' : 'provider_rejected';
         return move(
           row,
@@ -579,7 +602,9 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
       }
       let result: AttemptResult;
       try {
-        const media = await publishMedia.forVariant(variant);
+        const media = await publishMedia.forVariant(variant, {
+          providerProcessingWindowSec: adapter.capability.media.publicUrlFetch.processingWindowSec,
+        });
         const req: PublishRequest = {
           publicationId: row.id,
           attemptId,
@@ -641,7 +666,28 @@ export function createPublishingRuntime(opts: PublishingRuntimeOptions = {}): Pu
             errorCode: err.reason,
             errorDetail: truncateForTemporal(err),
           };
-        else throw err;
+        else if (err instanceof ReleaseIntegrityError) {
+          // Spec 3.g4: the export bytes no longer hash to what the approval pinned. Nothing was sent; the
+          // publication is held for a person (never retried) and the attempt is closed as rejected.
+          result = {
+            attemptId,
+            outcome: 'rejected',
+            errorCode: EXPORT_HASH_MISMATCH,
+            errorDetail: truncateForTemporal(err),
+          };
+          await withTransaction(async (tx) => {
+            const locked = await publicationsRepo.lock(row.id, tx);
+            if (locked.state !== 'dispatching') return;
+            await move(
+              locked,
+              'release_policy_failed',
+              { holdReasons: [EXPORT_HASH_MISMATCH], stateReason: EXPORT_HASH_MISMATCH },
+              'publication.hold',
+              EXPORT_HASH_MISMATCH,
+              tx,
+            );
+          });
+        } else throw err;
       }
       await withTransaction((tx) => recordAttemptOutcome(attemptId, result, tx));
       return result;

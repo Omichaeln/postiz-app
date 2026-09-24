@@ -120,6 +120,40 @@ async function notifyRevisionChange(change: RevisionChange, tx: Tx): Promise<voi
   for (const listener of revisionChangeListeners) await listener(change, tx);
 }
 
+/**
+ * Spec 15.4: the measurement module rewrites outbound URLs of a generated variant to tracked links. Until it
+ * registers, the text is kept as written (no tracking, never a failure).
+ */
+export interface LinkTrackingInput {
+  brandId: string;
+  contentRevisionId: string;
+  channelVariantId: string;
+  channelConnectionId: string;
+  text: string;
+}
+export type LinkTracker = (input: LinkTrackingInput, tx: Tx) => Promise<string>;
+let linkTracker: LinkTracker = async (input) => input.text;
+export const registerLinkTracker = (fn: LinkTracker): void => {
+  linkTracker = fn;
+};
+
+/**
+ * Spec 16.2: creative attributes are captured at creation. The measurement module registers a capturer that runs
+ * inside the revision's transaction; until then nothing is captured.
+ */
+export interface AttributeCaptureInput {
+  brandId: string;
+  contentRevisionId: string;
+  copy: CopyDocumentV1;
+  creativeRevisionIds: string[];
+  authorKind: 'user' | 'agent';
+}
+export type AttributeCapturer = (input: AttributeCaptureInput, tx: Tx) => Promise<void>;
+let attributeCapturer: AttributeCapturer = async () => undefined;
+export const registerAttributeCapturer = (fn: AttributeCapturer): void => {
+  attributeCapturer = fn;
+};
+
 // ---- helpers ----
 
 const actorRef = (actor: ResolvedActor) => ({ kind: actor.kind, id: actor.id });
@@ -429,6 +463,16 @@ async function insertRevision(
     { currentRevisionId: revisionId, state: input.packageState },
     tx,
   );
+  await attributeCapturer(
+    {
+      brandId: pkg.brandId,
+      contentRevisionId: revisionId,
+      copy: input.copy,
+      creativeRevisionIds: input.creativeRevisionIds,
+      authorKind: authorKindOf(actor),
+    },
+    tx,
+  );
   await outbox.add(
     'content.revision_created',
     { type: 'content_package', id: pkg.id, version: pkg.version + 1 },
@@ -525,7 +569,7 @@ export const contentService = {
           createdByKind: authorKindOf(actor),
           createdById: actor.id,
           agentRunId: null,
-          recommendationId: null,
+          recommendationId: parsed.recommendationId ?? null,
         },
         tx,
       );
@@ -757,6 +801,15 @@ export const contentService = {
     },
 
     /**
+     * Spec 8.2 brand.fact_revoked consumer: the revisions (in review or approved, the ones a scheduled publication
+     * can carry) whose copy cites the fact.
+     */
+    async listCitingFact(brandId: string, factId: string, tx?: Tx) {
+      const candidates = await revisionsRepo.listInStates(brandId, ['in_review', 'approved'], tx);
+      return candidates.filter((r) => r.factRefs.includes(factId)).map(toRevisionSummary);
+    },
+
+    /**
      * Spec 13.1: the review module moves a revision only through contentRevisionMachine, and the package follows
      * (draft → in_review → approved | draft). The caller has asserted review.request / review.decide.
      */
@@ -828,7 +881,16 @@ export const contentService = {
             brandId: revision.brandId,
             contentRevisionId: revision.id,
             channelConnectionId,
-            text: copy.master.text,
+            text: await linkTracker(
+              {
+                brandId: revision.brandId,
+                contentRevisionId: revision.id,
+                channelVariantId: id,
+                channelConnectionId,
+                text: copy.master.text,
+              },
+              tx,
+            ),
             altTexts,
             settings: {},
             exportIds,

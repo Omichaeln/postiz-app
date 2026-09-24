@@ -9,7 +9,8 @@ const OWNERSHIP = {
   skills: ['skills'],
   agents: ['agents'],
   publishing: ['publishing'],
-  measurement: ['measurement'],
+  // Comment ingestion (spec 16.5, Release 1) writes the community tables until the inbox module exists (Release 2).
+  measurement: ['measurement', 'community'],
   intelligence: ['intelligence'],
   experiments: ['experiments'],
   community: ['community'],

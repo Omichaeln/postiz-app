@@ -28,7 +28,7 @@ import {
 } from '@oremedia/contracts/brand';
 import { NotFoundError, PolicyDeniedError, ValidationFailedError } from '@oremedia/contracts/errors';
 import type { Decision, ResolvedActor } from '@oremedia/contracts/policy';
-import { requireTenant, type Tx } from '@oremedia/db';
+import { requireTenant, runAsPlatform, type Tx } from '@oremedia/db';
 import { buildBrandSnapshot } from '@oremedia/domain/brand-snapshot';
 import { hashCanonical } from '@oremedia/domain/hash';
 import { newId } from '@oremedia/domain/ids';
@@ -45,10 +45,12 @@ import {
   BrandRepository,
   BrandVersionRepository,
   DesignTokenRepository,
+  PlatformBrandRepository,
   PolicyVersionRepository,
 } from './repositories';
 
 const brandsRepo = new BrandRepository();
+const platformBrandsRepo = new PlatformBrandRepository();
 const versionsRepo = new BrandVersionRepository();
 const tokensRepo = new DesignTokenRepository();
 const factsRepo = new ApprovedFactRepository();
@@ -318,8 +320,10 @@ export const brandService = {
 
     /**
      * Publishing retires the previously published version in the same transaction, points the brand at the new
-     * version, writes its design tokens and emits brand.version_published. It never mutates approved work: the
-     * impact job that consumes the event proposes updates to drafts and scheduled publications (spec 8.2).
+     * version, writes its design tokens and emits brand.version_published (with the publishing actor, so the
+     * consumer re-establishes tenant context as it: spec 5.2). It never mutates approved work: the impact workflow
+     * that consumes the event (brandChangeImpactWorkflowV1) invalidates approvals and re-evaluates scheduled
+     * publications (spec 8.2).
      */
     async publish(actor: ResolvedActor, input: z.infer<typeof BrandVersionPublish>, tx: Tx) {
       const parsed = BrandVersionPublish.parse(input);
@@ -379,6 +383,8 @@ export const brandService = {
           number: v.number,
           contentHash: v.contentHash,
           previousVersionId: previous && previous.id !== v.id ? previous.id : null,
+          actorKind: actor.kind,
+          actorId: actor.id,
         },
         tx,
         { brandId: brand.id },
@@ -471,10 +477,11 @@ export const brandService = {
 
     /**
      * Event contract `brand.fact_revoked` (schema 1), aggregate approved_fact: data { factId, kind, previousState,
-     * reason }, brandId in the payload. Consumer (publishing module, Phase 5): for every *scheduled* publication
-     * whose content references factId, apply the brand's active policy — holdOnDependencyRevocation true (spec 8.2
-     * default) moves it to `held` with reason `dependency_revoked`; false only flags it. `previousState` lets the
-     * consumer ignore withdrawn proposals, which no content can reference.
+     * reason, actorKind, actorId }, brandId in the payload. Consumer (brandChangeImpactWorkflowV1, started by the
+     * review module's outbox route): for every *scheduled* publication whose content references factId, apply the
+     * brand's active policy — holdOnDependencyRevocation true (spec 8.2 default) moves it to `held` with the failed
+     * checks as reasons; false only flags it (publication.needs_attention). `previousState` lets the consumer
+     * ignore withdrawn proposals, which no content can reference.
      */
     async revoke(actor: ResolvedActor, input: z.infer<typeof FactRevoke>, tx: Tx) {
       const parsed = FactRevoke.parse(input);
@@ -506,7 +513,14 @@ export const brandService = {
       await outbox.add(
         'brand.fact_revoked',
         { type: 'approved_fact', id: fact.id, version: parsed.expectedVersion + 1 },
-        { factId: fact.id, kind: fact.kind, previousState: fact.state, reason: parsed.reason ?? null },
+        {
+          factId: fact.id,
+          kind: fact.kind,
+          previousState: fact.state,
+          reason: parsed.reason ?? null,
+          actorKind: actor.kind,
+          actorId: actor.id,
+        },
         tx,
         { brandId: brand.id },
       );
@@ -709,6 +723,14 @@ export const brandService = {
       'not_available_yet',
       'Brand onboarding runs as an agent skill and is not available yet',
     );
+  },
+
+  /**
+   * Spec 16.3 / 16.8 sweeps: the active brands of every tenant as references (no content), under a declared
+   * platform job. Callers establish each tenant's context before touching anything else.
+   */
+  listActiveAcrossTenants(job: string, correlationId: string, tx?: Tx) {
+    return runAsPlatform(job, correlationId, () => platformBrandsRepo.listActiveRefs(tx));
   },
 
   /** Validates that every id exists in the current tenant; throws NOT_FOUND for the first that does not. */

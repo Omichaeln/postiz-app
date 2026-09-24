@@ -1,4 +1,4 @@
-import { PolicyDocumentV1 } from '@oremedia/contracts/brand';
+import { PolicyDocumentV1, defaultPolicyDocument } from '@oremedia/contracts/brand';
 import type { ContentClass } from '@oremedia/contracts/content';
 import { CreativeDocumentV1, OperationBatch, RenderValidationResult } from '@oremedia/contracts/creative';
 import { OremediaError, PolicyDeniedError, NotFoundError } from '@oremedia/contracts/errors';
@@ -426,6 +426,18 @@ export async function evaluateRelease(
 
   const failed = checks.filter((c) => !c.ok);
   return failed.length ? { allow: false, hold: true, reasons: failed.map((c) => c.key) } : { allow: true };
+}
+
+/**
+ * Spec 8.2 brand.fact_revoked: what the revocation reaches (the in-review or approved revisions citing the fact,
+ * the ones a scheduled publication can carry) and what the brand's active policy says to do with them:
+ * holdOnDependencyRevocation (the default) holds, otherwise the publishing module only flags.
+ */
+export async function factRevocationScope(brandId: string, factId: string, tx?: Tx) {
+  const active = await policyVersionsRepo.findActive(brandId, tx);
+  const doc = active ? PolicyDocumentV1.parse(active.document) : defaultPolicyDocument();
+  const revisions = await contentService.revisions.listCitingFact(brandId, factId, tx);
+  return { hold: doc.holdOnDependencyRevocation, contentRevisionIds: revisions.map((r) => r.id) };
 }
 
 /** Spec 5.5 obligations for decisions: the brand's active policy (distinct approver, MFA), or the defaults. */

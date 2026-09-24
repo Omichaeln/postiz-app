@@ -2,8 +2,9 @@ import { hostname } from 'node:os';
 import { startTelemetry, stopTelemetry } from '@oremedia/observability';
 import { configureDatabase, closeDatabase } from '@oremedia/db';
 import { composeModules } from './composition';
-import { TemporalWorkflowSignaller, startAgentsWorker } from './agents-worker';
+import { startAgentsWorker } from './agents-worker';
 import { runDispatchLoop } from './dispatch-loop';
+import { ensureIntelligenceSchedulesRunning } from './intelligence-worker';
 import { TemporalWorkflowProbe, ensureSweeperRunning, startPublishingWorkers } from './publishing-worker';
 import { TemporalWorkflowStarter, connectTemporal, temporalConfigFromEnv } from './temporal';
 
@@ -26,10 +27,7 @@ try {
 configureDatabase({ url, connectionLimit: Number(process.env['DATABASE_POOL'] ?? 5) });
 
 const client = await connectTemporal(temporalConfig);
-composeModules({
-  signaller: new TemporalWorkflowSignaller(client),
-  workflowProbe: new TemporalWorkflowProbe(client),
-});
+composeModules({ workflowProbe: new TemporalWorkflowProbe(client) });
 const controller = new AbortController();
 const workerId = `${hostname()}:${process.pid}`;
 log.info({ status: workerId }, 'worker-core dispatching outbox');
@@ -53,6 +51,7 @@ let publishingWorkers;
 try {
   publishingWorkers = await startPublishingWorkers(temporalConfig);
   await ensureSweeperRunning(client);
+  await ensureIntelligenceSchedulesRunning(client); // spec 16.3 weekly analyst, 16.8 monthly baseline comparison
 } catch (err) {
   log.error(
     { errorMessage: err instanceof Error ? err.message : String(err) },

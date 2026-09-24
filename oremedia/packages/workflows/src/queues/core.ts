@@ -7,3 +7,6 @@ export {
 } from '../publication.workflow.v1';
 export { publicationSweeperWorkflowV1 } from '../publication-sweeper.workflow.v1';
 export { tokenRefreshWorkflowV1 } from '../token-refresh.workflow.v1';
+export { brandChangeImpactWorkflowV1 } from '../brand-change-impact.workflow.v1';
+export { brandAnalystWorkflowV1, brandAnalystSweepWorkflowV1 } from '../brand-analyst.workflow.v1';
+export { baselineComparisonWorkflowV1 } from '../baseline-comparison.workflow.v1';

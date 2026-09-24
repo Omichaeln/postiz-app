@@ -41,6 +41,7 @@ import {
   hasNoBlockingFindings,
   type ApprovalRow,
   type MandateRow,
+  factRevocationScope,
 } from './evaluate-release';
 import {
   PublishingMandateRepository,
@@ -674,12 +675,16 @@ export const reviewService = {
       }
     },
 
-    /** brand.version_published / brand.fact_revoked consumer: every valid approval and open request of the brand. */
+    /**
+     * brand.version_published / brand.fact_revoked consumer (brandChangeImpactWorkflowV1): every valid approval
+     * and open request of the brand. Idempotent: a second run finds nothing valid or open and counts zero.
+     */
     async invalidateForBrandChange(brandId: string, tx: Tx) {
-      for (const apr of await approvalsRepo.listValidForBrand(brandId, tx))
-        await invalidate(apr, 'brand_changed', tx);
-      for (const r of await requestsRepo.listOpenForBrand(brandId, tx))
-        await markStale(r, 'brand_changed', tx);
+      const approvals = await approvalsRepo.listValidForBrand(brandId, tx);
+      for (const apr of approvals) await invalidate(apr, 'brand_changed', tx);
+      const requests = await requestsRepo.listOpenForBrand(brandId, tx);
+      for (const r of requests) await markStale(r, 'brand_changed', tx);
+      return { approvalsInvalidated: approvals.length, requestsStaled: requests.length };
     },
   },
 
@@ -838,4 +843,5 @@ export const reviewService = {
   evaluateRelease,
   buildLiveBinding,
   hasNoBlockingFindings,
+  factRevocationScope,
 };

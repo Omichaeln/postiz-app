@@ -162,6 +162,53 @@ async function release(
   );
 }
 
+/**
+ * Spec 8.2: scheduled rows that fail the release check at their scheduled time move to `held` through the
+ * publication machine with the failed checks as reasons; the rest are left as they are. The actor is the tenant
+ * context's (the brand publisher the workflow carries, spec 5.2).
+ */
+async function holdWhereReleaseFails(rows: PublicationRow[], reason: string, tx: Tx) {
+  const held: string[] = [];
+  const unchanged: string[] = [];
+  for (const row of rows) {
+    const decision = await review.evaluateRelease(forRelease(row), row.scheduledFor, tx);
+    if (decision.allow) {
+      unchanged.push(row.id);
+      continue;
+    }
+    const toState = transition(row.state, 'dependency_revoked', 'publicationId');
+    await publicationsRepo.update(
+      row.id,
+      row.version,
+      { state: toState, stateReason: reason.slice(0, 120), holdReasons: decision.reasons },
+      tx,
+    );
+    await audit.record(
+      requireTenant().actor,
+      'publication.hold',
+      { type: 'publication', id: row.id },
+      'allowed',
+      tx,
+      {
+        brandId: row.brandId,
+        publicationId: row.id,
+        fromState: row.state,
+        toState,
+        reason: decision.reasons.join(','),
+      },
+    );
+    await outbox.add(
+      'publication.state_changed',
+      { type: 'publication', id: row.id, version: row.version + 1 },
+      { publicationId: row.id, fromState: row.state, toState, reason },
+      tx,
+      { brandId: row.brandId },
+    );
+    held.push(row.id);
+  }
+  return { held, unchanged };
+}
+
 export const publicationService = {
   /**
    * Spec 14.1 schedulePublication, literally: variant through the content hook, policy, fail-fast release
@@ -271,6 +318,54 @@ export const publicationService = {
       toState: 'scheduled',
     });
     return toPublicationDto(await publicationsRepo.getById(id, tx));
+  },
+
+  /**
+   * Spec 8.2 brand change impact (brandChangeImpactWorkflowV1): every scheduled publication of the brand is
+   * re-evaluated against the release policy at its scheduled time; one that no longer passes moves to `held`
+   * with the failed checks as reasons (the machine's dependency_revoked), audited and announced as the tenant
+   * context's actor. Idempotent: a held publication is no longer scheduled and is not visited again.
+   */
+  async reevaluateScheduledForBrand(brandId: string, reason: string, tx: Tx) {
+    const rows = await publicationsRepo.listScheduledForBrand(brandId, tx);
+    return holdWhereReleaseFails(rows, reason, tx);
+  },
+
+  /**
+   * Spec 8.2 brand.fact_revoked: the scheduled publications whose content revision cites the fact. With `hold`
+   * (policy holdOnDependencyRevocation, the default) each one that fails the release check moves to `held`;
+   * without it each is flagged for attention (audit + publication.needs_attention) and keeps its state.
+   */
+  async applyFactRevocation(
+    input: { brandId: string; contentRevisionIds: readonly string[]; factId: string; hold: boolean },
+    tx: Tx,
+  ) {
+    const citing = new Set(input.contentRevisionIds);
+    const rows = (await publicationsRepo.listScheduledForBrand(input.brandId, tx)).filter((p) =>
+      citing.has(p.contentRevisionId),
+    );
+    const reason = `fact_revoked:${input.factId}`;
+    if (input.hold) return { ...(await holdWhereReleaseFails(rows, reason, tx)), flagged: [] as string[] };
+    const flagged: string[] = [];
+    for (const row of rows) {
+      await audit.record(
+        requireTenant().actor,
+        'publication.needs_attention',
+        { type: 'publication', id: row.id },
+        'allowed',
+        tx,
+        { brandId: row.brandId, publicationId: row.id, revisionId: row.contentRevisionId, reason },
+      );
+      await outbox.add(
+        'publication.needs_attention',
+        { type: 'publication', id: row.id, version: row.version },
+        { publicationId: row.id, contentRevisionId: row.contentRevisionId, state: row.state, reason },
+        tx,
+        { brandId: row.brandId },
+      );
+      flagged.push(row.id);
+    }
+    return { held: [] as string[], flagged, unchanged: [] as string[] };
   },
 
   /**

@@ -11,8 +11,7 @@ import {
 } from '@temporalio/worker';
 import { createAgentRunActivities, createSkillEvaluationActivities } from '@oremedia/activities';
 import { createModelAdapterFromEnv, createReleaseOneRegistry, modelConfigFromEnv } from '@oremedia/ai';
-import type { Client } from '@temporalio/client';
-import { AGENTS_TASK_QUEUE, createAgentRunRuntime, type WorkflowSignaller } from '@oremedia/module-agents';
+import { AGENTS_TASK_QUEUE, createAgentRunRuntime } from '@oremedia/module-agents';
 import { logger } from '@oremedia/observability';
 import { skillEvaluationStore } from './skills-store';
 import type { TemporalConfig } from './temporal';
@@ -85,22 +84,4 @@ export async function startAgentsWorker(
     shutdown: () => worker.shutdown(),
     close: () => connection.close(),
   };
-}
-
-/**
- * Direct signals for a process that holds a Temporal client (the outbox relay remains the durable path). The
- * signal names are the workflow's exported signal definitions (packages/workflows/src/agent-run.workflow.v1.ts).
- */
-export class TemporalWorkflowSignaller implements WorkflowSignaller {
-  constructor(private readonly client: Client) {}
-
-  async signal(
-    workflowId: string,
-    signal: 'cancelRun' | 'proposalDecision',
-    payload?: unknown,
-  ): Promise<void> {
-    const handle = this.client.workflow.getHandle(workflowId);
-    if (payload === undefined) await handle.signal(signal);
-    else await handle.signal(signal, payload);
-  }
 }

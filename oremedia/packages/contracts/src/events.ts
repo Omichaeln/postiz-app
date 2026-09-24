@@ -55,5 +55,7 @@ export const EVENT_TYPES = {
   // Phase 5 review (appended; additive only)
   'review.request_stale': 1,
   'mandate.changed': 1,
+  // Phase 5 brand change impact (appended; additive only): a flagged publication kept its state (spec 8.2)
+  'publication.needs_attention': 1,
 } as const;
 export type EventType = keyof typeof EVENT_TYPES;

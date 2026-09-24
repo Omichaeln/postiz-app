@@ -226,6 +226,7 @@
                             "skill.author",
                             "skill.publish",
                             "insight.read",
+                            "insight.manage",
                             "experiment.manage",
                             "playbook.approve",
                             "inbox.respond",
@@ -1811,6 +1812,9 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "recommendationId": {
+                    "type": "string"
                   }
                 },
                 "required": ["brandId", "audience", "message"]
@@ -3513,6 +3517,1123 @@
         }
       }
     },
+    "/trpc/experiments.assign": {
+      "post": {
+        "operationId": "experiments.assign",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "experimentId": {
+                    "type": "string"
+                  },
+                  "unitType": {
+                    "type": "string",
+                    "enum": ["visitor", "publication_slot"]
+                  },
+                  "unitIdHash": {
+                    "type": "string"
+                  }
+                },
+                "required": ["experimentId", "unitType", "unitIdHash"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/experiments.create": {
+      "post": {
+        "operationId": "experiments.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "recommendationId": {
+                    "type": "string"
+                  },
+                  "design": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "const": 1
+                      },
+                      "hypothesis": {
+                        "type": "string"
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": ["randomised", "structured_comparison"]
+                      },
+                      "variants": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "contentRevisionId": {
+                              "type": "string"
+                            },
+                            "allocationWeight": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["label", "contentRevisionId", "allocationWeight"]
+                        }
+                      },
+                      "primaryMetricKey": {
+                        "type": "string"
+                      },
+                      "guardrailMetricKeys": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "guardrailThresholds": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "number"
+                        }
+                      },
+                      "guardrailDirections": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string",
+                          "enum": ["up", "down"]
+                        }
+                      },
+                      "allocationMethod": {
+                        "type": "string",
+                        "enum": ["hashed_visitor", "matched_slots", "random"]
+                      },
+                      "unitType": {
+                        "type": "string",
+                        "enum": ["visitor", "publication_slot"]
+                      },
+                      "minSamplePerArm": {
+                        "type": "number"
+                      },
+                      "observationWindowHours": {
+                        "type": "number"
+                      },
+                      "stoppingRule": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "const": "fixed_horizon"
+                              },
+                              "alpha": {
+                                "type": "number"
+                              }
+                            },
+                            "required": ["kind"]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "const": "sequential_msprt"
+                              },
+                              "alpha": {
+                                "type": "number"
+                              },
+                              "tau": {
+                                "type": "number"
+                              }
+                            },
+                            "required": ["kind"]
+                          }
+                        ]
+                      },
+                      "winsorisePercentile": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "hypothesis",
+                      "mode",
+                      "variants",
+                      "primaryMetricKey",
+                      "guardrailMetricKeys",
+                      "allocationMethod",
+                      "unitType",
+                      "minSamplePerArm",
+                      "observationWindowHours",
+                      "stoppingRule"
+                    ]
+                  }
+                },
+                "required": ["brandId", "design"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/experiments.get": {
+      "get": {
+        "operationId": "experiments.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "experimentId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["experimentId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/experiments.list": {
+      "get": {
+        "operationId": "experiments.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": ["designed", "pre_registered", "running", "stopped", "analysed"]
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["brandId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/experiments.preRegister": {
+      "post": {
+        "operationId": "experiments.preRegister",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "experimentId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["experimentId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/experiments.results.compute": {
+      "post": {
+        "operationId": "experiments.results.compute",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "experimentId": {
+                    "type": "string"
+                  },
+                  "preRegistrationHash": {
+                    "type": "string"
+                  },
+                  "observations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "variantId": {
+                          "type": "string"
+                        },
+                        "n": {
+                          "type": "number"
+                        },
+                        "x": {
+                          "type": "number"
+                        },
+                        "exposure": {
+                          "type": "number"
+                        },
+                        "values": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
+                        },
+                        "guardrails": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number"
+                          }
+                        }
+                      },
+                      "required": ["variantId", "n", "x"]
+                    }
+                  },
+                  "at": {
+                    "type": "string"
+                  }
+                },
+                "required": ["experimentId", "preRegistrationHash", "observations"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/experiments.results.get": {
+      "get": {
+        "operationId": "experiments.results.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "experimentId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["experimentId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/experiments.start": {
+      "post": {
+        "operationId": "experiments.start",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "experimentId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["experimentId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/experiments.stop": {
+      "post": {
+        "operationId": "experiments.stop",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "experimentId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["experimentId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.analyst.run": {
+      "post": {
+        "operationId": "intelligence.analyst.run",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "servicePrincipalId": {
+                    "type": "string"
+                  },
+                  "periodDays": {
+                    "type": "number"
+                  }
+                },
+                "required": ["brandId", "servicePrincipalId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.anomalies.list": {
+      "get": {
+        "operationId": "intelligence.anomalies.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": ["open", "acknowledged", "resolved"]
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["brandId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.insights.list": {
+      "get": {
+        "operationId": "intelligence.insights.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": ["change", "anomaly", "association", "experimental_finding"]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": ["active", "superseded", "dismissed"]
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["brandId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.playbook.approve": {
+      "post": {
+        "operationId": "intelligence.playbook.approve",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "playbookEntryId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["playbookEntryId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.playbook.list": {
+      "get": {
+        "operationId": "intelligence.playbook.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": ["proposed", "approved", "retired"]
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["brandId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.playbook.propose": {
+      "post": {
+        "operationId": "intelligence.playbook.propose",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "practice": {
+                    "type": "string"
+                  },
+                  "evidenceInsightIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "strength": {
+                    "type": "string",
+                    "enum": ["observed", "directional", "experimentally_supported"]
+                  },
+                  "reviewAfter": {
+                    "type": "string"
+                  }
+                },
+                "required": ["brandId", "practice", "evidenceInsightIds", "strength", "reviewAfter"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.recommendations.accept": {
+      "post": {
+        "operationId": "intelligence.recommendations.accept",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "recommendationId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "create_brief",
+                      "generate_variants",
+                      "open_canvas",
+                      "prepare_test",
+                      "assign_response",
+                      "propose_playbook_update"
+                    ]
+                  },
+                  "brief": {
+                    "type": "object",
+                    "properties": {
+                      "campaignId": {
+                        "type": "string"
+                      },
+                      "audience": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "offerFactIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "channelConnectionIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["audience", "message"]
+                  },
+                  "servicePrincipalId": {
+                    "type": "string"
+                  },
+                  "experimentDesign": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "playbook": {
+                    "type": "object",
+                    "properties": {
+                      "practice": {
+                        "type": "string"
+                      },
+                      "reviewAfter": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["practice", "reviewAfter"]
+                  }
+                },
+                "required": ["recommendationId", "expectedVersion", "action"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.recommendations.dismiss": {
+      "post": {
+        "operationId": "intelligence.recommendations.dismiss",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "recommendationId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["recommendationId", "expectedVersion", "reason"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.recommendations.get": {
+      "get": {
+        "operationId": "intelligence.recommendations.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "recommendationId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["recommendationId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.recommendations.list": {
+      "get": {
+        "operationId": "intelligence.recommendations.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": ["proposed", "accepted", "dismissed", "executed"]
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["brandId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.voice.clusters": {
+      "get": {
+        "operationId": "intelligence.voice.clusters",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": ["question", "objection", "praise", "need", "complaint"]
+                  },
+                  "limit": {
+                    "type": "number"
+                  }
+                },
+                "required": ["brandId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/intelligence.workspace.get": {
+      "get": {
+        "operationId": "intelligence.workspace.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["brandId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/measurement.attributes.correct": {
+      "post": {
+        "operationId": "measurement.attributes.correct",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "attributeId": {
+                    "type": "string"
+                  },
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "attributes": {
+                    "type": "object",
+                    "properties": {
+                      "hookType": {
+                        "type": "string"
+                      },
+                      "topic": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "offerFactId": {
+                        "type": "string"
+                      },
+                      "cta": {
+                        "type": "string"
+                      },
+                      "templateVersionId": {
+                        "type": "string"
+                      },
+                      "layoutKey": {
+                        "type": "string"
+                      },
+                      "colourTreatment": {
+                        "type": "string"
+                      },
+                      "typographyRoles": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "imageryKind": {
+                        "type": "string",
+                        "enum": ["people", "product", "illustration", "photography", "none"]
+                      },
+                      "videoOpening": {
+                        "type": "string"
+                      },
+                      "durationMs": {
+                        "type": "number"
+                      },
+                      "subtitles": {
+                        "type": "boolean"
+                      },
+                      "pacing": {
+                        "type": "string"
+                      },
+                      "distribution": {
+                        "type": "string"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["attributeId", "expectedVersion", "attributes"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/measurement.attributes.get": {
+      "get": {
+        "operationId": "measurement.attributes.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentRevisionId": {
+                    "type": "string"
+                  },
+                  "channelVariantId": {
+                    "type": "string"
+                  },
+                  "attributeId": {
+                    "type": "string"
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/measurement.definitions.create": {
+      "post": {
+        "operationId": "measurement.definitions.create",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "providerKey": {
+                    "type": "string"
+                  },
+                  "nativeName": {
+                    "type": "string"
+                  },
+                  "unit": {
+                    "type": "string"
+                  },
+                  "aggregation": {
+                    "type": "string",
+                    "enum": ["sum", "max", "last", "avg", "series"]
+                  },
+                  "comparableGroup": {
+                    "type": "string"
+                  },
+                  "definitionVersion": {
+                    "type": "number"
+                  },
+                  "separatesPaidOrganic": {
+                    "type": "boolean"
+                  },
+                  "definition": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "nativeName",
+                  "unit",
+                  "aggregation",
+                  "comparableGroup",
+                  "definitionVersion"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/measurement.definitions.get": {
+      "get": {
+        "operationId": "measurement.definitions.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "definitionId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["definitionId"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/measurement.definitions.list": {
+      "get": {
+        "operationId": "measurement.definitions.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerKey": {
+                    "type": "string"
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/measurement.links.list": {
+      "get": {
+        "operationId": "measurement.links.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "publicationId": {
+                    "type": "string"
+                  },
+                  "variantId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["brandId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/measurement.metrics.query": {
+      "get": {
+        "operationId": "measurement.metrics.query",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "subjectType": {
+                    "type": "string",
+                    "enum": ["publication", "channel", "campaign", "link"]
+                  },
+                  "subjectIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "metricKeys": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "windowStart": {
+                    "type": "string"
+                  },
+                  "windowEnd": {
+                    "type": "string"
+                  },
+                  "grouping": {
+                    "type": "string",
+                    "enum": ["subject", "metric", "comparable_group"]
+                  }
+                },
+                "required": ["brandId", "subjectType", "subjectIds", "metricKeys", "windowStart", "windowEnd"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/measurement.quality.get": {
+      "get": {
+        "operationId": "measurement.quality.get",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "publicationId": {
+                    "type": "string"
+                  },
+                  "windowStart": {
+                    "type": "string"
+                  },
+                  "windowEnd": {
+                    "type": "string"
+                  }
+                },
+                "required": ["brandId", "publicationId", "windowStart", "windowEnd"]
+              }
+            }
+          }
+        }
+      }
+    },
     "/trpc/operations.audit.query": {
       "get": {
         "operationId": "operations.audit.query",
@@ -4982,6 +6103,7 @@
                       "skill.author",
                       "skill.publish",
                       "insight.read",
+                      "insight.manage",
                       "experiment.manage",
                       "playbook.approve",
                       "inbox.respond",
@@ -6216,6 +7338,9 @@
               "items": {
                 "type": "string"
               }
+            },
+            "recommendationId": {
+              "type": "string"
             }
           },
           "required": ["brandId", "audience", "message"]
@@ -7644,6 +8769,855 @@
             }
           },
           "required": ["brandId", "page"]
+        }
+      },
+      "experiments.assign": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "experimentId": {
+              "type": "string"
+            },
+            "unitType": {
+              "type": "string",
+              "enum": ["visitor", "publication_slot"]
+            },
+            "unitIdHash": {
+              "type": "string"
+            }
+          },
+          "required": ["experimentId", "unitType", "unitIdHash"]
+        }
+      },
+      "experiments.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "recommendationId": {
+              "type": "string"
+            },
+            "design": {
+              "type": "object",
+              "properties": {
+                "v": {
+                  "const": 1
+                },
+                "hypothesis": {
+                  "type": "string"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": ["randomised", "structured_comparison"]
+                },
+                "variants": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "contentRevisionId": {
+                        "type": "string"
+                      },
+                      "allocationWeight": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["label", "contentRevisionId", "allocationWeight"]
+                  }
+                },
+                "primaryMetricKey": {
+                  "type": "string"
+                },
+                "guardrailMetricKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "guardrailThresholds": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "number"
+                  }
+                },
+                "guardrailDirections": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string",
+                    "enum": ["up", "down"]
+                  }
+                },
+                "allocationMethod": {
+                  "type": "string",
+                  "enum": ["hashed_visitor", "matched_slots", "random"]
+                },
+                "unitType": {
+                  "type": "string",
+                  "enum": ["visitor", "publication_slot"]
+                },
+                "minSamplePerArm": {
+                  "type": "number"
+                },
+                "observationWindowHours": {
+                  "type": "number"
+                },
+                "stoppingRule": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "fixed_horizon"
+                        },
+                        "alpha": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["kind"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "sequential_msprt"
+                        },
+                        "alpha": {
+                          "type": "number"
+                        },
+                        "tau": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["kind"]
+                    }
+                  ]
+                },
+                "winsorisePercentile": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "v",
+                "hypothesis",
+                "mode",
+                "variants",
+                "primaryMetricKey",
+                "guardrailMetricKeys",
+                "allocationMethod",
+                "unitType",
+                "minSamplePerArm",
+                "observationWindowHours",
+                "stoppingRule"
+              ]
+            }
+          },
+          "required": ["brandId", "design"]
+        }
+      },
+      "experiments.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "experimentId": {
+              "type": "string"
+            }
+          },
+          "required": ["experimentId"]
+        }
+      },
+      "experiments.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": ["designed", "pre_registered", "running", "stopped", "analysed"]
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["brandId", "page"]
+        }
+      },
+      "experiments.preRegister": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "experimentId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": ["experimentId", "expectedVersion"]
+        }
+      },
+      "experiments.results.compute": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "experimentId": {
+              "type": "string"
+            },
+            "preRegistrationHash": {
+              "type": "string"
+            },
+            "observations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "variantId": {
+                    "type": "string"
+                  },
+                  "n": {
+                    "type": "number"
+                  },
+                  "x": {
+                    "type": "number"
+                  },
+                  "exposure": {
+                    "type": "number"
+                  },
+                  "values": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "guardrails": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "required": ["variantId", "n", "x"]
+              }
+            },
+            "at": {
+              "type": "string"
+            }
+          },
+          "required": ["experimentId", "preRegistrationHash", "observations"]
+        }
+      },
+      "experiments.results.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "experimentId": {
+              "type": "string"
+            }
+          },
+          "required": ["experimentId"]
+        }
+      },
+      "experiments.start": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "experimentId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": ["experimentId", "expectedVersion"]
+        }
+      },
+      "experiments.stop": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "experimentId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": ["experimentId", "expectedVersion"]
+        }
+      },
+      "intelligence.analyst.run": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "servicePrincipalId": {
+              "type": "string"
+            },
+            "periodDays": {
+              "type": "number"
+            }
+          },
+          "required": ["brandId", "servicePrincipalId"]
+        }
+      },
+      "intelligence.anomalies.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": ["open", "acknowledged", "resolved"]
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["brandId", "page"]
+        }
+      },
+      "intelligence.insights.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": ["change", "anomaly", "association", "experimental_finding"]
+            },
+            "state": {
+              "type": "string",
+              "enum": ["active", "superseded", "dismissed"]
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["brandId", "page"]
+        }
+      },
+      "intelligence.playbook.approve": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "playbookEntryId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            }
+          },
+          "required": ["playbookEntryId", "expectedVersion"]
+        }
+      },
+      "intelligence.playbook.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": ["proposed", "approved", "retired"]
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["brandId", "page"]
+        }
+      },
+      "intelligence.playbook.propose": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "practice": {
+              "type": "string"
+            },
+            "evidenceInsightIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "strength": {
+              "type": "string",
+              "enum": ["observed", "directional", "experimentally_supported"]
+            },
+            "reviewAfter": {
+              "type": "string"
+            }
+          },
+          "required": ["brandId", "practice", "evidenceInsightIds", "strength", "reviewAfter"]
+        }
+      },
+      "intelligence.recommendations.accept": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "recommendationId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "create_brief",
+                "generate_variants",
+                "open_canvas",
+                "prepare_test",
+                "assign_response",
+                "propose_playbook_update"
+              ]
+            },
+            "brief": {
+              "type": "object",
+              "properties": {
+                "campaignId": {
+                  "type": "string"
+                },
+                "audience": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "offerFactIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "channelConnectionIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["audience", "message"]
+            },
+            "servicePrincipalId": {
+              "type": "string"
+            },
+            "experimentDesign": {
+              "type": "object",
+              "additionalProperties": {}
+            },
+            "playbook": {
+              "type": "object",
+              "properties": {
+                "practice": {
+                  "type": "string"
+                },
+                "reviewAfter": {
+                  "type": "string"
+                }
+              },
+              "required": ["practice", "reviewAfter"]
+            }
+          },
+          "required": ["recommendationId", "expectedVersion", "action"]
+        }
+      },
+      "intelligence.recommendations.dismiss": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "recommendationId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": ["recommendationId", "expectedVersion", "reason"]
+        }
+      },
+      "intelligence.recommendations.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "recommendationId": {
+              "type": "string"
+            }
+          },
+          "required": ["recommendationId"]
+        }
+      },
+      "intelligence.recommendations.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": ["proposed", "accepted", "dismissed", "executed"]
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["brandId", "page"]
+        }
+      },
+      "intelligence.voice.clusters": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": ["question", "objection", "praise", "need", "complaint"]
+            },
+            "limit": {
+              "type": "number"
+            }
+          },
+          "required": ["brandId"]
+        }
+      },
+      "intelligence.workspace.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            }
+          },
+          "required": ["brandId"]
+        }
+      },
+      "measurement.attributes.correct": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "attributeId": {
+              "type": "string"
+            },
+            "expectedVersion": {
+              "type": "number"
+            },
+            "attributes": {
+              "type": "object",
+              "properties": {
+                "hookType": {
+                  "type": "string"
+                },
+                "topic": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "offerFactId": {
+                  "type": "string"
+                },
+                "cta": {
+                  "type": "string"
+                },
+                "templateVersionId": {
+                  "type": "string"
+                },
+                "layoutKey": {
+                  "type": "string"
+                },
+                "colourTreatment": {
+                  "type": "string"
+                },
+                "typographyRoles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "imageryKind": {
+                  "type": "string",
+                  "enum": ["people", "product", "illustration", "photography", "none"]
+                },
+                "videoOpening": {
+                  "type": "string"
+                },
+                "durationMs": {
+                  "type": "number"
+                },
+                "subtitles": {
+                  "type": "boolean"
+                },
+                "pacing": {
+                  "type": "string"
+                },
+                "distribution": {
+                  "type": "string"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["attributeId", "expectedVersion", "attributes"]
+        }
+      },
+      "measurement.attributes.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "contentRevisionId": {
+              "type": "string"
+            },
+            "channelVariantId": {
+              "type": "string"
+            },
+            "attributeId": {
+              "type": "string"
+            }
+          },
+          "required": []
+        }
+      },
+      "measurement.definitions.create": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "providerKey": {
+              "type": "string"
+            },
+            "nativeName": {
+              "type": "string"
+            },
+            "unit": {
+              "type": "string"
+            },
+            "aggregation": {
+              "type": "string",
+              "enum": ["sum", "max", "last", "avg", "series"]
+            },
+            "comparableGroup": {
+              "type": "string"
+            },
+            "definitionVersion": {
+              "type": "number"
+            },
+            "separatesPaidOrganic": {
+              "type": "boolean"
+            },
+            "definition": {
+              "type": "string"
+            }
+          },
+          "required": ["key", "nativeName", "unit", "aggregation", "comparableGroup", "definitionVersion"]
+        }
+      },
+      "measurement.definitions.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "definitionId": {
+              "type": "string"
+            }
+          },
+          "required": ["definitionId"]
+        }
+      },
+      "measurement.definitions.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "providerKey": {
+              "type": "string"
+            }
+          },
+          "required": []
+        }
+      },
+      "measurement.links.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "publicationId": {
+              "type": "string"
+            },
+            "variantId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["brandId", "page"]
+        }
+      },
+      "measurement.metrics.query": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "subjectType": {
+              "type": "string",
+              "enum": ["publication", "channel", "campaign", "link"]
+            },
+            "subjectIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "metricKeys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "windowStart": {
+              "type": "string"
+            },
+            "windowEnd": {
+              "type": "string"
+            },
+            "grouping": {
+              "type": "string",
+              "enum": ["subject", "metric", "comparable_group"]
+            }
+          },
+          "required": ["brandId", "subjectType", "subjectIds", "metricKeys", "windowStart", "windowEnd"]
+        }
+      },
+      "measurement.quality.get": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "publicationId": {
+              "type": "string"
+            },
+            "windowStart": {
+              "type": "string"
+            },
+            "windowEnd": {
+              "type": "string"
+            }
+          },
+          "required": ["brandId", "publicationId", "windowStart", "windowEnd"]
         }
       },
       "operations.audit.query": {

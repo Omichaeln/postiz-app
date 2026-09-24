@@ -5,8 +5,8 @@ import { ToolDeniedError } from '../tool-dispatcher';
 import type { ToolDefinition } from '../tool-registry';
 
 /**
- * Release 1 tools whose backing modules arrive in Phases 5-6 (content, review requests, measurement, intelligence,
- * experiments, publishing). They are registered now with their real schemas, actions and effects so allowlists,
+ * Release 1 tools whose backing modules arrive in Phases 5-6 (content, review requests, publishing). The
+ * intelligence and experiments tools moved to ./intelligence.ts (they deny the same way until a source registers). They are registered now with their real schemas, actions and effects so allowlists,
  * policy and the prompt are stable; a call is authorised like any other and then denied with
  * tool_not_available_yet. None of them publishes: publications.proposeSchedule creates a *pending proposal* that a
  * person or a mandate completes (spec 12.4, 13.4).
@@ -32,58 +32,6 @@ function pending<I, O>(def: {
 }
 
 const str = (maxLength: number) => ({ type: 'string', maxLength });
-
-export const metricsQuery = pending({
-  name: 'metrics.query',
-  description: 'Queries normalised metric snapshots for the brand (freshness and provenance included).',
-  input: z
-    .object({
-      metricKeys: z.array(z.string().max(80)).min(1).max(20),
-      from: z.string().datetime(),
-      to: z.string().datetime(),
-      channelConnectionIds: z.array(z.string()).max(50).default([]),
-    })
-    .strict(),
-  inputSchema: {
-    type: 'object',
-    properties: {
-      metricKeys: { type: 'array', minItems: 1, maxItems: 20, items: str(80) },
-      from: { type: 'string', format: 'date-time' },
-      to: { type: 'string', format: 'date-time' },
-      channelConnectionIds: { type: 'array', items: { type: 'string' } },
-    },
-    required: ['metricKeys', 'from', 'to'],
-    additionalProperties: false,
-  },
-  output: z.object({
-    series: z.array(
-      z.object({
-        metricKey: z.string(),
-        points: z.array(z.object({ at: z.string(), value: z.number().nullable(), complete: z.boolean() })),
-      }),
-    ),
-  }),
-  action: 'insight.read',
-  effect: 'read',
-});
-
-export const voiceClusters = pending({
-  name: 'voice.clusters',
-  description: 'Lists customer-voice clusters (recurring questions and themes) for the brand.',
-  input: z.object({ limit: z.number().int().min(1).max(50).default(20) }).strict(),
-  inputSchema: {
-    type: 'object',
-    properties: { limit: { type: 'integer', minimum: 1, maximum: 50 } },
-    additionalProperties: false,
-  },
-  output: z.object({
-    clusters: z.array(
-      z.object({ id: z.string(), label: z.string(), size: z.number().int(), examples: z.array(z.string()) }),
-    ),
-  }),
-  action: 'insight.read',
-  effect: 'read',
-});
 
 export const contentCreateBrief = pending({
   name: 'content.createBrief',
@@ -183,72 +131,6 @@ export const reviewRequest = pending({
   },
   output: z.object({ reviewRequestId: z.string(), state: z.literal('proposed') }),
   action: 'review.request',
-  effect: 'propose',
-});
-
-export const experimentsProposeDesign = pending({
-  name: 'experiments.proposeDesign',
-  description: 'Proposes a pre-registration draft for an experiment; an analyst approves it.',
-  input: z
-    .object({
-      recommendationId: z.string().optional(),
-      hypothesis: z.string().max(2000),
-      primaryMetricKey: z.string().max(80),
-      variants: z
-        .array(z.object({ key: z.string().max(40), description: z.string().max(1000) }))
-        .min(2)
-        .max(6),
-    })
-    .strict(),
-  inputSchema: {
-    type: 'object',
-    properties: {
-      recommendationId: { type: 'string' },
-      hypothesis: str(2000),
-      primaryMetricKey: str(80),
-      variants: {
-        type: 'array',
-        minItems: 2,
-        maxItems: 6,
-        items: {
-          type: 'object',
-          properties: { key: str(40), description: str(1000) },
-          required: ['key', 'description'],
-        },
-      },
-    },
-    required: ['hypothesis', 'primaryMetricKey', 'variants'],
-    additionalProperties: false,
-  },
-  output: z.object({ experimentId: z.string(), state: z.literal('proposed') }),
-  action: 'experiment.manage',
-  effect: 'propose',
-});
-
-export const recommendationsCreate = pending({
-  name: 'recommendations.create',
-  description: 'Creates a recommendation with evidence for a person to accept or dismiss; proposes only.',
-  input: z
-    .object({
-      title: z.string().min(1).max(200),
-      rationale: z.string().max(4000),
-      evidenceRefs: z.array(z.string().max(200)).max(50).default([]),
-      suggestedAction: z.enum(['brief', 'variant', 'experiment', 'playbook_entry']),
-    })
-    .strict(),
-  inputSchema: {
-    type: 'object',
-    properties: {
-      title: str(200),
-      rationale: str(4000),
-      evidenceRefs: { type: 'array', items: str(200) },
-      suggestedAction: { type: 'string', enum: ['brief', 'variant', 'experiment', 'playbook_entry'] },
-    },
-    required: ['title', 'rationale', 'suggestedAction'],
-    additionalProperties: false,
-  },
-  output: z.object({ recommendationId: z.string(), state: z.literal('proposed') }),
-  action: 'insight.read',
   effect: 'propose',
 });
 

@@ -10,7 +10,6 @@ export {
   AGENT_RUN_WORKFLOW_TYPE,
   AGENT_SIGNAL_RELAY_WORKFLOW_TYPE,
 } from './outbox-routes';
-export { registerWorkflowSignaller, workflowSignaller, type WorkflowSignaller } from './signaller';
 export {
   MemoryTranscriptStore,
   registerTranscriptStore,

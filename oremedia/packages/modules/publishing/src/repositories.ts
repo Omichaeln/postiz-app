@@ -189,6 +189,16 @@ export class PublicationRepository extends BrandScopedRepository<typeof publicat
       );
     return Number(rows[0]?.c ?? 0);
   }
+  /** The scheduled publications of one brand, locked (a brand change re-evaluates them, spec 8.2). */
+  async listScheduledForBrand(brandId: string, tx: Tx) {
+    return tx
+      .select()
+      .from(publications)
+      .where(this.brandScope(brandId, eq(publications.state, 'scheduled')))
+      .orderBy(asc(publications.id))
+      .limit(200)
+      .for('update');
+  }
   /** The scheduled publications of one channel (disconnect holds them, spec 14.7). */
   async listScheduledForChannel(channelConnectionId: string, tx: Tx) {
     return tx

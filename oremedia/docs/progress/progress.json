@@ -1,7 +1,7 @@
 {
   "programme": "Oremedia",
   "specification": "docs/spec/BUILD_PROMPT.md (prepared 23 September 2026)",
-  "updatedAt": "2026-09-24T04:40:00Z",
+  "updatedAt": "2026-09-24T05:20:00Z",
   "repository": "omichaeln/postiz-app · branch claude/gallant-gauss-rh58uh · directory oremedia/",
   "statusLegend": {
     "complete": "Genuinely complete and verified; needs no additional work.",
@@ -630,16 +630,16 @@
           "brand.version_published event and impact job proposing updates to dependants",
           "production",
           "8.2",
-          "in_progress",
-          "brand.version_published emitted via outbox in the publish tx (payload brandVersionId, number, contentHash, previousVersionId) — verified. Impact job proposing updates to dependent creatives is a Phase 5 consumer: open."
+          "complete",
+          "brand.version_published (payload now carrying actorKind/actorId) is consumed by brandChangeImpactWorkflowV1 (core): approvals of the brand are invalidated (brand_changed) and every scheduled publication is re-evaluated and held with its failed checks. apps/worker-core/src/brand-change-impact.integration.test.ts."
         ],
         [
           "2.10",
           "Fact/logo revocation → hold dependent scheduled publications (default) or flag",
           "critical",
           "8.2",
-          "in_progress",
-          "brand.fact_revoked emitted in the revoke tx (payload factId, kind, previousState, reason, brandId) — verified; policy holdOnDependencyRevocation defaults true in the snapshot. Hold/flag of dependent scheduled publications is the Phase 5 consumer: open."
+          "complete",
+          "brand.fact_revoked → brandChangeImpactWorkflowV1: with policy holdOnDependencyRevocation (default true) every scheduled publication whose content revision cites the fact is held with facts_valid; with it false the publication is flagged (publication.needs_attention audit + event) and its state untouched; second run is a no-op. brand-change-impact.integration.test.ts."
         ],
         [
           "2.11",
@@ -766,8 +766,8 @@
           "Release derivatives minted at dispatch with provider processing-window lifetime",
           "production",
           "9.3",
-          "in_progress",
-          "assetService.releaseDerivative(versionId, windowSec, {derivative}) mints a releases/{tenant}/{brand}/{version}/{purpose}/{nonce} object with a signed URL covering the provider processing window and records an asset_derivatives row (purpose release). Open: the dispatch caller (Phase 5)."
+          "complete",
+          "assetService.releaseExport re-reads the export bytes, re-hashes them against the approval-pinned contentHash, copies to releases/<tenant>/<brand>/<export>/export/<nonce> and signs a GET for the provider processing window (audit asset.release_minted); registered as the publishing media source in both compositions. apps/worker-core/src/publish-media.integration.test.ts."
         ],
         [
           "2.27",
@@ -814,7 +814,7 @@
           "3.g4",
           "The export file approved in review is byte-identical (same hash) to the file handed to the provider",
           "complete",
-          "Export hash = sha256 of the stored bytes, re-verified on read; the same revision renders byte-identically (golden and e2e tests). The approval binding pins the export hashes and approval_matches fails at dispatch if they change; the publish activity hands the provider the export whose hash is in the binding (review and publishing integration tests)."
+          "Export hash = sha256 of the stored bytes, re-verified on read and byte-identical across renders (golden and e2e tests); the approval binding pins the export hashes; at dispatch the publishing media source re-hashes the bytes against the pinned hash before minting the release URL and a mismatch holds the publication with export_hash_mismatch (apps/worker-core/src/publish-media.integration.test.ts)."
         ]
       ],
       "items": [
@@ -1487,8 +1487,8 @@
           "Tracked links and stateless redirect service (hashed visitor, buffered writes)",
           "production",
           "15.4",
-          "in_progress",
-          "apps/redirector: stateless Express redirect service with hashed visitor (LINK_HASH_SECRET_REF), buffered click writes, /health; builds and unit-tested. Tracked-link creation at variant generation belongs to Phase 6 measurement."
+          "complete",
+          "apps/redirector (stateless Express redirect, hashed visitor, buffered clicks, /health) plus tracked-link creation at variant generation through the content module's registerLinkTracker hook (measurement/links.ts: URL rewrite to LINK_REDIRECT_DOMAIN/<code>, UTM, short codes matching the redirector resolver); measurement.links.list with clicks and unique visitors. links.test.ts + integration."
         ],
         [
           "5.32",
@@ -1529,14 +1529,24 @@
       "title": "Measurement and first intelligence",
       "spec": "15, 16",
       "gate": [
-        ["6.g1", "Snapshots carry provenance and completeness; missing ≠ zero verified", "open", ""],
+        [
+          "6.g1",
+          "Snapshots carry provenance and completeness; missing ≠ zero verified",
+          "complete",
+          "metric_snapshots carry source, fetched_at, UTC window, brand timezone and completeness; an unavailable metric is a null-valued row and never zero (measurement.integration.test.ts, activity test)."
+        ],
         [
           "6.g2",
           "One recommendation flows to a brief, a variant, an experiment and a learning record end to end",
-          "open",
-          ""
+          "complete",
+          "apps/worker-core/src/intelligence.integration.test.ts: a recommendation is accepted into a brief carrying its back-reference, a copywriting run carries the recommendation, an experiment is pre-registered with a frozen hash, results against a changed design are rejected, the verdict comes from the domain statistics and the learning record chain is complete."
         ],
-        ["6.g3", "Baseline comparison job runs", "open", ""]
+        [
+          "6.g3",
+          "Baseline comparison job runs",
+          "complete",
+          "baselineComparisonWorkflowV1 runs through the real activity host in the phase-gate test, records the comparison and fallback, and the ranker obeys it."
+        ]
       ],
       "items": [
         [
@@ -1544,104 +1554,104 @@
           "Metric definitions (global + tenant) with comparable_group and definition_version",
           "production",
           "15.1",
-          "open",
-          ""
+          "complete",
+          "packages/modules/measurement/src/definitions.ts: global definitions seeded idempotently from the adapters' capability analytics lists plus derived rates (worker-ingest start), tenant definitions via measurement.definitions.create (insight.manage); every definition carries comparable_group and definition_version. measurement.integration.test.ts"
         ],
         [
           "6.2",
           "metricCollectionWorkflowV1 with schedule from analytics.latencyHours (+1 h … +28 d, then weekly for 90 days)",
           "production",
           "15.1",
-          "open",
-          ""
+          "complete",
+          "packages/workflows/src/metric-collection.workflow.v1.ts on task queue ingest-metrics (apps/worker-ingest), started by measurement.collection_due emitted in markPublished: pulls at +1 h, +24 h, +72 h, +7 d, +28 d, weekly to 84 d and a closing pull at 90 d, each pushed to ≥ the capability's latencyHours; comment ingestion as an abandoned child. Workflow unit tests assert the exact schedule."
         ],
         [
           "6.3",
           "Raw snapshots with source, fetched_at, UTC window, brand timezone, completeness; unavailable stored without a value",
           "critical",
           "15.1",
-          "open",
-          ""
+          "complete",
+          "metric_snapshots are insert-only with source, fetched_at, UTC window, brand timezone and completeness; an unavailable metric is a row with a null value (never zero); a platform failure writes unavailable rows. measurement.integration.test.ts, activity test (idempotent per publication/metric/window)."
         ],
         [
           "6.4",
           "Normalisation: aggregate only within comparable_group; derived rates keep numerator/denominator snapshot IDs; series kept as series",
           "production",
           "15.2",
-          "open",
-          ""
+          "complete",
+          "normalise.ts: aggregation only within comparable_group, derived rates carry numerator/denominator snapshot ids (null on unavailable or zero denominator), series stay series; measurement.metrics.query groups by subject/metric/comparable_group with coverage statements. normalise.test.ts + integration."
         ],
         [
           "6.5",
           "Freshness shown next to every number; stale (> latency × 2) marked",
           "production",
           "15.2",
-          "open",
-          ""
+          "complete",
+          "freshnessOf marks stale at > latency × 2; every value returned by measurement.metrics.query carries freshness and provenance; the intelligence workspace repeats them. Unit + integration tests. The UI surface (6.21 workspace screen) is not built yet."
         ],
         [
           "6.6",
           "Engagement quality composite with brand-configurable weights and component drill-down",
           "production",
           "15.3",
-          "open",
-          ""
+          "complete",
+          "quality.ts: five-component engagement quality composite with brand weights from the objective (validated), unavailable components excluded and named, per-1000-impressions normalisation, drill-down evidence; measurement.quality.get. quality.test.ts + integration."
         ],
         [
           "6.7",
           "Creative attributes captured at creation (copy, layout, editor); human correction with source",
           "production",
           "16.2",
-          "open",
-          ""
+          "complete",
+          "attributes.ts: copy and layout features captured at revision creation through the content module's registerAttributeCapturer hook, distribution user/agent from the author; human correction recorded with source human_corrected (measurement.attributes.correct, content.edit). attributes.test.ts + integration."
         ],
         [
           "6.8",
           "brandAnalystWorkflowV1 weekly per active brand and on demand: what changed, likely reasons (hypotheses), recommended actions",
           "production",
           "16.3",
-          "open",
-          ""
+          "complete",
+          "packages/workflows/src/brand-analyst.workflow.v1.ts (+ sweep) on core: weekly Temporal schedule per active brand and on demand (intelligence.analyst.run); prepareAnalysis computes \"what changed\" deterministically (movements with freshness, completeness, missing ≠ zero, anomaly rows), the performance_review skill runs as an agent run through agentsService.runs.start, hypotheses recorded as labelled insights and recommended actions. intelligence.integration.test.ts, workflow unit tests."
         ],
         [
           "6.9",
           "Recommendations with exactly the relevant actions; accepting creates the downstream object with a back-reference; dismissal reason stored",
           "production",
           "16.4",
-          "open",
-          ""
+          "complete",
+          "Recommendations carry exactly the relevant actions; accept creates the brief (content module, back-reference recommendationId) or the experiment; dismissal stores the reason; ranking refuses without an active objective. intelligence.integration.test.ts and the worker-core phase-gate test."
         ],
         [
           "6.10",
           "Customer voice: comment ingestion (read-only), Haiku-class classification, tenant-isolated embedding, incremental clustering, per-tenant salted author hashes",
           "production",
           "16.5",
-          "open",
-          ""
+          "complete",
+          "Comment ingestion (read-only) on ingest-comments with per-tenant salted author hashes (measurement/comments.ts); classification by a Haiku-class model through the ModelAdapter with routing policy asserted and the comment delimited as untrusted; tenant-salted hashing embedder; incremental nearest-centroid clustering (voice.ts). Open: weekly re-clustering and per-message vector storage (no column). voice.test.ts + integration."
         ],
         [
           "6.11",
           "Experiments: pre-registration frozen with hash; results against a changed design rejected",
           "production",
           "16.6",
-          "open",
-          ""
+          "complete",
+          "experiments.preRegister freezes the design with a hash; results.compute against a changed design is rejected. experiments.integration.test.ts and the phase-gate test."
         ],
         [
           "6.12",
           "Experiments: structured comparisons labelled 'directional; not causal'",
           "production",
           "16.6",
-          "open",
-          ""
+          "complete",
+          "analysis.ts labels every structured comparison \"directional; not causal\" (conclusionLabelFor). analysis.test.ts."
         ],
         [
           "6.13",
           "Experiments: randomised link experiments with hashed-visitor assignment and delivered exposure per variant",
           "production",
           "16.6",
-          "open",
-          ""
+          "complete",
+          "packages/domain/src/experiments/assignment.ts assignVariant(visitorHash, experimentId, arms) shared with the redirector; delivered exposure recorded per variant via experiments.assign. experiments.integration.test.ts."
         ],
         [
           "6.14",
@@ -1656,56 +1666,56 @@
           "Verdicts: supported / not_supported / inconclusive; guardrail breach → not_supported; no result before sample and window",
           "production",
           "16.6",
-          "open",
-          ""
+          "complete",
+          "Verdicts supported / not_supported / inconclusive from the domain statistics (two-proportion + Holm, Welch + winsorise, mSPRT); a guardrail breach forces not_supported; no result before the sample and window. analysis.test.ts, integration, phase-gate test."
         ],
         [
           "6.16",
           "Learning records: context → evidence → hypothesis → action → decision → executed revision → outcome → verdict",
           "production",
           "16.8",
-          "open",
-          ""
+          "complete",
+          "learning_records written at each step (context → evidence → hypothesis → action → decision → executed revision → outcome → verdict) by the recommendation, brief and experiment flows; the worker-core phase-gate test asserts the complete chain. Open: a brief/copywriting run has no executed-revision signal yet (closed only through experiments)."
         ],
         [
           "6.17",
           "Monthly baseline comparison of recommendation ranking; fall back to baseline when not beaten",
           "production",
           "16.8",
-          "open",
-          ""
+          "complete",
+          "baselineComparisonWorkflowV1 on a monthly Temporal schedule scores the learned ranker against the baseline (nDCG on later outcomes) and records the fallback; the ranker obeys the recorded selection. Stored as an insights row (no dedicated table in the frozen schema; reported). Phase-gate test."
         ],
         [
           "6.18",
           "Exploration share once volume threshold is met (context-dependent)",
           "production",
           "16.8",
-          "open",
-          ""
+          "complete",
+          "ranking.ts exploration share applied once the publication volume threshold is met (INTELLIGENCE_EXPLORATION_SHARE / VOLUME_THRESHOLD). ranking.test.ts."
         ],
         [
           "6.19",
           "Playbook entries require playbook.approve, record strength and review_after; standards never rewritten automatically",
           "critical",
           "16.8",
-          "open",
-          ""
+          "complete",
+          "Playbook entries require playbook.approve (intelligence.playbook.approve), record strength and review_after; nothing rewrites standards automatically (propose → approve only). intelligence.integration.test.ts."
         ],
         [
           "6.20",
           "Learning isolation per tenant and brand; no cross-tenant pooling",
           "critical",
           "16.8",
-          "open",
-          ""
+          "complete",
+          "All ranking, clustering and learning inputs are read through brand-scoped repositories; the integration test proves another tenant's and brand's records never enter clustering or ranking."
         ],
         [
           "6.21",
           "Intelligence workspace: What changed / What we learned / What to do next / Experiments / Brand playbook, with coverage statements and freshness",
           "production",
           "16.9, 21.2",
-          "open",
-          ""
+          "in_progress",
+          "intelligence.workspace.get returns the five views (What changed / What we learned / What to do next / Experiments / Brand playbook) with coverage statements and freshness; the web screen is not built yet."
         ]
       ]
     },

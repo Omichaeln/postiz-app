@@ -9,6 +9,9 @@ import { agentsRouter } from './routers/agents';
 import { contentRouter } from './routers/content';
 import { reviewRouter } from './routers/review';
 import { publishingRouter } from './routers/publishing';
+import { intelligenceRouter } from './routers/intelligence';
+import { experimentsRouter } from './routers/experiments';
+import { measurementRouter } from './routers/measurement';
 
 /** Spec 7.5 router map. Routers are added per phase; the cross-tenant harness enumerates every procedure. */
 export const appRouter = router({
@@ -21,6 +24,9 @@ export const appRouter = router({
   content: contentRouter,
   review: reviewRouter,
   publishing: publishingRouter,
+  intelligence: intelligenceRouter,
+  experiments: experimentsRouter,
+  measurement: measurementRouter,
   operations: operationsRouter,
 });
 export type AppRouter = typeof appRouter;

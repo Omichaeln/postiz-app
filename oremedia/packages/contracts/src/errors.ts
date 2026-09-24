@@ -230,6 +230,20 @@ export class TenantContextMissingError extends OremediaError {
   }
 }
 
+/**
+ * Spec 3.g4 / 9.3: the bytes behind a release no longer hash to what the approval pinned (a rendered export the
+ * publisher is about to hand to a provider). Never retried; the publication is held for a person.
+ */
+export class ReleaseIntegrityError extends OremediaError {
+  constructor(storageKey: string, expected: string, actual: string) {
+    super('INTERNAL', 'Stored bytes do not match the hash the release was approved with', {
+      details: [
+        { path: storageKey, issue: `expected ${expected.slice(0, 12)}…, got ${actual.slice(0, 12)}…` },
+      ],
+    });
+  }
+}
+
 export class InternalError extends OremediaError {
   constructor(cause?: unknown) {
     super('INTERNAL', 'Something went wrong', { cause });

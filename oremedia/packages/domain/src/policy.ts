@@ -69,6 +69,7 @@ const AUTONOMY_FOR_ACTION: Partial<Record<Action, AutonomyMode>> = {
   'agent.start_run': 'create',
   'agent.cancel_run': 'create',
   'experiment.manage': 'create',
+  'insight.manage': 'create',
   'inbox.respond': 'create',
   'brand.edit_standards': 'create',
   'brand.publish_version': 'create',

@@ -211,7 +211,7 @@ describe('publication workflow end to end (worker-core, fake Temporal host)', ()
       return v;
     });
     registerReleaseEvaluator(async () => releaseDecision);
-    registerPublishMediaSource(async () => []);
+    registerPublishMediaSource({ describe: async () => [], release: async () => [] });
     registerWorkflowProbe(null);
     clearOutboxRoutes();
     registerPublishingOutboxRoutes();

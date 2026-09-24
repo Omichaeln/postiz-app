@@ -4,6 +4,7 @@ import { requiredSamplePerArm, twoProportion } from './two-proportion';
 import { holmBonferroni, winsorise } from './corrections';
 import { tTwoSidedP, welchT } from './welch';
 import { msprtTwoProportion } from './msprt';
+import { assignVariant } from './assignment';
 
 describe('normal distribution', () => {
   it('cdf reference values', () => {
@@ -79,5 +80,35 @@ describe('mSPRT', () => {
     const l1 = msprtTwoProportion({ x: 50, n: 1000 }, { x: 55, n: 1000 }, 0.1).lambda;
     const l2 = msprtTwoProportion({ x: 50, n: 1000 }, { x: 70, n: 1000 }, 0.1).lambda;
     expect(l2).toBeGreaterThan(l1);
+  });
+});
+
+describe('assignVariant (spec 16.6 hashed-visitor assignment)', () => {
+  const arms = [
+    { id: 'xv_a', allocationWeight: 1 },
+    { id: 'xv_b', allocationWeight: 1 },
+  ];
+  it('is deterministic for the same visitor and experiment and differs across experiments', () => {
+    const a = assignVariant('visitor-1', 'xp_1', arms);
+    expect(assignVariant('visitor-1', 'xp_1', arms)).toBe(a);
+    const spread = new Set(
+      Array.from({ length: 200 }, (_, i) => assignVariant(`visitor-${i}`, 'xp_1', arms)),
+    );
+    expect(spread.size).toBe(2);
+  });
+  it('honours allocation weights approximately', () => {
+    const skewed = [
+      { id: 'control', allocationWeight: 9 },
+      { id: 'treatment', allocationWeight: 1 },
+    ];
+    const n = 5000;
+    let treatment = 0;
+    for (let i = 0; i < n; i++) if (assignVariant(`v${i}`, 'xp_2', skewed) === 'treatment') treatment += 1;
+    expect(treatment / n).toBeGreaterThan(0.07);
+    expect(treatment / n).toBeLessThan(0.13);
+  });
+  it('rejects empty or zero-weight arms', () => {
+    expect(() => assignVariant('v', 'xp', [])).toThrow();
+    expect(() => assignVariant('v', 'xp', [{ id: 'a', allocationWeight: 0 }])).toThrow();
   });
 });

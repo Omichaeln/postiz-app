@@ -2,7 +2,13 @@ import { and, asc, desc, eq, gt, inArray, isNull, lte, or, sql, type SQL } from 
 import type { FactState } from '@oremedia/contracts/brand';
 import { NotFoundError } from '@oremedia/contracts/errors';
 import type { Page, PageRequest } from '@oremedia/contracts/pagination';
-import { BrandScopedRepository, TenantScopedRepository, requireTenant, type Tx } from '@oremedia/db';
+import {
+  BrandScopedRepository,
+  PlatformRepository,
+  TenantScopedRepository,
+  requireTenant,
+  type Tx,
+} from '@oremedia/db';
 import {
   approvedFacts,
   brandObjectives,
@@ -291,3 +297,20 @@ export class PolicyVersionRepository extends BrandScopedRepository<typeof policy
 }
 
 export { BrandScopedRepository };
+
+/**
+ * Platform job listing (spec 5.3 PlatformRepository, as the publishing sweeper's): the active brands of every
+ * tenant as references only (tenant id, brand id), for the weekly analyst and monthly baseline sweeps. Runs only
+ * under runAsPlatform; never returns brand content.
+ */
+export class PlatformBrandRepository extends PlatformRepository {
+  async listActiveRefs(tx?: Tx): Promise<Array<{ tenantId: string; brandId: string }>> {
+    const rows = await this.conn(tx)
+      .select({ tenantId: brands.tenantId, brandId: brands.id })
+      .from(brands)
+      .where(eq(brands.status, 'active'))
+      .orderBy(asc(brands.id))
+      .limit(10_000);
+    return rows;
+  }
+}

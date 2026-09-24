@@ -42,26 +42,51 @@ export const review = {
 };
 
 /**
- * Spec 9.3 / 14.5 PublishMedia: the exports a variant references, as the adapter needs them (signed release URLs
- * minted at dispatch, dimensions, hashes). Registered by the composition root from the assets/creative modules.
- * A variant without exports needs no media and never calls the hook.
+ * Spec 9.3 / 14.5 PublishMedia: the exports a variant references, as the adapter needs them. `describe` serves the
+ * capability check (spec 13.4 capability_valid, the schedule pre-check): dimensions, mime and bytes, nothing
+ * minted. `release` serves publishOnce immediately before send: signed release URLs covering the provider's
+ * processing window, the bytes re-verified against the pinned hash (spec 3.g4). Registered by the composition
+ * root from the creative (export rows) and assets (release URLs) modules. A variant without exports needs no media
+ * and never calls the hook. A ReleaseIntegrityError from `release` holds the publication with reason
+ * export_hash_mismatch (runtime.publishOnce).
  */
-export type PublishMediaSource = (variant: ChannelVariantForPublishing, tx?: Tx) => Promise<PublishMedia[]>;
-const unregisteredMediaSource: PublishMediaSource = async () => {
-  throw new Error(
-    'publish media source not registered (composition root must call registerPublishMediaSource)',
-  );
+export interface PublishMediaOptions {
+  /** The provider's processing window (capability.media.publicUrlFetch): how long the signed URL must stay valid. */
+  providerProcessingWindowSec: number;
+}
+export type PublishMediaDescription = Omit<PublishMedia, 'url' | 'altText'>;
+export interface PublishMediaSource {
+  describe(variant: ChannelVariantForPublishing, tx?: Tx): Promise<PublishMediaDescription[]>;
+  release(variant: ChannelVariantForPublishing, opts: PublishMediaOptions, tx?: Tx): Promise<PublishMedia[]>;
+}
+const unregisteredMediaSource: PublishMediaSource = {
+  describe: async () => {
+    throw new Error(
+      'publish media source not registered (composition root must call registerPublishMediaSource)',
+    );
+  },
+  release: async () => {
+    throw new Error(
+      'publish media source not registered (composition root must call registerPublishMediaSource)',
+    );
+  },
 };
 let mediaSource: PublishMediaSource = unregisteredMediaSource;
-export const registerPublishMediaSource = (fn: PublishMediaSource): void => {
-  mediaSource = fn;
+export const registerPublishMediaSource = (source: PublishMediaSource): void => {
+  mediaSource = source;
 };
 export const resetPublishMediaSource = (): void => {
   mediaSource = unregisteredMediaSource;
 };
 export const publishMedia = {
-  forVariant: (variant: ChannelVariantForPublishing, tx?: Tx): Promise<PublishMedia[]> =>
-    variant.exportIds.length === 0 ? Promise.resolve([]) : mediaSource(variant, tx),
+  describeForVariant: (variant: ChannelVariantForPublishing, tx?: Tx): Promise<PublishMediaDescription[]> =>
+    variant.exportIds.length === 0 ? Promise.resolve([]) : mediaSource.describe(variant, tx),
+  forVariant: (
+    variant: ChannelVariantForPublishing,
+    opts: PublishMediaOptions,
+    tx?: Tx,
+  ): Promise<PublishMedia[]> =>
+    variant.exportIds.length === 0 ? Promise.resolve([]) : mediaSource.release(variant, opts, tx),
 };
 
 /**

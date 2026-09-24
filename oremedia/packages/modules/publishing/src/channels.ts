@@ -287,7 +287,7 @@ export const channelService = {
     const variant = await variants.get(variantId, tx);
     const connection = await connectionsRepo.getById(variant.channelConnectionId, tx);
     const adapter = adapterFor(connection.providerKey);
-    const media = await publishMedia.forVariant(variant, tx);
+    const media = await publishMedia.describeForVariant(variant, tx); // dimensions only: nothing is minted
     const input: ChannelVariantInput = {
       text: variant.text,
       altTexts: variant.altTexts,

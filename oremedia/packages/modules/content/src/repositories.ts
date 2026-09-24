@@ -9,6 +9,7 @@ import {
   channelVariants,
   contentPackages,
   contentRevisions,
+  creativeAttributes,
 } from '@oremedia/db/schema/content';
 import { decodeCursor, encodeCursor } from '@oremedia/module-operations';
 
@@ -189,5 +190,49 @@ export class ChannelVariantRepository extends BrandScopedRepository<typeof chann
       .where(this.brandScope(brandId, eq(channelVariants.contentRevisionId, contentRevisionId)))
       .orderBy(asc(channelVariants.channelConnectionId))
       .limit(200);
+  }
+}
+
+/** Spec 16.2: one attributes row per content revision (or channel variant); corrections bump the version. */
+export class CreativeAttributeRepository extends BrandScopedRepository<typeof creativeAttributes> {
+  constructor() {
+    super(creativeAttributes);
+  }
+  async create(values: Omit<typeof creativeAttributes.$inferInsert, 'tenantId'>, tx: Tx) {
+    await this.insertBrandScoped(values, tx);
+  }
+  async update(
+    id: string,
+    expectedVersion: number,
+    values: Partial<typeof creativeAttributes.$inferInsert>,
+    tx: Tx,
+  ) {
+    await this.updateScoped(id, expectedVersion, values, tx);
+  }
+  async findForRevision(contentRevisionId: string, tx?: Tx) {
+    const rows = await this.conn(tx)
+      .select()
+      .from(creativeAttributes)
+      .where(this.scope(eq(creativeAttributes.contentRevisionId, contentRevisionId)))
+      .orderBy(desc(creativeAttributes.id))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    const ctx = requireTenant();
+    if (ctx.brandIds !== 'all' && !ctx.brandIds.has(row.brandId)) return null;
+    return row;
+  }
+  async findForVariant(channelVariantId: string, tx?: Tx) {
+    const rows = await this.conn(tx)
+      .select()
+      .from(creativeAttributes)
+      .where(this.scope(eq(creativeAttributes.channelVariantId, channelVariantId)))
+      .orderBy(desc(creativeAttributes.id))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    const ctx = requireTenant();
+    if (ctx.brandIds !== 'all' && !ctx.brandIds.has(row.brandId)) return null;
+    return row;
   }
 }

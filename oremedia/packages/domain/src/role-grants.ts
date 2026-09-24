@@ -42,6 +42,7 @@ export const DEFAULT_ROLE_GRANTS: Readonly<Record<Action, readonly MembershipRol
   'skill.author': MANAGERS,
   'skill.publish': ADMINS,
   'insight.read': ALL,
+  'insight.manage': [...MANAGERS, 'analyst'],
   'experiment.manage': [...MANAGERS, 'analyst'],
   'playbook.approve': MANAGERS,
   'inbox.respond': [...MANAGERS, 'community'],

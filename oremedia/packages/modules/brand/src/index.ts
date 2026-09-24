@@ -6,4 +6,5 @@ export {
   ApprovedFactRepository,
   BrandObjectiveRepository,
   PolicyVersionRepository,
+  PlatformBrandRepository,
 } from './repositories';

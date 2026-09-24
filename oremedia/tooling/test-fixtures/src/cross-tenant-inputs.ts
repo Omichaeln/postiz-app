@@ -18,6 +18,12 @@ import { REVIEW_INPUTS } from './inputs/review';
 import { REVIEW_SEED } from './inputs/review-seed';
 import { PUBLISHING_INPUTS } from './inputs/publishing';
 import { PUBLISHING_SEED } from './inputs/publishing-seed';
+import { INTELLIGENCE_INPUTS } from './inputs/intelligence';
+import { INTELLIGENCE_SEED } from './inputs/intelligence-seed';
+import { EXPERIMENTS_INPUTS } from './inputs/experiments';
+import { EXPERIMENTS_SEED } from './inputs/experiments-seed';
+import { MEASUREMENT_INPUTS } from './inputs/measurement';
+import { MEASUREMENT_SEED } from './inputs/measurement-seed';
 
 /**
  * Spec 19.3: every procedure needs a fixture that points every ID field at the *foreign* tenant. A procedure
@@ -51,6 +57,9 @@ export const CROSS_TENANT_INPUTS: Record<string, CrossTenantFixture> = {
   ...CONTENT_INPUTS,
   ...REVIEW_INPUTS,
   ...PUBLISHING_INPUTS,
+  ...MEASUREMENT_INPUTS,
+  ...INTELLIGENCE_INPUTS,
+  ...EXPERIMENTS_INPUTS,
 };
 export const SEED_EXTENSIONS: SeedExtension[] = [
   ASSETS_SEED,
@@ -62,4 +71,7 @@ export const SEED_EXTENSIONS: SeedExtension[] = [
   CONTENT_SEED,
   REVIEW_SEED,
   PUBLISHING_SEED,
+  MEASUREMENT_SEED,
+  INTELLIGENCE_SEED,
+  EXPERIMENTS_SEED,
 ].filter((s): s is SeedExtension => s !== null);

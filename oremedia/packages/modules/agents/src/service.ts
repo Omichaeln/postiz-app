@@ -11,6 +11,7 @@ import { OperationBatch } from '@oremedia/contracts/creative';
 import { NotFoundError, PolicyDeniedError, ValidationFailedError } from '@oremedia/contracts/errors';
 import type { ResolvedActor } from '@oremedia/contracts/policy';
 import { TaskKind } from '@oremedia/contracts/skills';
+import type { AutonomyMode } from '@oremedia/contracts/tenancy';
 import { requireTenant, type Tx } from '@oremedia/db';
 import { effectiveAutonomy } from '@oremedia/domain/autonomy';
 import { newId } from '@oremedia/domain/ids';
@@ -103,7 +104,12 @@ const toRunDto = (r: RunRow) => ({
  */
 export const agentsService = {
   runs: {
-    async start(actor: ResolvedActor, input: z.infer<typeof RunStart>, tx: Tx) {
+    async start(
+      actor: ResolvedActor,
+      input: z.infer<typeof RunStart>,
+      tx: Tx,
+      opts: { autonomyMode?: AutonomyMode } = {},
+    ) {
       const parsed = RunStart.parse(input);
       const taskKind = TaskKind.safeParse(parsed.taskKind);
       if (!taskKind.success)
@@ -112,11 +118,12 @@ export const agentsService = {
         ]);
       const { tenantId, correlationId } = requireTenant();
       await brandService.assertExist([parsed.brandId], tx); // NOT_FOUND for a foreign brand
+      // A service principal that starts runs on a schedule (the brand analyst) does so under its own ceiling.
       await policy.assert(
         actor,
         'agent.start_run',
         { type: 'brand', tenantId, brandId: parsed.brandId, id: parsed.brandId },
-        {},
+        opts,
         tx,
       );
       if (await killSwitch.isOn('agent_starts', parsed.brandId, tx))

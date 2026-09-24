@@ -16,6 +16,7 @@ export { publicationService, type ActorOptions } from './publications';
 export {
   createPublishingRuntime,
   preSendBackoffMs,
+  EXPORT_HASH_MISMATCH,
   type PublishingRuntime,
   type PublishingRuntimeOptions,
 } from './runtime';
@@ -34,10 +35,18 @@ export {
   type VariantSource,
   type ReleaseEvaluator,
   type PublishMediaSource,
+  type PublishMediaOptions,
+  type PublishMediaDescription,
   type ProviderClientSource,
   type WorkflowProbe,
 } from './hooks';
-export { configurePublishingProviders, type PublishingProviderOptions } from './providers';
+export {
+  configurePublishingProviders,
+  adapterFor,
+  providerIO,
+  registry as providerRegistryInUse,
+  type PublishingProviderOptions,
+} from './providers';
 export { publicationWorkflowId, reconcileWorkflowId, workflowIdOf } from './common';
 export {
   registerPublishingOutboxRoutes,

@@ -221,9 +221,12 @@ describe('publishing module (spec 14) against MySQL 8', () => {
       return v;
     });
     registerReleaseEvaluator(recordingEvaluator);
-    registerPublishMediaSource(async () => {
-      if (mediaFailure) throw mediaFailure;
-      return [];
+    registerPublishMediaSource({
+      describe: async () => [],
+      release: async () => {
+        if (mediaFailure) throw mediaFailure;
+        return [];
+      },
     });
     registerWorkflowProbe({ isRunning: async (id) => runningWorkflows.has(id) });
     fixture.grant.remoteAccountId = 'acct_A';

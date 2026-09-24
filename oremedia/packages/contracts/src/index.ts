@@ -11,6 +11,7 @@ export * from './skills';
 export * from './providers';
 export * from './publishing';
 export * from './review';
+export * from './brand-change-impact';
 export * from './agents';
 export * from './assets';
 export * from './content';

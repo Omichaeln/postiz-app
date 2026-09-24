@@ -11,6 +11,7 @@ import {
 } from '@temporalio/worker';
 import type { Client } from '@temporalio/client';
 import {
+  createBrandChangeImpactActivities,
   createPublicationSweepActivities,
   createPublishControlActivities,
   createPublishProviderActivities,
@@ -28,11 +29,13 @@ import {
 } from '@oremedia/module-publishing';
 import { logger } from '@oremedia/observability';
 import { providerRegistry } from '@oremedia/providers';
+import { createBrandChangeImpactRuntime } from './brand-change-runtime';
+import { intelligenceActivities } from './intelligence-worker';
 import type { TemporalConfig } from './temporal';
 
 /**
  * Spec 4.4: worker-core hosts task queue `core` (publicationWorkflowV1, its reconcile and signal relay, the
- * sweeper and tokenRefreshWorkflowV1) and one activity-only `publish-<providerKey>` queue per registered provider,
+ * sweeper, tokenRefreshWorkflowV1 and brandChangeImpactWorkflowV1) and one activity-only `publish-<providerKey>` queue per registered provider,
  * so a slow or rate-limited platform cannot starve the others. This is the only process (with worker-ingest)
  * whose KMS may decrypt: the credential broker is composed here with a decrypting key (spec 14.7). Workflow code
  * is pre-bundled at build time (tsup.config.ts → dist/workflows.core.js), as the agents queue is.
@@ -86,6 +89,10 @@ export async function startPublishingWorkers(
       ...createPublishControlActivities(runtime.control),
       ...createTokenRefreshActivities(runtime.tokenRefresh),
       ...createPublicationSweepActivities(runtime.sweep),
+      // brand.version_published / brand.fact_revoked → brandChangeImpactWorkflowV1 (spec 8.2)
+      ...createBrandChangeImpactActivities(createBrandChangeImpactRuntime()),
+      // brandAnalystWorkflowV1 / brandAnalystSweepWorkflowV1 / baselineComparisonWorkflowV1 (spec 16.3, 16.8)
+      ...intelligenceActivities(),
     },
     maxConcurrentActivityTaskExecutions: Number(env['CORE_CONCURRENCY'] ?? 16),
   });

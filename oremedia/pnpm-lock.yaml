@@ -101,6 +101,15 @@ importers:
       '@oremedia/module-creative':
         specifier: workspace:*
         version: link:../../packages/modules/creative
+      '@oremedia/module-experiments':
+        specifier: workspace:*
+        version: link:../../packages/modules/experiments
+      '@oremedia/module-intelligence':
+        specifier: workspace:*
+        version: link:../../packages/modules/intelligence
+      '@oremedia/module-measurement':
+        specifier: workspace:*
+        version: link:../../packages/modules/measurement
       '@oremedia/module-operations':
         specifier: workspace:*
         version: link:../../packages/modules/operations
@@ -290,6 +299,15 @@ importers:
       '@oremedia/module-creative':
         specifier: workspace:*
         version: link:../../packages/modules/creative
+      '@oremedia/module-experiments':
+        specifier: workspace:*
+        version: link:../../packages/modules/experiments
+      '@oremedia/module-intelligence':
+        specifier: workspace:*
+        version: link:../../packages/modules/intelligence
+      '@oremedia/module-measurement':
+        specifier: workspace:*
+        version: link:../../packages/modules/measurement
       '@oremedia/module-operations':
         specifier: workspace:*
         version: link:../../packages/modules/operations
@@ -302,6 +320,70 @@ importers:
       '@oremedia/module-skills':
         specifier: workspace:*
         version: link:../../packages/modules/skills
+      '@oremedia/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@oremedia/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
+      '@oremedia/workflows':
+        specifier: workspace:*
+        version: link:../../packages/workflows
+      '@temporalio/activity':
+        specifier: ^1.24.0
+        version: 1.24.0
+      '@temporalio/client':
+        specifier: ^1.24.0
+        version: 1.24.0
+      '@temporalio/worker':
+        specifier: ^1.24.0
+        version: 1.24.0(@swc/helpers@0.5.23)(lightningcss@1.33.0)(postcss@8.5.28)
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+    devDependencies:
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
+      tsx:
+        specifier: ^4.20.6
+        version: 4.23.15
+
+  apps/worker-ingest:
+    dependencies:
+      '@oremedia/activities':
+        specifier: workspace:*
+        version: link:../../packages/activities
+      '@oremedia/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@oremedia/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@oremedia/module-access':
+        specifier: workspace:*
+        version: link:../../packages/modules/access
+      '@oremedia/module-assets':
+        specifier: workspace:*
+        version: link:../../packages/modules/assets
+      '@oremedia/module-billing':
+        specifier: workspace:*
+        version: link:../../packages/modules/billing
+      '@oremedia/module-brand':
+        specifier: workspace:*
+        version: link:../../packages/modules/brand
+      '@oremedia/module-intelligence':
+        specifier: workspace:*
+        version: link:../../packages/modules/intelligence
+      '@oremedia/module-measurement':
+        specifier: workspace:*
+        version: link:../../packages/modules/measurement
+      '@oremedia/module-operations':
+        specifier: workspace:*
+        version: link:../../packages/modules/operations
+      '@oremedia/module-publishing':
+        specifier: workspace:*
+        version: link:../../packages/modules/publishing
       '@oremedia/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -790,6 +872,132 @@ importers:
       '@oremedia/observability':
         specifier: workspace:*
         version: link:../../observability
+      drizzle-orm:
+        specifier: ^0.45.3
+        version: 0.45.3(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(mysql2@3.24.4(@types/node@22.20.4))
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+
+  packages/modules/experiments:
+    dependencies:
+      '@oremedia/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@oremedia/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@oremedia/domain':
+        specifier: workspace:*
+        version: link:../../domain
+      '@oremedia/module-access':
+        specifier: workspace:*
+        version: link:../access
+      '@oremedia/module-billing':
+        specifier: workspace:*
+        version: link:../billing
+      '@oremedia/module-brand':
+        specifier: workspace:*
+        version: link:../brand
+      '@oremedia/module-content':
+        specifier: workspace:*
+        version: link:../content
+      '@oremedia/module-operations':
+        specifier: workspace:*
+        version: link:../operations
+      '@oremedia/observability':
+        specifier: workspace:*
+        version: link:../../observability
+      drizzle-orm:
+        specifier: ^0.45.3
+        version: 0.45.3(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(mysql2@3.24.4(@types/node@22.20.4))
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+
+  packages/modules/intelligence:
+    dependencies:
+      '@oremedia/ai':
+        specifier: workspace:*
+        version: link:../../ai
+      '@oremedia/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@oremedia/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@oremedia/domain':
+        specifier: workspace:*
+        version: link:../../domain
+      '@oremedia/module-access':
+        specifier: workspace:*
+        version: link:../access
+      '@oremedia/module-agents':
+        specifier: workspace:*
+        version: link:../agents
+      '@oremedia/module-billing':
+        specifier: workspace:*
+        version: link:../billing
+      '@oremedia/module-brand':
+        specifier: workspace:*
+        version: link:../brand
+      '@oremedia/module-content':
+        specifier: workspace:*
+        version: link:../content
+      '@oremedia/module-operations':
+        specifier: workspace:*
+        version: link:../operations
+      '@oremedia/module-skills':
+        specifier: workspace:*
+        version: link:../skills
+      '@oremedia/observability':
+        specifier: workspace:*
+        version: link:../../observability
+      drizzle-orm:
+        specifier: ^0.45.3
+        version: 0.45.3(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(mysql2@3.24.4(@types/node@22.20.4))
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+
+  packages/modules/measurement:
+    dependencies:
+      '@oremedia/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@oremedia/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@oremedia/domain':
+        specifier: workspace:*
+        version: link:../../domain
+      '@oremedia/module-access':
+        specifier: workspace:*
+        version: link:../access
+      '@oremedia/module-billing':
+        specifier: workspace:*
+        version: link:../billing
+      '@oremedia/module-brand':
+        specifier: workspace:*
+        version: link:../brand
+      '@oremedia/module-content':
+        specifier: workspace:*
+        version: link:../content
+      '@oremedia/module-creative':
+        specifier: workspace:*
+        version: link:../creative
+      '@oremedia/module-operations':
+        specifier: workspace:*
+        version: link:../operations
+      '@oremedia/module-publishing':
+        specifier: workspace:*
+        version: link:../publishing
+      '@oremedia/observability':
+        specifier: workspace:*
+        version: link:../../observability
+      '@oremedia/providers':
+        specifier: workspace:*
+        version: link:../../providers
       drizzle-orm:
         specifier: ^0.45.3
         version: 0.45.3(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(mysql2@3.24.4(@types/node@22.20.4))

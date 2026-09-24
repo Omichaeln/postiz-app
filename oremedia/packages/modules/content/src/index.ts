@@ -8,11 +8,17 @@ export {
   resetChannelResolver,
   registerCalendarSource,
   registerRevisionChangeListener,
+  registerLinkTracker,
+  registerAttributeCapturer,
   type ChannelDescription,
   type ChannelResolver,
   type CalendarSource,
   type RevisionChange,
   type RevisionChangeListener,
+  type LinkTracker,
+  type LinkTrackingInput,
+  type AttributeCapturer,
+  type AttributeCaptureInput,
   type ContentRevisionDto,
   type ChannelVariantDto,
 } from './service';
@@ -22,4 +28,5 @@ export {
   ContentPackageRepository,
   ContentRevisionRepository,
   ChannelVariantRepository,
+  CreativeAttributeRepository,
 } from './repositories';

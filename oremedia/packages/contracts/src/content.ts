@@ -26,6 +26,8 @@ export const BriefCreate = z.object({
   offerFactIds: z.array(z.string()).max(20).default([]),
   channelConnectionIds: z.array(z.string()).max(20).default([]),
   constraints: z.array(z.string().max(300)).max(20).default([]),
+  /** Spec 16.4: a brief created by accepting a recommendation carries the back-reference for the learning record. */
+  recommendationId: z.string().optional(),
 });
 
 export const CampaignCreate = z.object({
