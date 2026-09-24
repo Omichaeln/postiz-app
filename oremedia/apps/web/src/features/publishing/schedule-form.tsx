@@ -8,7 +8,7 @@ import { Badge, Button, Field, Input, Panel, Skeleton, StatusBanner } from '@ore
 import { RequestError } from '../../components/request-state';
 import { Select } from '../../components/select';
 import { useToast } from '../../components/toast';
-import { intentContext, useIntentKey } from '../../lib/intent-key';
+import { mutationIntent, useIntentKey } from '../../lib/intent-key';
 import { toUiError } from '../../lib/errors';
 import { useTRPC } from '../../lib/trpc';
 import { CHANNEL_CHIP, dayKey, isoToLocalInput, localInputToIso } from './publication-state';
@@ -43,7 +43,7 @@ export function ScheduleForm({ timeZone, channels, onScheduled }: ScheduleFormPr
   const intent = useIntentKey();
   const schedule = useMutation(
     trpc.publishing.publications.schedule.mutationOptions({
-      ...intentContext(intent.key),
+      ...mutationIntent(intent.key),
       onSuccess: (res, vars) => {
         intent.renew();
         setError(null);

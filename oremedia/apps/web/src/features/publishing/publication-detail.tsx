@@ -15,7 +15,7 @@ import { Dialog, DialogActions, DialogClose, DialogContent } from '../../compone
 import { RequestError } from '../../components/request-state';
 import { Select } from '../../components/select';
 import { useToast } from '../../components/toast';
-import { intentContext, useIntentKey } from '../../lib/intent-key';
+import { mutationIntent, useIntentKey } from '../../lib/intent-key';
 import { toUiError } from '../../lib/errors';
 import { useTRPC } from '../../lib/trpc';
 import {
@@ -104,7 +104,7 @@ function Loaded({
   const cancelIntent = useIntentKey();
   const cancel = useMutation(
     trpc.publishing.publications.cancel.mutationOptions({
-      ...intentContext(cancelIntent.key),
+      ...mutationIntent(cancelIntent.key),
       onSuccess: (res) => {
         cancelIntent.renew();
         setLastError(null);
@@ -423,7 +423,7 @@ function RescheduleAction({
   const intent = useIntentKey();
   const reschedule = useMutation(
     trpc.publishing.publications.reschedule.mutationOptions({
-      ...intentContext(intent.key),
+      ...mutationIntent(intent.key),
       onSuccess: (res) => {
         intent.renew();
         setOpen(false);
@@ -515,7 +515,7 @@ function ReconcileAction({
   const intent = useIntentKey();
   const reconcile = useMutation(
     trpc.publishing.publications.reconcile.mutationOptions({
-      ...intentContext(intent.key),
+      ...mutationIntent(intent.key),
       onSuccess: (res) => {
         intent.renew();
         setOpen(false);
@@ -627,7 +627,7 @@ function DeleteRemoteAction({
   const intent = useIntentKey();
   const del = useMutation(
     trpc.publishing.publications.deleteRemote.mutationOptions({
-      ...intentContext(intent.key),
+      ...mutationIntent(intent.key),
       onSuccess: () => {
         intent.renew();
         setOpen(false);

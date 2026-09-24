@@ -23,3 +23,4 @@ export { EmptyState, type EmptyStateProps } from './empty-state';
 export { StatusBanner, type StatusBannerProps } from './status-banner';
 export { VisuallyHidden } from './visually-hidden';
 export { Skeleton, type SkeletonProps } from './skeleton';
+export { BarSeries, type BarSeriesProps, type BarSeriesPoint } from './bar-series';

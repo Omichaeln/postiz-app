@@ -14,7 +14,7 @@ import {
 } from '@oremedia/ui';
 import { RequestError } from '../../components/request-state';
 import { useToast } from '../../components/toast';
-import { intentContext, useIntentKey } from '../../lib/intent-key';
+import { mutationIntent, useIntentKey } from '../../lib/intent-key';
 import { toUiError } from '../../lib/errors';
 import { useTRPC } from '../../lib/trpc';
 import type { ChannelDto } from '../publishing/use-publishing';
@@ -263,7 +263,7 @@ export function DecisionForm({
   const intent = useIntentKey();
   const submit = useMutation(
     trpc.review.decisions.submit.mutationOptions({
-      ...intentContext(intent.key),
+      ...mutationIntent(intent.key),
       onSuccess: () => {
         intent.renew();
         setError(null);
@@ -354,7 +354,7 @@ function ExternalLinks({ request: r }: { request: MemberReviewRequestDto }) {
   const createIntent = useIntentKey();
   const create = useMutation(
     trpc.review.externalLinks.create.mutationOptions({
-      ...intentContext(createIntent.key),
+      ...mutationIntent(createIntent.key),
       onSuccess: (res) => {
         createIntent.renew();
         setError(null);
@@ -369,7 +369,7 @@ function ExternalLinks({ request: r }: { request: MemberReviewRequestDto }) {
   const revokeIntent = useIntentKey();
   const revoke = useMutation(
     trpc.review.externalLinks.revoke.mutationOptions({
-      ...intentContext(revokeIntent.key),
+      ...mutationIntent(revokeIntent.key),
       onSuccess: () => {
         revokeIntent.renew();
         invalidate();

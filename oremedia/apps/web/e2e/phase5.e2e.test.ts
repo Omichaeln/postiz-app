@@ -109,6 +109,14 @@ describe.skipIf(!enabled)('phase 5 screens (built app in Chromium, mock transpor
       .toContain('Acme LinkedIn');
     await page.locator('#schedule-at').fill(todayLocalInput(16));
     await page.locator('#schedule-authority-id').fill(P5.approvalId);
+    // The first attempt fails server-side; the retry is the same intent and must carry the same key (spec 7.3).
+    p5.failNextSchedule = true;
+    const schedules = () => backend.requests.filter((r) => r.path === 'publishing.publications.schedule');
+    const before = schedules().length;
+    await page.getByRole('button', { name: 'Schedule', exact: true }).click();
+    await expect.poll(() => schedules().length, { timeout: 15_000 }).toBe(before + 1);
+    await expect.poll(() => p5.failNextSchedule, { timeout: 15_000 }).toBe(false);
+    expect(page.url()).not.toContain('publication=pub_');
     await page.getByRole('button', { name: 'Schedule', exact: true }).click();
     await expect.poll(() => page.url(), { timeout: 15_000 }).toContain('publication=pub_');
     const publicationId = decodeURIComponent(new URL(page.url()).searchParams.get('publication') ?? '');
@@ -117,10 +125,9 @@ describe.skipIf(!enabled)('phase 5 screens (built app in Chromium, mock transpor
       .poll(() => detail().getByTestId('publication-state').textContent(), { timeout: 15_000 })
       .toContain('Scheduled');
     expect(await page.getByTestId('day-list').getByRole('button').count()).toBe(6);
-    const scheduleRequest = backend.requests
-      .filter((r) => r.path === 'publishing.publications.schedule')
-      .at(-1);
-    expect(typeof scheduleRequest?.headers['idempotency-key']).toBe('string');
+    const [failed, retried] = schedules().slice(before);
+    expect(typeof failed?.headers['idempotency-key']).toBe('string');
+    expect(retried?.headers['idempotency-key']).toBe(failed?.headers['idempotency-key']);
     // The workflow publishes it.
     p5.transition(publicationId, {
       state: 'published',

@@ -1,7 +1,7 @@
 {
   "programme": "Oremedia",
   "specification": "docs/spec/BUILD_PROMPT.md (prepared 23 September 2026)",
-  "updatedAt": "2026-09-24T05:30:00Z",
+  "updatedAt": "2026-09-24T06:45:00Z",
   "repository": "omichaeln/postiz-app · branch claude/gallant-gauss-rh58uh · directory oremedia/",
   "statusLegend": {
     "complete": "Genuinely complete and verified; needs no additional work.",
@@ -1714,8 +1714,8 @@
           "Intelligence workspace: What changed / What we learned / What to do next / Experiments / Brand playbook, with coverage statements and freshness",
           "production",
           "16.9, 21.2",
-          "in_progress",
-          "intelligence.workspace.get returns the five views (What changed / What we learned / What to do next / Experiments / Brand playbook) with coverage statements and freshness; the web screen is not built yet."
+          "complete",
+          "apps/web/src/app/c/$company/b/$brand/intelligence/route.tsx + features/intelligence: the five views from intelligence.workspace.get with freshness and coverage next to every number, recommendations with exactly their actions (accept → brief/experiment, dismiss with reason), analyse now, insights with labelled hypotheses, anomalies (native SVG bars with a table alternative), voice clusters, playbook propose/approve. Required states (no objective, no data / partial coverage, stale, analysis running, permission denied, error) in apps/web/e2e/phase6.e2e.test.ts (28 tests across the four screens)."
         ]
       ]
     },
@@ -1996,7 +1996,7 @@
           "production",
           "21.1",
           "complete",
-          "apps/web: React 19 + Vite + React Router 7 data routers; route tree of spec 21.1 (portfolio, company, brand home, system, assets, studio, calendar, review, agents; intelligence/experiments/campaigns/settings as honest placeholders); loaders prefetch into TanStack Query."
+          "apps/web: React 19 + Vite + React Router 7 data routers; the full route tree of spec 21.1 (portfolio, company, brand home, system, assets, studio, calendar, review, agents, intelligence, experiments, campaigns, settings) with loaders prefetching into TanStack Query; no placeholders remain."
         ],
         [
           "F.2",

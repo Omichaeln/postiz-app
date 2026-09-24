@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { TRPCError, type AnyTRPCProcedure } from '@trpc/server';
 import { z } from 'zod';
 import { ExternalLinkCreate, ExternalLinkRevoke } from '@oremedia/contracts/access';
 import { CalendarRange, ChannelVariantGet, ContentRevisionGet } from '@oremedia/contracts/content';
@@ -71,7 +72,7 @@ const todayAt = (hour: number) => {
 };
 const daysFromNow = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString();
 
-interface Channel {
+export interface Channel {
   id: string;
   brandId: string;
   providerKey: string;
@@ -87,7 +88,7 @@ interface Channel {
   updatedAt: string;
   version: number;
 }
-interface Revision {
+export interface Revision {
   id: string;
   tenantId: string;
   brandId: string;
@@ -107,7 +108,7 @@ interface Revision {
   updatedAt: string;
   version: number;
 }
-interface Variant {
+export interface Variant {
   id: string;
   tenantId: string;
   brandId: string;
@@ -253,6 +254,10 @@ export class Phase5Backend {
   readonly decisions: Decision[] = [];
   readonly approvals: Approval[] = [];
   readonly links = new Map<string, ReviewerLink>();
+  /** Test hook: fail the next schedule with an INTERNAL envelope (the UI retries the same intent). */
+  failNextSchedule = false;
+  /** Packages the calendar range reports (phase 6 registers its content packages here). */
+  calendarPackages: (from: number, to: number) => unknown[] = () => [];
 
   constructor() {
     this.seed();
@@ -658,7 +663,17 @@ export interface Phase5Builders {
   mutation: MockBuilders['mutation'];
 }
 
-export function phase5Routers(b: Phase5Backend, { router, query, mutation }: Phase5Builders) {
+/** Procedures a later phase adds to the routers phase 5 owns (tRPC routers cannot be merged below the top level). */
+export interface Phase5Extensions {
+  variants?: Record<string, AnyTRPCProcedure>;
+  channels?: Record<string, AnyTRPCProcedure | ReturnType<typeof t.router>>;
+}
+
+export function phase5Routers(
+  b: Phase5Backend,
+  { router, query, mutation }: Phase5Builders,
+  extensions: Phase5Extensions = {},
+) {
   const brandOf = (brandId: string) => {
     if (brandId !== P5.brandId) throw new NotFoundError('Brand', brandId);
   };
@@ -674,7 +689,7 @@ export function phase5Routers(b: Phase5Backend, { router, query, mutation }: Pha
           from: i.from,
           to: i.to,
           campaigns: [],
-          packages: [],
+          packages: b.calendarPackages(from, to),
           publications: [...b.publications.values()]
             .filter((p) => {
               const t = new Date(p.scheduledFor).getTime();
@@ -699,6 +714,7 @@ export function phase5Routers(b: Phase5Backend, { router, query, mutation }: Pha
         if (!v) throw new NotFoundError('ChannelVariant', i.variantId);
         return v;
       }),
+      ...extensions.variants,
     }),
     revisions: router({
       get: query.input(ContentRevisionGet).query(({ input }) => {
@@ -716,9 +732,14 @@ export function phase5Routers(b: Phase5Backend, { router, query, mutation }: Pha
         brandOf(input.brandId);
         return [...b.channels.values()];
       }),
+      ...extensions.channels,
     }),
     publications: router({
       schedule: mutation.input(ScheduleCommand).mutation(({ input }) => {
+        if (b.failNextSchedule) {
+          b.failNextSchedule = false;
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'simulated outage' });
+        }
         const cmd = input;
         const v = b.variants.get(cmd.channelVariantId);
         if (!v) throw new NotFoundError('ChannelVariant', cmd.channelVariantId);

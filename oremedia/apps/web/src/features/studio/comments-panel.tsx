@@ -4,7 +4,7 @@ import type { CreativeDocumentV1 } from '@oremedia/contracts/creative';
 import { Badge, Button, EmptyState, Field, Skeleton, Textarea, type Tone } from '@oremedia/ui';
 import { RequestError } from '../../components/request-state';
 import { useTRPC } from '../../lib/trpc';
-import { intentContext, useIntentKey } from '../../lib/intent-key';
+import { mutationIntent, useIntentKey } from '../../lib/intent-key';
 import { toUiError } from '../../lib/errors';
 import { useComments } from './use-document';
 import { elementName } from './document-helpers';
@@ -39,7 +39,7 @@ export function CommentsPanel({
   const addIntent = useIntentKey();
   const add = useMutation(
     trpc.creative.comments.add.mutationOptions({
-      ...intentContext(addIntent.key),
+      ...mutationIntent(addIntent.key),
       onSuccess: () => {
         addIntent.renew();
         setBody('');
@@ -50,7 +50,7 @@ export function CommentsPanel({
   const resolveIntent = useIntentKey();
   const resolve = useMutation(
     trpc.creative.comments.resolve.mutationOptions({
-      ...intentContext(resolveIntent.key),
+      ...mutationIntent(resolveIntent.key),
       onSuccess: () => {
         resolveIntent.renew();
         void queryClient.invalidateQueries(trpc.creative.comments.pathFilter());

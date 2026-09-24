@@ -34,7 +34,9 @@ import {
 } from '@oremedia/contracts/errors';
 import { applyBatch, changedElementIds, guardProtected, validateAgainstBrand } from '@oremedia/editor';
 import { fixtureDocument, fixtureSnapshot, ids } from '@oremedia/editor/fixtures';
+import type { MembershipRole } from '@oremedia/contracts/tenancy';
 import { Phase5Backend, phase5Routers, type ReviewerLink } from './mock-phase5';
+import { deniedError, Phase6Backend, phase6Routers } from './mock-phase6';
 
 /**
  * A UI-only transport for the studio smoke test: the same procedure paths, input DTOs, error envelope and header
@@ -115,6 +117,16 @@ const rid = (p: string) => `${p}_${randomUUID().replace(/-/g, '').slice(0, 26).t
 export class MockBackend {
   /** Phase 5: calendar, publications, channels, review requests and reviewer links (mock-phase5.ts). */
   readonly phase5 = new Phase5Backend();
+  /** Phase 6: intelligence, experiments, campaigns, briefs, packages and channel connections (mock-phase6.ts). */
+  readonly phase6 = new Phase6Backend(this.phase5);
+  /** The signed-in person's role in the company (access.listCompanies); the server still decides every call. */
+  role: MembershipRole = 'owner';
+  /** Procedure paths the policy engine refuses for this person (FORBIDDEN envelope), e.g. `publishing.channels.list`. */
+  readonly denied = new Set<string>();
+  /** Procedure paths whose next N calls fail with an INTERNAL envelope, to exercise error states and retries. */
+  readonly failNext = new Map<string, number>();
+  /** Procedure paths answered after a delay (ms), to observe loading states. */
+  readonly delays = new Map<string, number>();
   readonly docs = new Map<string, Doc>();
   readonly comments: Comment[] = [];
   readonly jobs = new Map<string, RenderJob>();
@@ -326,6 +338,18 @@ export function createBuilders(backend: MockBackend) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'You are not a member of this company' });
     return next();
   });
+  const policy = t.middleware(async ({ path, next }) => {
+    const delay = backend.delays.get(path);
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    if (backend.denied.has(path)) throw deniedError(path);
+    const failures = backend.failNext.get(path) ?? 0;
+    if (failures > 0) {
+      if (failures === 1) backend.failNext.delete(path);
+      else backend.failNext.set(path, failures - 1);
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'simulated outage' });
+    }
+    return next();
+  });
   const idempotent = t.middleware(async ({ ctx, path, next }) => {
     const key = first(ctx.headers['idempotency-key']);
     if (!key) throw new TRPCError({ code: 'BAD_REQUEST', message: 'IDEMPOTENCY_KEY_REQUIRED' });
@@ -341,7 +365,7 @@ export function createBuilders(backend: MockBackend) {
     if (result.ok) backend.replays.set(replayKey, result.data);
     return result;
   });
-  const query = t.procedure.use(domainErrors).use(authed).use(tenantScoped);
+  const query = t.procedure.use(domainErrors).use(authed).use(tenantScoped).use(policy);
   const mutation = query.use(idempotent);
   const authedOnly = t.procedure.use(domainErrors).use(authed);
   return { query, mutation, authedOnly };
@@ -368,15 +392,26 @@ export function createMockRouter(backend: MockBackend) {
   const pngDataUrl =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVQIW2NkYPj/n4GBgYGJgYEBAAgQAgHfTMWQAAAAAElFTkSuQmCC';
 
+  const p6 = phase6Routers(backend.phase6, { router: t.router, query, mutation });
+  const p5 = phase5Routers(
+    backend.phase5,
+    { router: t.router, query, mutation },
+    { variants: p6.variants, channels: p6.channels },
+  );
+
   return t.router({
-    ...phase5Routers(backend.phase5, { router: t.router, query, mutation }),
+    content: t.mergeRouters(p5.content, p6.content),
+    publishing: p5.publishing,
+    review: p5.review,
+    intelligence: p6.intelligence,
+    experiments: p6.experiments,
     access: t.router({
       listCompanies: authedOnly.query(() => [
         {
           tenantId: E2E.tenantId,
           name: E2E.companyName,
           slug: 'e2e',
-          role: 'owner' as const,
+          role: backend.role,
           allBrands: true,
         },
       ]),

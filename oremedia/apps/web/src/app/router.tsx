@@ -14,7 +14,10 @@ import { StudioRoute } from './c/$company/b/$brand/studio/$doc/route';
 import { CalendarRoute } from './c/$company/b/$brand/calendar/route';
 import { ReviewInboxRoute } from './c/$company/b/$brand/review/route';
 import { AgentRunsRoute } from './c/$company/b/$brand/agents/route';
-import { PLACEHOLDER_ROUTES } from './c/$company/b/$brand/placeholders';
+import { IntelligenceRoute } from './c/$company/b/$brand/intelligence/route';
+import { ExperimentsRoute } from './c/$company/b/$brand/experiments/route';
+import { CampaignsRoute } from './c/$company/b/$brand/campaigns/route';
+import { SettingsRoute } from './c/$company/b/$brand/settings/route';
 import { ReviewPortalRoute } from './review-portal/route';
 
 export interface RouterDeps {
@@ -116,7 +119,58 @@ export function createAppRouter({ trpc, queryClient }: RouterDeps) {
                   ),
                 ),
             },
-            ...PLACEHOLDER_ROUTES,
+            {
+              path: 'intelligence',
+              Component: IntelligenceRoute,
+              loader: (args) =>
+                prefetch(
+                  queryClient.ensureQueryData(
+                    trpc.intelligence.workspace.get.queryOptions(
+                      { brandId: param(args, 'brand') },
+                      { trpc: { context: { tenantId: param(args, 'company') } } },
+                    ),
+                  ),
+                ),
+            },
+            {
+              path: 'experiments',
+              Component: ExperimentsRoute,
+              loader: (args) =>
+                prefetch(
+                  queryClient.ensureQueryData(
+                    trpc.experiments.list.queryOptions(
+                      { brandId: param(args, 'brand'), page: { limit: 100 } },
+                      { trpc: { context: { tenantId: param(args, 'company') } } },
+                    ),
+                  ),
+                ),
+            },
+            {
+              path: 'campaigns',
+              Component: CampaignsRoute,
+              loader: (args) =>
+                prefetch(
+                  queryClient.ensureQueryData(
+                    trpc.content.campaigns.list.queryOptions(
+                      { brandId: param(args, 'brand'), page: { limit: 100 } },
+                      { trpc: { context: { tenantId: param(args, 'company') } } },
+                    ),
+                  ),
+                ),
+            },
+            {
+              path: 'settings',
+              Component: SettingsRoute,
+              loader: (args) =>
+                prefetch(
+                  queryClient.ensureQueryData(
+                    trpc.publishing.channels.list.queryOptions(
+                      { brandId: param(args, 'brand') },
+                      { trpc: { context: { tenantId: param(args, 'company') } } },
+                    ),
+                  ),
+                ),
+            },
           ],
         },
         { path: 'review-portal/*', Component: ReviewPortalRoute },
