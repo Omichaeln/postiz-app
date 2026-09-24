@@ -70,3 +70,64 @@ a breaking change creates a new event type or schema version with dual publishin
 | `OUTCOME_UNKNOWN`        |
 | `TENANT_CONTEXT_MISSING` |
 | `INTERNAL`               |
+
+## Public REST API (spec 7.6)
+
+Bearer authentication with an API client key (`ak_...`) or a session token; cookies are ignored. Each route calls
+its tRPC procedure through the same middleware chain (tenant resolution, per-key scope, rate limit,
+`Idempotency-Key` on every POST that mutates, audit). Errors use the envelope above with the matching HTTP status.
+`limit` is clamped into [1, 200] (default 50). The OpenAPI document is `docs/contracts/openapi.json`.
+
+| Method | Path                                          | Procedure                            | Scope                | Summary                                                       |
+| ------ | --------------------------------------------- | ------------------------------------ | -------------------- | ------------------------------------------------------------- |
+| `GET`  | `/v1/brands`                                  | `brand.list`                         | `brands:read`        | List the brands the caller can see                            |
+| `GET`  | `/v1/brands/{brandId}`                        | `brand.get`                          | `brands:read`        | Get a brand                                                   |
+| `POST` | `/v1/assets/search-eligible`                  | `assets.search`                      | `assets:read`        | Search approved, rights-cleared assets eligible for a purpose |
+| `GET`  | `/v1/assets/{assetId}`                        | `assets.get`                         | `assets:read`        | Get an asset                                                  |
+| `GET`  | `/v1/brands/{brandId}/campaigns`              | `content.campaigns.list`             | `content:read`       | List the campaigns of a brand                                 |
+| `GET`  | `/v1/campaigns/{campaignId}`                  | `content.campaigns.get`              | `content:read`       | Get a campaign                                                |
+| `POST` | `/v1/campaigns`                               | `content.campaigns.create`           | `content:write`      | Create a draft campaign                                       |
+| `GET`  | `/v1/brands/{brandId}/briefs`                 | `content.briefs.list`                | `content:read`       | List the briefs of a brand, optionally of one campaign        |
+| `GET`  | `/v1/briefs/{briefId}`                        | `content.briefs.get`                 | `content:read`       | Get a brief                                                   |
+| `POST` | `/v1/briefs`                                  | `content.briefs.create`              | `content:write`      | Create a draft brief                                          |
+| `GET`  | `/v1/brands/{brandId}/packages`               | `content.packages.list`              | `content:read`       | List the content packages of a brand                          |
+| `GET`  | `/v1/packages/{contentPackageId}`             | `content.packages.get`               | `content:read`       | Get a content package with its current revision and variants  |
+| `POST` | `/v1/packages`                                | `content.packages.create`            | `content:write`      | Create a content package (revision 1 as a draft)              |
+| `GET`  | `/v1/review-requests/{reviewRequestId}`       | `review.requests.get`                | `review:read`        | Get a review request                                          |
+| `POST` | `/v1/review-requests`                         | `review.requests.create`             | `review:write`       | Request review of a content revision                          |
+| `POST` | `/v1/publications`                            | `publishing.publications.schedule`   | `publications:write` | Schedule a channel variant under an approval or a mandate     |
+| `POST` | `/v1/publications/{publicationId}/cancel`     | `publishing.publications.cancel`     | `publications:write` | Cancel a scheduled publication                                |
+| `POST` | `/v1/publications/{publicationId}/reschedule` | `publishing.publications.reschedule` | `publications:write` | Move a scheduled publication to a new time                    |
+| `GET`  | `/v1/publications/{publicationId}`            | `publishing.publications.get`        | `publications:read`  | Get a publication with its attempts                           |
+| `GET`  | `/v1/brands/{brandId}/publications`           | `publishing.publications.list`       | `publications:read`  | List the publications of a brand, optionally by state         |
+| `GET`  | `/v1/brands/{brandId}/channels`               | `publishing.channels.list`           | `channels:read`      | List the channel connections of a brand                       |
+| `POST` | `/v1/agent-runs`                              | `agents.runs.start`                  | `agents:write`       | Start an agent run                                            |
+| `GET`  | `/v1/agent-runs/{runId}`                      | `agents.runs.get`                    | `agents:read`        | Get an agent run                                              |
+| `GET`  | `/v1/agent-runs/{runId}/steps`                | `agents.runs.steps`                  | `agents:read`        | List the steps of an agent run                                |
+| `GET`  | `/v1/brands/{brandId}/insights`               | `intelligence.insights.list`         | `insights:read`      | List the insights of a brand                                  |
+| `GET`  | `/v1/brands/{brandId}/recommendations`        | `intelligence.recommendations.list`  | `insights:read`      | List the recommendations of a brand                           |
+
+## API client key scopes (spec 7.6)
+
+`access:read`, `access:write`, `brands:read`, `brands:write`, `assets:read`, `assets:write`, `creative:read`, `creative:write`, `content:read`, `content:write`, `review:read`, `review:write`, `channels:read`, `channels:write`, `publications:read`, `publications:write`, `agents:read`, `agents:write`, `skills:read`, `skills:write`, `insights:read`, `insights:write`, `experiments:read`, `experiments:write`, `measurement:read`, `measurement:write`, `operations:read`, `operations:write`.
+
+A query needs `<area>:read`, a mutation `<area>:write` (tRPC and REST alike; the area follows the router map). A key
+with an empty scope list may read and not write. Scopes narrow a key; the service principal's grants and the policy
+engine still decide every action.
+
+## MCP tools (spec 7.6)
+
+`POST /mcp`, JSON-RPC 2.0 over Streamable HTTP (`initialize`, `ping`, `tools/list`, `tools/call`), API client keys
+only. Every call passes through the agent tool dispatcher as the key's service principal. No tool schedules or
+publishes.
+
+| Tool                         | Effect  | Policy action     | Scope               | Takes brandId |
+| ---------------------------- | ------- | ----------------- | ------------------- | ------------- |
+| `brands.list`                | read    | `brand.read`      | `brands:read`       | no            |
+| `assets.searchEligible`      | read    | `asset.read`      | `assets:read`       | yes           |
+| `content.createBrief`        | draft   | `content.plan`    | `content:write`     | yes           |
+| `agents.startRun`            | draft   | `agent.start_run` | `agents:write`      | yes           |
+| `creative.proposeOperations` | propose | `creative.edit`   | `creative:write`    | yes           |
+| `review.request`             | propose | `review.request`  | `review:write`      | yes           |
+| `publications.get`           | read    | `brand.read`      | `publications:read` | yes           |
+| `insights.list`              | read    | `insight.read`    | `insights:read`     | yes           |

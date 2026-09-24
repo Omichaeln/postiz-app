@@ -246,36 +246,36 @@ export class Phase6Backend {
   };
   /** An analysis requested through analyst.run that has not written its insights yet. */
   pendingAnalysis: { workflowId: string } | null = null;
-  readonly clusters = [
-    {
-      id: 'vc_1',
-      brandId: P6.brandId,
-      label: 'Do you ship to Ireland?',
-      kind: 'question' as const,
-      size: 14,
-      sampleMessageRefs: ['msg_1', 'msg_2'],
-      linkedRecommendationIds: [P6.recommendations.brief],
-      firstSeen: hoursAgo(24 * 20),
-      lastSeen: hoursAgo(3),
-      version: 1,
-    },
-  ];
-  readonly anomalies = [
-    {
-      id: 'an_1',
-      brandId: P6.brandId,
-      signal: 'complaints',
-      baseline: 2,
-      observed: 9,
-      severity: 'high',
-      detectedAt: hoursAgo(5),
-      state: 'open' as const,
-      version: 1,
-    },
-  ];
+  readonly clusters: Array<{
+    id: string;
+    brandId: string;
+    label: string;
+    kind: 'question';
+    size: number;
+    sampleMessageRefs: string[];
+    linkedRecommendationIds: string[];
+    firstSeen: string;
+    lastSeen: string;
+    version: number;
+  }> = [];
+  readonly anomalies: Array<{
+    id: string;
+    brandId: string;
+    signal: string;
+    baseline: number;
+    observed: number;
+    severity: string;
+    detectedAt: string;
+    state: 'open';
+    version: number;
+  }> = [];
 
-  constructor(readonly p5: Phase5Backend) {
-    this.seed();
+  /** The brand these rows belong to is phase 5's (one company, one brand store); `seed: false` starts empty. */
+  constructor(
+    readonly p5: Phase5Backend,
+    seed = true,
+  ) {
+    if (seed) this.seed();
     p5.calendarPackages = (from, to) =>
       [...this.packages.values()]
         .filter((p) => {
@@ -283,6 +283,30 @@ export class Phase6Backend {
           return at >= from && at <= to;
         })
         .map(({ revisionIds: _r, ...p }) => p);
+    p5.packageStateChanged = (contentPackageId, state) => {
+      const pkg = this.packages.get(contentPackageId);
+      if (pkg) Object.assign(pkg, { state, updatedAt: now(), version: pkg.version + 1 });
+    };
+  }
+
+  get brandId(): string {
+    return this.p5.brandId;
+  }
+
+  /** Seeds a campaign (a second company's own rows). */
+  addCampaign(id: string, name: string, startsInDays: number, endsInDays: number): void {
+    this.campaigns.set(id, {
+      id,
+      brandId: this.brandId,
+      objectiveId: null,
+      name,
+      startsAt: daysFromNow(startsInDays),
+      endsAt: daysFromNow(endsInDays),
+      state: 'active',
+      createdAt: hoursAgo(100),
+      updatedAt: hoursAgo(100),
+      version: 1,
+    });
   }
 
   // ---- backdoors (the workflows' side) ----
@@ -430,7 +454,7 @@ export class Phase6Backend {
     const approved = [...this.playbook.values()].filter((p) => p.state === 'approved');
     const ranked = this.objective !== null && proposed.some((r) => r.rank > 0);
     return {
-      brandId: P6.brandId,
+      brandId: this.brandId,
       objective: this.objective,
       whatChanged: {
         items: changes.map((i) => this.insightDto(i)),
@@ -508,7 +532,7 @@ export class Phase6Backend {
   ) {
     this.insights.set(id, {
       id,
-      brandId: P6.brandId,
+      brandId: this.brandId,
       kind,
       statement,
       evidence,
@@ -532,7 +556,7 @@ export class Phase6Backend {
   ) {
     this.recommendations.set(id, {
       id,
-      brandId: P6.brandId,
+      brandId: this.brandId,
       insightIds: [P6.insights.change, P6.insights.association],
       proposedAction: action,
       title,
@@ -582,7 +606,7 @@ export class Phase6Backend {
     const frozen = state !== 'designed';
     this.experiments.set(id, {
       id,
-      brandId: P6.brandId,
+      brandId: this.brandId,
       recommendationId: null,
       design,
       preRegistrationHash: frozen ? hash(design) : null,
@@ -625,6 +649,29 @@ export class Phase6Backend {
   }
 
   private seed() {
+    this.clusters.push({
+      id: 'vc_1',
+      brandId: this.brandId,
+      label: 'Do you ship to Ireland?',
+      kind: 'question',
+      size: 14,
+      sampleMessageRefs: ['msg_1', 'msg_2'],
+      linkedRecommendationIds: [P6.recommendations.brief],
+      firstSeen: hoursAgo(24 * 20),
+      lastSeen: hoursAgo(3),
+      version: 1,
+    });
+    this.anomalies.push({
+      id: 'an_1',
+      brandId: this.brandId,
+      signal: 'complaints',
+      baseline: 2,
+      observed: 9,
+      severity: 'high',
+      detectedAt: hoursAgo(5),
+      state: 'open',
+      version: 1,
+    });
     this.insight(P6.insights.change, 'change', 'Qualified enquiries fell 12% week on week.', 'observed', 20, [
       { kind: 'metric_key', ref: 'qualified_enquiries' },
     ]);
@@ -674,7 +721,7 @@ export class Phase6Backend {
     );
     this.playbook.set(P6.playbook.approved, {
       id: P6.playbook.approved,
-      brandId: P6.brandId,
+      brandId: this.brandId,
       practice: 'Reply to product questions within four hours.',
       evidenceIds: [P6.insights.finding],
       strength: 'experimentally_supported',
@@ -687,7 +734,7 @@ export class Phase6Backend {
     });
     this.playbook.set(P6.playbook.proposed, {
       id: P6.playbook.proposed,
-      brandId: P6.brandId,
+      brandId: this.brandId,
       practice: 'Use customer photos on Fridays.',
       evidenceIds: [P6.insights.association],
       strength: 'directional',
@@ -744,7 +791,7 @@ export class Phase6Backend {
 
     this.campaigns.set(P6.campaigns.spring, {
       id: P6.campaigns.spring,
-      brandId: P6.brandId,
+      brandId: this.brandId,
       objectiveId: null,
       name: 'Spring launch',
       startsAt: daysFromNow(-5),
@@ -756,7 +803,7 @@ export class Phase6Backend {
     });
     this.campaigns.set(P6.campaigns.missed, {
       id: P6.campaigns.missed,
-      brandId: P6.brandId,
+      brandId: this.brandId,
       objectiveId: null,
       name: 'Winter clearance',
       startsAt: daysFromNow(-40),
@@ -769,7 +816,7 @@ export class Phase6Backend {
     const brief = (id: string, over: Partial<Brief>) =>
       this.briefs.set(id, {
         id,
-        brandId: P6.brandId,
+        brandId: this.brandId,
         campaignId: P6.campaigns.spring,
         audience: 'Homeowners renovating in spring',
         message: 'Our lamps ship free this month',
@@ -809,7 +856,7 @@ export class Phase6Backend {
     const pkg = (id: string, title: string, revisionIds: string[], state: Package['state']) =>
       this.packages.set(id, {
         id,
-        brandId: P6.brandId,
+        brandId: this.brandId,
         briefId: P6.briefs.accepted,
         title,
         currentRevisionId: revisionIds.at(-1) as string,
@@ -838,7 +885,7 @@ export interface Phase6Builders {
 export function phase6Routers(b: Phase6Backend, { router, query, mutation }: Phase6Builders) {
   const p5 = b.p5;
   const brandOf = (brandId: string) => {
-    if (brandId !== P6.brandId) throw new NotFoundError('Brand', brandId);
+    if (brandId !== b.brandId) throw new NotFoundError('Brand', brandId);
   };
 
   const intelligence = router({
@@ -1259,7 +1306,7 @@ export function phase6Routers(b: Phase6Backend, { router, query, mutation }: Pha
         const copy = { ...input.copy, master: { ...input.copy.master } };
         p5.revisions.set(revisionId, {
           id: revisionId,
-          tenantId: 'ten_e2e',
+          tenantId: p5.tenantId,
           brandId: input.brandId,
           contentPackageId: id,
           number: 1,
@@ -1312,6 +1359,7 @@ export function phase6Routers(b: Phase6Backend, { router, query, mutation }: Pha
         const current = p5.revisions.get(pkg.currentRevisionId);
         if (!current) throw new NotFoundError('ContentRevision', pkg.currentRevisionId);
         Object.assign(current, { state: 'superseded', updatedAt: now(), version: current.version + 1 });
+        p5.revisionSuperseded(current.id);
         const revisionId = rid('cr');
         p5.revisions.set(revisionId, {
           ...current,
@@ -1370,7 +1418,7 @@ export function phase6Routers(b: Phase6Backend, { router, query, mutation }: Pha
         const tooLong = limit !== undefined && revision.copy.master.text.length > limit;
         const variant = {
           id,
-          tenantId: 'ten_e2e',
+          tenantId: p5.tenantId,
           brandId: revision.brandId,
           contentPackageId: revision.contentPackageId,
           contentRevisionId: revision.id,

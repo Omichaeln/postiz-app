@@ -189,6 +189,7 @@ describe('studio state machine (spec 21.4)', () => {
           findings: [],
           changedElementIds: [ids.headline],
           blocking: false,
+          preview: { kind: 'scene', rendererVersion: '1.0.0', publishable: false, pages: [] },
         },
       },
     });

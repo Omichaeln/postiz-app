@@ -7,6 +7,14 @@
     <meta name="referrer" content="no-referrer" />
     <meta name="robots" content="noindex" />
     <title>Oremedia review</title>
+    <script>
+      // Applied before paint, as in index.html, so the portal never shows the wrong theme first.
+      try {
+        var t = localStorage.getItem('oremedia.theme');
+        if (t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches))
+          document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

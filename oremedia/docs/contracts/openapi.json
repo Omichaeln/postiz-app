@@ -1,8 +1,72 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Oremedia application API (tRPC procedure catalogue)",
-    "version": "1"
+    "title": "Oremedia API: public REST (/v1) and the tRPC procedure catalogue",
+    "version": "2"
+  },
+  "components": {
+    "securitySchemes": {
+      "apiClientKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API client key (ak_...) of a service principal; per-key scopes are enforced (a key with no scopes may only read). Session bearer tokens are accepted with the policy of the user."
+      }
+    },
+    "schemas": {
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "UNAUTHENTICATED",
+              "FORBIDDEN",
+              "NOT_FOUND",
+              "VALIDATION_FAILED",
+              "CONFLICT",
+              "STALE_REVISION",
+              "IDEMPOTENCY_KEY_REUSED",
+              "RATE_LIMITED",
+              "ENTITLEMENT_EXCEEDED",
+              "BUDGET_EXHAUSTED",
+              "APPROVAL_REQUIRED",
+              "APPROVAL_INVALID",
+              "RIGHTS_INELIGIBLE",
+              "CAPABILITY_UNSUPPORTED",
+              "PROVIDER_UNAVAILABLE",
+              "OUTCOME_UNKNOWN",
+              "TENANT_CONTEXT_MISSING",
+              "INTERNAL"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "issue": {
+                  "type": "string"
+                }
+              },
+              "required": ["issue"]
+            }
+          },
+          "retryAfterMs": {
+            "type": "number"
+          }
+        },
+        "required": ["code", "message", "correlationId"]
+      }
+    }
   },
   "paths": {
     "/trpc/access.apiClients.create": {
@@ -21,7 +85,37 @@
                   "scopes": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "type": "string",
+                      "enum": [
+                        "access:read",
+                        "access:write",
+                        "brands:read",
+                        "brands:write",
+                        "assets:read",
+                        "assets:write",
+                        "creative:read",
+                        "creative:write",
+                        "content:read",
+                        "content:write",
+                        "review:read",
+                        "review:write",
+                        "channels:read",
+                        "channels:write",
+                        "publications:read",
+                        "publications:write",
+                        "agents:read",
+                        "agents:write",
+                        "skills:read",
+                        "skills:write",
+                        "insights:read",
+                        "insights:write",
+                        "experiments:read",
+                        "experiments:write",
+                        "measurement:read",
+                        "measurement:write",
+                        "operations:read",
+                        "operations:write"
+                      ]
                     }
                   },
                   "expiresAt": {
@@ -295,6 +389,33 @@
                   }
                 },
                 "required": ["servicePrincipalId", "expectedVersion"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trpc/access.supportSessions.escalate": {
+      "post": {
+        "operationId": "access.supportSessions.escalate",
+        "x-trpc-type": "mutation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "supportSessionId": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "durationMinutes": {
+                    "type": "number"
+                  }
+                },
+                "required": ["supportSessionId", "reason"]
               }
             }
           }
@@ -2076,6 +2197,39 @@
         }
       }
     },
+    "/trpc/content.packages.list": {
+      "get": {
+        "operationId": "content.packages.list",
+        "x-trpc-type": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["brandId", "page"]
+              }
+            }
+          }
+        }
+      }
+    },
     "/trpc/content.packages.revise": {
       "post": {
         "operationId": "content.packages.revise",
@@ -3437,6 +3591,38 @@
                         },
                         "required": {
                           "type": "boolean"
+                        },
+                        "replaceable": {
+                          "type": "boolean"
+                        },
+                        "constraints": {
+                          "type": "object",
+                          "properties": {
+                            "minLength": {
+                              "type": "number"
+                            },
+                            "maxLength": {
+                              "type": "number"
+                            },
+                            "semanticRoles": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "headline",
+                                  "body",
+                                  "price",
+                                  "cta",
+                                  "logo",
+                                  "product",
+                                  "background",
+                                  "decoration",
+                                  "legal"
+                                ]
+                              }
+                            }
+                          },
+                          "required": []
                         }
                       },
                       "required": ["key", "elementId", "kind"]
@@ -5931,10 +6117,1693 @@
           }
         }
       }
+    },
+    "/v1/brands": {
+      "get": {
+        "operationId": "v1.brand.list",
+        "summary": "List the brands the caller can see",
+        "tags": ["brands"],
+        "security": [
+          {
+            "apiClientKey": ["brands:read"]
+          }
+        ],
+        "x-oremedia-scope": "brands:read",
+        "x-trpc-procedure": "brand.list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brands/{brandId}": {
+      "get": {
+        "operationId": "v1.brand.get",
+        "summary": "Get a brand",
+        "tags": ["brands"],
+        "security": [
+          {
+            "apiClientKey": ["brands:read"]
+          }
+        ],
+        "x-oremedia-scope": "brands:read",
+        "x-trpc-procedure": "brand.get",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/assets/search-eligible": {
+      "post": {
+        "operationId": "v1.assets.search",
+        "summary": "Search approved, rights-cleared assets eligible for a purpose",
+        "tags": ["assets"],
+        "security": [
+          {
+            "apiClientKey": ["assets:read"]
+          }
+        ],
+        "x-oremedia-scope": "assets:read",
+        "x-trpc-procedure": "assets.search",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "object",
+                    "properties": {
+                      "brandId": {
+                        "type": "string"
+                      },
+                      "purpose": {
+                        "type": "string",
+                        "enum": ["creative", "logo", "font", "reference"]
+                      },
+                      "channelConnectionIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "territory": {
+                        "type": "string"
+                      },
+                      "scheduledFor": {
+                        "type": "string"
+                      },
+                      "kinds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "logo",
+                            "photo",
+                            "icon",
+                            "illustration",
+                            "font",
+                            "video",
+                            "audio",
+                            "template",
+                            "reference"
+                          ]
+                        }
+                      },
+                      "query": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["brandId", "purpose"]
+                  },
+                  "page": {
+                    "type": "object",
+                    "properties": {
+                      "cursor": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "number"
+                      }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["query", "page"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/assets/{assetId}": {
+      "get": {
+        "operationId": "v1.assets.get",
+        "summary": "Get an asset",
+        "tags": ["assets"],
+        "security": [
+          {
+            "apiClientKey": ["assets:read"]
+          }
+        ],
+        "x-oremedia-scope": "assets:read",
+        "x-trpc-procedure": "assets.get",
+        "parameters": [
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brands/{brandId}/campaigns": {
+      "get": {
+        "operationId": "v1.content.campaigns.list",
+        "summary": "List the campaigns of a brand",
+        "tags": ["content"],
+        "security": [
+          {
+            "apiClientKey": ["content:read"]
+          }
+        ],
+        "x-oremedia-scope": "content:read",
+        "x-trpc-procedure": "content.campaigns.list",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size; clamped into [1, 200], default 50 (spec 7.4)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/campaigns/{campaignId}": {
+      "get": {
+        "operationId": "v1.content.campaigns.get",
+        "summary": "Get a campaign",
+        "tags": ["content"],
+        "security": [
+          {
+            "apiClientKey": ["content:read"]
+          }
+        ],
+        "x-oremedia-scope": "content:read",
+        "x-trpc-procedure": "content.campaigns.get",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/campaigns": {
+      "post": {
+        "operationId": "v1.content.campaigns.create",
+        "summary": "Create a draft campaign",
+        "tags": ["content"],
+        "security": [
+          {
+            "apiClientKey": ["content:write"]
+          }
+        ],
+        "x-oremedia-scope": "content:write",
+        "x-trpc-procedure": "content.campaigns.create",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Spec 7.3: same key and body replays the stored response; a different body is 409",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "objectiveId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "startsAt": {
+                    "type": "string"
+                  },
+                  "endsAt": {
+                    "type": "string"
+                  }
+                },
+                "required": ["brandId", "name", "startsAt", "endsAt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brands/{brandId}/briefs": {
+      "get": {
+        "operationId": "v1.content.briefs.list",
+        "summary": "List the briefs of a brand, optionally of one campaign",
+        "tags": ["content"],
+        "security": [
+          {
+            "apiClientKey": ["content:read"]
+          }
+        ],
+        "x-oremedia-scope": "content:read",
+        "x-trpc-procedure": "content.briefs.list",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "campaignId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size; clamped into [1, 200], default 50 (spec 7.4)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/briefs/{briefId}": {
+      "get": {
+        "operationId": "v1.content.briefs.get",
+        "summary": "Get a brief",
+        "tags": ["content"],
+        "security": [
+          {
+            "apiClientKey": ["content:read"]
+          }
+        ],
+        "x-oremedia-scope": "content:read",
+        "x-trpc-procedure": "content.briefs.get",
+        "parameters": [
+          {
+            "name": "briefId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/briefs": {
+      "post": {
+        "operationId": "v1.content.briefs.create",
+        "summary": "Create a draft brief",
+        "tags": ["content"],
+        "security": [
+          {
+            "apiClientKey": ["content:write"]
+          }
+        ],
+        "x-oremedia-scope": "content:write",
+        "x-trpc-procedure": "content.briefs.create",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Spec 7.3: same key and body replays the stored response; a different body is 409",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "campaignId": {
+                    "type": "string"
+                  },
+                  "audience": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "offerFactIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "channelConnectionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "constraints": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "recommendationId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["brandId", "audience", "message"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brands/{brandId}/packages": {
+      "get": {
+        "operationId": "v1.content.packages.list",
+        "summary": "List the content packages of a brand",
+        "tags": ["content"],
+        "security": [
+          {
+            "apiClientKey": ["content:read"]
+          }
+        ],
+        "x-oremedia-scope": "content:read",
+        "x-trpc-procedure": "content.packages.list",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size; clamped into [1, 200], default 50 (spec 7.4)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packages/{contentPackageId}": {
+      "get": {
+        "operationId": "v1.content.packages.get",
+        "summary": "Get a content package with its current revision and variants",
+        "tags": ["content"],
+        "security": [
+          {
+            "apiClientKey": ["content:read"]
+          }
+        ],
+        "x-oremedia-scope": "content:read",
+        "x-trpc-procedure": "content.packages.get",
+        "parameters": [
+          {
+            "name": "contentPackageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packages": {
+      "post": {
+        "operationId": "v1.content.packages.create",
+        "summary": "Create a content package (revision 1 as a draft)",
+        "tags": ["content"],
+        "security": [
+          {
+            "apiClientKey": ["content:write"]
+          }
+        ],
+        "x-oremedia-scope": "content:write",
+        "x-trpc-procedure": "content.packages.create",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Spec 7.3: same key and body replays the stored response; a different body is 409",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "briefId": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "copy": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "master": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "factRefs": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": ["text"]
+                      },
+                      "rationale": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["schemaVersion", "master"]
+                  },
+                  "creativeDocumentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["brandId", "title", "copy"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/review-requests/{reviewRequestId}": {
+      "get": {
+        "operationId": "v1.review.requests.get",
+        "summary": "Get a review request",
+        "tags": ["review"],
+        "security": [
+          {
+            "apiClientKey": ["review:read"]
+          }
+        ],
+        "x-oremedia-scope": "review:read",
+        "x-trpc-procedure": "review.requests.get",
+        "parameters": [
+          {
+            "name": "reviewRequestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/review-requests": {
+      "post": {
+        "operationId": "v1.review.requests.create",
+        "summary": "Request review of a content revision",
+        "tags": ["review"],
+        "security": [
+          {
+            "apiClientKey": ["review:write"]
+          }
+        ],
+        "x-oremedia-scope": "review:write",
+        "x-trpc-procedure": "review.requests.create",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Spec 7.3: same key and body replays the stored response; a different body is 409",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentRevisionId": {
+                    "type": "string"
+                  },
+                  "assigneeUserIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "dueAt": {
+                    "type": "string"
+                  },
+                  "timing": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "const": "exact"
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["kind", "at"]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "const": "window"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["kind", "from", "to"]
+                      }
+                    ]
+                  }
+                },
+                "required": ["contentRevisionId", "timing"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/publications": {
+      "post": {
+        "operationId": "v1.publishing.publications.schedule",
+        "summary": "Schedule a channel variant under an approval or a mandate",
+        "tags": ["publications"],
+        "security": [
+          {
+            "apiClientKey": ["publications:write"]
+          }
+        ],
+        "x-oremedia-scope": "publications:write",
+        "x-trpc-procedure": "publishing.publications.schedule",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Spec 7.3: same key and body replays the stored response; a different body is 409",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channelVariantId": {
+                    "type": "string"
+                  },
+                  "scheduledFor": {
+                    "type": "string"
+                  },
+                  "authority": {
+                    "type": "string",
+                    "enum": ["approval", "mandate"]
+                  },
+                  "approvalId": {
+                    "type": "string"
+                  },
+                  "mandateId": {
+                    "type": "string"
+                  },
+                  "occurrence": {
+                    "type": "string"
+                  }
+                },
+                "required": ["channelVariantId", "scheduledFor", "authority"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/publications/{publicationId}/cancel": {
+      "post": {
+        "operationId": "v1.publishing.publications.cancel",
+        "summary": "Cancel a scheduled publication",
+        "tags": ["publications"],
+        "security": [
+          {
+            "apiClientKey": ["publications:write"]
+          }
+        ],
+        "x-oremedia-scope": "publications:write",
+        "x-trpc-procedure": "publishing.publications.cancel",
+        "parameters": [
+          {
+            "name": "publicationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Spec 7.3: same key and body replays the stored response; a different body is 409",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "type": "number"
+                  }
+                },
+                "required": ["expectedVersion"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/publications/{publicationId}/reschedule": {
+      "post": {
+        "operationId": "v1.publishing.publications.reschedule",
+        "summary": "Move a scheduled publication to a new time",
+        "tags": ["publications"],
+        "security": [
+          {
+            "apiClientKey": ["publications:write"]
+          }
+        ],
+        "x-oremedia-scope": "publications:write",
+        "x-trpc-procedure": "publishing.publications.reschedule",
+        "parameters": [
+          {
+            "name": "publicationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Spec 7.3: same key and body replays the stored response; a different body is 409",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedVersion": {
+                    "type": "number"
+                  },
+                  "scheduledFor": {
+                    "type": "string"
+                  }
+                },
+                "required": ["expectedVersion", "scheduledFor"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/publications/{publicationId}": {
+      "get": {
+        "operationId": "v1.publishing.publications.get",
+        "summary": "Get a publication with its attempts",
+        "tags": ["publications"],
+        "security": [
+          {
+            "apiClientKey": ["publications:read"]
+          }
+        ],
+        "x-oremedia-scope": "publications:read",
+        "x-trpc-procedure": "publishing.publications.get",
+        "parameters": [
+          {
+            "name": "publicationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brands/{brandId}/publications": {
+      "get": {
+        "operationId": "v1.publishing.publications.list",
+        "summary": "List the publications of a brand, optionally by state",
+        "tags": ["publications"],
+        "security": [
+          {
+            "apiClientKey": ["publications:read"]
+          }
+        ],
+        "x-oremedia-scope": "publications:read",
+        "x-trpc-procedure": "publishing.publications.list",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "scheduled",
+                "dispatching",
+                "processing",
+                "published",
+                "failed",
+                "outcome_unknown",
+                "retry_eligible",
+                "cancelled",
+                "held"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size; clamped into [1, 200], default 50 (spec 7.4)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brands/{brandId}/channels": {
+      "get": {
+        "operationId": "v1.publishing.channels.list",
+        "summary": "List the channel connections of a brand",
+        "tags": ["channels"],
+        "security": [
+          {
+            "apiClientKey": ["channels:read"]
+          }
+        ],
+        "x-oremedia-scope": "channels:read",
+        "x-trpc-procedure": "publishing.channels.list",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agent-runs": {
+      "post": {
+        "operationId": "v1.agents.runs.start",
+        "summary": "Start an agent run",
+        "tags": ["agents"],
+        "security": [
+          {
+            "apiClientKey": ["agents:write"]
+          }
+        ],
+        "x-oremedia-scope": "agents:write",
+        "x-trpc-procedure": "agents.runs.start",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Spec 7.3: same key and body replays the stored response; a different body is 409",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brandId": {
+                    "type": "string"
+                  },
+                  "servicePrincipalId": {
+                    "type": "string"
+                  },
+                  "requestedAutonomy": {
+                    "type": "string",
+                    "enum": ["assist", "create", "prepare_release", "managed_autopublish"]
+                  },
+                  "taskKind": {
+                    "type": "string"
+                  },
+                  "brief": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": ["brandId", "servicePrincipalId", "taskKind", "brief"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agent-runs/{runId}": {
+      "get": {
+        "operationId": "v1.agents.runs.get",
+        "summary": "Get an agent run",
+        "tags": ["agents"],
+        "security": [
+          {
+            "apiClientKey": ["agents:read"]
+          }
+        ],
+        "x-oremedia-scope": "agents:read",
+        "x-trpc-procedure": "agents.runs.get",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agent-runs/{runId}/steps": {
+      "get": {
+        "operationId": "v1.agents.runs.steps",
+        "summary": "List the steps of an agent run",
+        "tags": ["agents"],
+        "security": [
+          {
+            "apiClientKey": ["agents:read"]
+          }
+        ],
+        "x-oremedia-scope": "agents:read",
+        "x-trpc-procedure": "agents.runs.steps",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size; clamped into [1, 200], default 50 (spec 7.4)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brands/{brandId}/insights": {
+      "get": {
+        "operationId": "v1.intelligence.insights.list",
+        "summary": "List the insights of a brand",
+        "tags": ["insights"],
+        "security": [
+          {
+            "apiClientKey": ["insights:read"]
+          }
+        ],
+        "x-oremedia-scope": "insights:read",
+        "x-trpc-procedure": "intelligence.insights.list",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["change", "anomaly", "association", "experimental_finding"]
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["active", "superseded", "dismissed"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size; clamped into [1, 200], default 50 (spec 7.4)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/brands/{brandId}/recommendations": {
+      "get": {
+        "operationId": "v1.intelligence.recommendations.list",
+        "summary": "List the recommendations of a brand",
+        "tags": ["insights"],
+        "security": [
+          {
+            "apiClientKey": ["insights:read"]
+          }
+        ],
+        "x-oremedia-scope": "insights:read",
+        "x-trpc-procedure": "intelligence.recommendations.list",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["proposed", "accepted", "dismissed", "executed"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size; clamped into [1, 200], default 50 (spec 7.4)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The procedure result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (spec 7.2); the HTTP status follows the code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "x-contract": {
-    "contractVersion": 1,
+    "contractVersion": 2,
     "procedures": {
       "access.apiClients.create": {
         "type": "mutation",
@@ -5947,7 +7816,37 @@
             "scopes": {
               "type": "array",
               "items": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "access:read",
+                  "access:write",
+                  "brands:read",
+                  "brands:write",
+                  "assets:read",
+                  "assets:write",
+                  "creative:read",
+                  "creative:write",
+                  "content:read",
+                  "content:write",
+                  "review:read",
+                  "review:write",
+                  "channels:read",
+                  "channels:write",
+                  "publications:read",
+                  "publications:write",
+                  "agents:read",
+                  "agents:write",
+                  "skills:read",
+                  "skills:write",
+                  "insights:read",
+                  "insights:write",
+                  "experiments:read",
+                  "experiments:write",
+                  "measurement:read",
+                  "measurement:write",
+                  "operations:read",
+                  "operations:write"
+                ]
               }
             },
             "expiresAt": {
@@ -6163,6 +8062,24 @@
             }
           },
           "required": ["servicePrincipalId", "expectedVersion"]
+        }
+      },
+      "access.supportSessions.escalate": {
+        "type": "mutation",
+        "input": {
+          "type": "object",
+          "properties": {
+            "supportSessionId": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "durationMinutes": {
+              "type": "number"
+            }
+          },
+          "required": ["supportSessionId", "reason"]
         }
       },
       "access.switchCompany": {
@@ -7526,6 +9443,30 @@
           "required": ["contentPackageId"]
         }
       },
+      "content.packages.list": {
+        "type": "query",
+        "input": {
+          "type": "object",
+          "properties": {
+            "brandId": {
+              "type": "string"
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "cursor": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "number"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": ["brandId", "page"]
+        }
+      },
       "content.packages.revise": {
         "type": "mutation",
         "input": {
@@ -8713,6 +10654,38 @@
                   },
                   "required": {
                     "type": "boolean"
+                  },
+                  "replaceable": {
+                    "type": "boolean"
+                  },
+                  "constraints": {
+                    "type": "object",
+                    "properties": {
+                      "minLength": {
+                        "type": "number"
+                      },
+                      "maxLength": {
+                        "type": "number"
+                      },
+                      "semanticRoles": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "headline",
+                            "body",
+                            "price",
+                            "cta",
+                            "logo",
+                            "product",
+                            "background",
+                            "decoration",
+                            "legal"
+                          ]
+                        }
+                      }
+                    },
+                    "required": []
                   }
                 },
                 "required": ["key", "elementId", "kind"]
@@ -10589,6 +12562,190 @@
           },
           "required": ["skillVersionId", "expectedVersion"]
         }
+      }
+    },
+    "rest": {
+      "GET /v1/agent-runs/{runId}": {
+        "procedure": "agents.runs.get",
+        "type": "query",
+        "scope": "agents:read",
+        "pathParams": ["runId"],
+        "successStatus": 200
+      },
+      "GET /v1/agent-runs/{runId}/steps": {
+        "procedure": "agents.runs.steps",
+        "type": "query",
+        "scope": "agents:read",
+        "pathParams": ["runId"],
+        "successStatus": 200
+      },
+      "GET /v1/assets/{assetId}": {
+        "procedure": "assets.get",
+        "type": "query",
+        "scope": "assets:read",
+        "pathParams": ["assetId"],
+        "successStatus": 200
+      },
+      "GET /v1/brands": {
+        "procedure": "brand.list",
+        "type": "query",
+        "scope": "brands:read",
+        "pathParams": [],
+        "successStatus": 200
+      },
+      "GET /v1/brands/{brandId}": {
+        "procedure": "brand.get",
+        "type": "query",
+        "scope": "brands:read",
+        "pathParams": ["brandId"],
+        "successStatus": 200
+      },
+      "GET /v1/brands/{brandId}/briefs": {
+        "procedure": "content.briefs.list",
+        "type": "query",
+        "scope": "content:read",
+        "pathParams": ["brandId"],
+        "successStatus": 200
+      },
+      "GET /v1/brands/{brandId}/campaigns": {
+        "procedure": "content.campaigns.list",
+        "type": "query",
+        "scope": "content:read",
+        "pathParams": ["brandId"],
+        "successStatus": 200
+      },
+      "GET /v1/brands/{brandId}/channels": {
+        "procedure": "publishing.channels.list",
+        "type": "query",
+        "scope": "channels:read",
+        "pathParams": ["brandId"],
+        "successStatus": 200
+      },
+      "GET /v1/brands/{brandId}/insights": {
+        "procedure": "intelligence.insights.list",
+        "type": "query",
+        "scope": "insights:read",
+        "pathParams": ["brandId"],
+        "successStatus": 200
+      },
+      "GET /v1/brands/{brandId}/packages": {
+        "procedure": "content.packages.list",
+        "type": "query",
+        "scope": "content:read",
+        "pathParams": ["brandId"],
+        "successStatus": 200
+      },
+      "GET /v1/brands/{brandId}/publications": {
+        "procedure": "publishing.publications.list",
+        "type": "query",
+        "scope": "publications:read",
+        "pathParams": ["brandId"],
+        "successStatus": 200
+      },
+      "GET /v1/brands/{brandId}/recommendations": {
+        "procedure": "intelligence.recommendations.list",
+        "type": "query",
+        "scope": "insights:read",
+        "pathParams": ["brandId"],
+        "successStatus": 200
+      },
+      "GET /v1/briefs/{briefId}": {
+        "procedure": "content.briefs.get",
+        "type": "query",
+        "scope": "content:read",
+        "pathParams": ["briefId"],
+        "successStatus": 200
+      },
+      "GET /v1/campaigns/{campaignId}": {
+        "procedure": "content.campaigns.get",
+        "type": "query",
+        "scope": "content:read",
+        "pathParams": ["campaignId"],
+        "successStatus": 200
+      },
+      "GET /v1/packages/{contentPackageId}": {
+        "procedure": "content.packages.get",
+        "type": "query",
+        "scope": "content:read",
+        "pathParams": ["contentPackageId"],
+        "successStatus": 200
+      },
+      "GET /v1/publications/{publicationId}": {
+        "procedure": "publishing.publications.get",
+        "type": "query",
+        "scope": "publications:read",
+        "pathParams": ["publicationId"],
+        "successStatus": 200
+      },
+      "GET /v1/review-requests/{reviewRequestId}": {
+        "procedure": "review.requests.get",
+        "type": "query",
+        "scope": "review:read",
+        "pathParams": ["reviewRequestId"],
+        "successStatus": 200
+      },
+      "POST /v1/agent-runs": {
+        "procedure": "agents.runs.start",
+        "type": "mutation",
+        "scope": "agents:write",
+        "pathParams": [],
+        "successStatus": 201
+      },
+      "POST /v1/assets/search-eligible": {
+        "procedure": "assets.search",
+        "type": "query",
+        "scope": "assets:read",
+        "pathParams": [],
+        "successStatus": 200
+      },
+      "POST /v1/briefs": {
+        "procedure": "content.briefs.create",
+        "type": "mutation",
+        "scope": "content:write",
+        "pathParams": [],
+        "successStatus": 201
+      },
+      "POST /v1/campaigns": {
+        "procedure": "content.campaigns.create",
+        "type": "mutation",
+        "scope": "content:write",
+        "pathParams": [],
+        "successStatus": 201
+      },
+      "POST /v1/packages": {
+        "procedure": "content.packages.create",
+        "type": "mutation",
+        "scope": "content:write",
+        "pathParams": [],
+        "successStatus": 201
+      },
+      "POST /v1/publications": {
+        "procedure": "publishing.publications.schedule",
+        "type": "mutation",
+        "scope": "publications:write",
+        "pathParams": [],
+        "successStatus": 201
+      },
+      "POST /v1/publications/{publicationId}/cancel": {
+        "procedure": "publishing.publications.cancel",
+        "type": "mutation",
+        "scope": "publications:write",
+        "pathParams": ["publicationId"],
+        "successStatus": 200
+      },
+      "POST /v1/publications/{publicationId}/reschedule": {
+        "procedure": "publishing.publications.reschedule",
+        "type": "mutation",
+        "scope": "publications:write",
+        "pathParams": ["publicationId"],
+        "successStatus": 200
+      },
+      "POST /v1/review-requests": {
+        "procedure": "review.requests.create",
+        "type": "mutation",
+        "scope": "review:write",
+        "pathParams": [],
+        "successStatus": 201
       }
     }
   }

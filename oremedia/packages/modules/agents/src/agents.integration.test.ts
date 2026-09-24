@@ -15,12 +15,14 @@ import { budgetReservations, usageLedger } from '@oremedia/db/schema/billing';
 import { brands } from '@oremedia/db/schema/brand';
 import { creativeDocuments, creativeRevisions } from '@oremedia/db/schema/creative';
 import { auditEvents, outboxEvents } from '@oremedia/db/schema/operations';
+import { publications } from '@oremedia/db/schema/publishing';
 import { hashCanonical } from '@oremedia/domain/hash';
 import { newElementId, newId } from '@oremedia/domain/ids';
 import {
   FakeModelAdapter,
   createReleaseOneRegistry,
   modelConfigFromEnv,
+  registerPublishingToolSource,
   registerSkillResolver,
   resetRoutingPolicies,
   resetSkillResolver,
@@ -775,6 +777,141 @@ describe('agents module (spec 12) against MySQL 8', () => {
         expect.stringContaining(`proposal ${decisionStepId} accept by user ${USER}`),
         expect.stringContaining(`proposal ${decisionStepId} accept: revision`),
       ]);
+    });
+
+    it('a proposed schedule parks the run as a person-completed proposal: accepting applies nothing, modify is refused, nothing is scheduled', async () => {
+      const spSchedule = newId('servicePrincipal');
+      await tdb.db.insert(servicePrincipals).values({
+        id: spSchedule,
+        tenantId: tenantA,
+        kind: 'agent',
+        name: 'scheduler',
+        grants: [
+          { action: 'brand.read', brandIds: 'all' },
+          { action: 'publication.schedule', brandIds: 'all', channelConnectionIds: 'all' },
+        ],
+        maxAutonomy: 'prepare_release',
+        status: 'active',
+        createdByUserId: USER,
+      });
+      const sourceCalls: unknown[] = [];
+      registerPublishingToolSource({
+        async proposeSchedule(actor, input) {
+          sourceCalls.push({ actor: actor.id, ...input });
+          return {
+            entries: input.channelConnectionIds.map((c) => ({
+              channelConnectionId: c,
+              channelVariantId: `cv_${c}`,
+              scheduledFor: input.proposedAt,
+            })),
+          };
+        },
+      });
+      registerSkillResolver(async () => [skill(['publications.proposeSchedule'])]);
+      try {
+        const started = await run(tenantA, (tx) =>
+          agentsService.runs.start(
+            A,
+            {
+              brandId: brandA,
+              servicePrincipalId: spSchedule,
+              requestedAutonomy: 'prepare_release',
+              taskKind: 'copywriting',
+              brief: { objective: 'slot it' },
+            },
+            tx,
+          ),
+        );
+        const proposedAt = '2026-10-06T09:00:00.000Z';
+        const { runtime } = runtimeWith([
+          {
+            kind: 'tool_calls',
+            toolCalls: [
+              {
+                name: 'publications.proposeSchedule',
+                arguments: { contentRevisionId: 'cr_approved', channelConnectionIds: ['cc_1'], proposedAt },
+              },
+            ],
+          },
+          { kind: 'done', text: '{"done":true}' },
+        ]);
+        const input = workflowInput(started.runId, brandA, tenantA, spSchedule);
+        const revisionsBefore = await tdb.db.select().from(creativeRevisions);
+        const stepId = await runInTenant(spCtx(tenantA, spSchedule), async () => {
+          const ctxResult = await runtime.resolveContextSnapshot(input);
+          expect(ctxResult.autonomyMode).toBe('prepare_release');
+          await runtime.reserveBudget({ ...input, budget: ctxResult.budget });
+          const next = await runtime.planNextStep({ ...input, step: 0 });
+          if (next.kind !== 'tool_calls') throw new Error('expected a tool call');
+          const result = await runtime.dispatchTool({
+            ...input,
+            step: 0,
+            stepId: next.stepId,
+            call: next.toolCalls[0]!,
+          });
+          expect(result).toMatchObject({ kind: 'proposal_requires_user', stepId: next.stepId });
+          return next.stepId;
+        });
+        expect(sourceCalls).toEqual([
+          {
+            actor: spSchedule,
+            brandId: brandA,
+            runId: started.runId,
+            autonomyMode: 'prepare_release',
+            contentRevisionId: 'cr_approved',
+            channelConnectionIds: ['cc_1'],
+            proposedAt,
+          },
+        ]);
+        expect((await runRow(started.runId)).state).toBe('waiting_for_review');
+        const invocation = (await invocationsOf(started.runId))[0]!;
+        expect(invocation).toMatchObject({ toolName: 'publications.proposeSchedule', outcome: 'proposal' });
+        expect(invocation.proposalPayload).toEqual({
+          completion: 'person',
+          command: 'publications.schedule',
+          contentRevisionId: 'cr_approved',
+          entries: [{ channelConnectionId: 'cc_1', channelVariantId: 'cv_cc_1', scheduledFor: proposedAt }],
+          rationale: null,
+        });
+        await expect(
+          run(tenantA, (tx) =>
+            agentsService.runs.approveProposal(
+              A,
+              { runId: started.runId, stepId, decision: 'modify', batch: {} },
+              tx,
+            ),
+          ),
+        ).rejects.toMatchObject({ details: [{ issue: 'modify_not_supported_for_proposal' }] });
+        const decided = await run(tenantA, (tx) =>
+          agentsService.runs.approveProposal(A, { runId: started.runId, stepId, decision: 'accept' }, tx),
+        );
+        expect(decided).toMatchObject({ decision: 'accept', appliedRevisionId: null });
+        await runInTenant(spCtx(tenantA, spSchedule), async () => {
+          await runtime.recordDecision({ ...input, decision: { stepId, decision: 'accept' } });
+          expect((await runRow(started.runId)).state).toBe('running');
+          expect((await runtime.planNextStep({ ...input, step: 1 })).kind).toBe('done');
+          await runtime.finishRun({ ...input, state: 'completed' });
+          await runtime.settleBudget(input);
+        });
+        const notes = (await stepsOf(started.runId))
+          .filter((s) => s.kind === 'validation')
+          .map((s) => s.summary);
+        expect(notes).toContainEqual(
+          expect.stringContaining(
+            `proposal ${stepId} accept: a person completes it through publications.schedule`,
+          ),
+        );
+        // the proposal is only a record: no publication, no creative revision
+        expect(await tdb.db.select().from(publications).where(eq(publications.tenantId, tenantA))).toEqual(
+          [],
+        );
+        expect(await tdb.db.select().from(creativeRevisions)).toEqual(revisionsBefore);
+      } finally {
+        registerPublishingToolSource(null);
+        registerSkillResolver(async () => [
+          skill(['brand.getSnapshot', 'facts.list', 'creative.proposeOperations']),
+        ]);
+      }
     });
 
     it('cancel moves the row through the machine, releases the reservation and relays cancelRun; the runtime then finishes cancelled', async () => {

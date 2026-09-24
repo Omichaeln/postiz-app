@@ -1,4 +1,9 @@
-export { brandService } from './service';
+export {
+  brandService,
+  registerEligibleTemplateSource,
+  resetEligibleTemplateSource,
+  type EligibleTemplateSource,
+} from './service';
 export {
   BrandRepository,
   BrandVersionRepository,

@@ -13,6 +13,7 @@ export {
   type ConnectStateStore,
 } from './channels';
 export { publicationService, type ActorOptions } from './publications';
+export { publishingToolSource } from './tools';
 export {
   createPublishingRuntime,
   preSendBackoffMs,
@@ -23,6 +24,8 @@ export {
 export {
   registerVariantSource,
   resetVariantSource,
+  registerRevisionVariantSource,
+  resetRevisionVariantSource,
   registerReleaseEvaluator,
   resetReleaseEvaluator,
   registerApprovalConsumer,
@@ -35,6 +38,8 @@ export {
   registerBrandChecker as registerPublishingBrandChecker,
   type BrandChecker as PublishingBrandChecker,
   type VariantSource,
+  type RevisionVariantSource,
+  type RevisionWithVariants,
   type ReleaseEvaluator,
   type ApprovalConsumer,
   type PublishMediaSource,

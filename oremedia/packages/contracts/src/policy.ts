@@ -101,6 +101,11 @@ export interface ResolvedActorServicePrincipal {
   status: 'active' | 'revoked';
   maxAutonomy: AutonomyMode;
   grants: readonly ServicePrincipalGrant[];
+  /**
+   * Spec 12.5 for a direct API or MCP call (no run): min(principal max, tenant policy, entitlement), computed once
+   * per request by the API layer. An agent run passes its own mode explicitly, which takes precedence.
+   */
+  requestAutonomy?: AutonomyMode;
 }
 
 export interface ResolvedActorExternalReviewer {

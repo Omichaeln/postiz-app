@@ -61,6 +61,7 @@ export {
 export {
   ToolRegistry,
   ProposalRequest,
+  PersonCompletedProposal,
   type ToolDefinition,
   type AnyToolDefinition,
   type ToolContext,

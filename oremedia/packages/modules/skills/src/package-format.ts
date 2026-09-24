@@ -52,7 +52,30 @@ const fail = (details: ErrorDetail[], message: string): never => {
   throw new ValidationFailedError(details, message);
 };
 
-/** Relative, forward-slash paths only; no traversal, no absolute paths, no control characters. */
+/** Whole-package ceiling (UTF-8 bytes of every file). The built-ins are ~10 KB each; a package is text, not media. */
+export const MAX_PACKAGE_BYTES = 1_048_576;
+
+/** Files an archive tool materialises as links (Windows shortcuts, macOS aliases, desktop entries, symlink stubs). */
+const LINK_EXTENSIONS = new Set(['lnk', 'url', 'webloc', 'desktop', 'symlink', 'alias']);
+
+/** Markup files whose links are validated; JSON and plain data files carry URLs as values, never as fetchable links. */
+const MARKUP_EXTENSIONS = new Set(['md', 'markdown', 'txt', 'html', 'htm']);
+
+const extensionOf = (path: string): string => {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
+};
+
+/**
+ * A symlink entry of a tar or zip archive arrives as a one-line file whose content is the link target
+ * (`/etc/passwd`, `../../secrets`, `C:\\x`, `~/.ssh/id_rsa`): refused rather than stored as text.
+ */
+const looksLikeSymlink = (f: SkillFile): boolean =>
+  LINK_EXTENSIONS.has(extensionOf(f.path)) ||
+  f.path.includes(' -> ') ||
+  (!/\s/.test(f.content) && /^(\/|\.\.\/|\.\.\\|~\/|[A-Za-z]:[\\/])/.test(f.content));
+
+/** Relative, forward-slash paths only; no traversal, no absolute or drive paths, no control characters, no links. */
 function assertValidPaths(files: SkillFile[]): void {
   const seen = new Set<string>();
   const details: ErrorDetail[] = [];
@@ -61,13 +84,108 @@ function assertValidPaths(files: SkillFile[]): void {
     const bad =
       f.path.startsWith('/') ||
       f.path.includes('\\') ||
-      [...f.path].some((ch) => ch.charCodeAt(0) < 0x20) ||
-      segments.some((s) => s === '' || s === '.' || s === '..');
+      [...f.path].some((ch) => ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f) ||
+      segments.some((s) => s === '' || s === '.' || s === '..' || s.includes(':'));
     if (bad) details.push({ path: f.path, issue: 'invalid_path' });
+    else if (looksLikeSymlink(f)) details.push({ path: f.path, issue: 'symlink_prohibited' });
     if (seen.has(f.path)) details.push({ path: f.path, issue: 'duplicate_path' });
     seen.add(f.path);
   }
   if (details.length) fail(details, 'Package file paths must be unique, relative paths');
+}
+
+const utf8 = new TextEncoder();
+
+// Lone UTF-16 surrogates cannot be encoded as UTF-8; U+FFFD and NUL are what a lossy decode of binary leaves behind.
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+/** Release 1 packages are UTF-8 text within MAX_PACKAGE_BYTES; binary or undecodable content is refused. */
+function assertTextWithinSize(files: SkillFile[]): void {
+  const details: ErrorDetail[] = [];
+  let total = 0;
+  for (const f of files) {
+    if (LONE_SURROGATE.test(f.content) || f.content.includes('\uFFFD') || f.content.includes('\u0000'))
+      details.push({ path: f.path, issue: 'not_utf8_text' });
+    total += utf8.encode(f.content).length;
+  }
+  if (total > MAX_PACKAGE_BYTES) details.push({ path: '*', issue: 'package_too_large' });
+  if (details.length) fail(details, 'Skill packages are UTF-8 text within the size limit');
+}
+
+const MARKDOWN_IMAGE = /!\[[^\]]*\]\(\s*<?([^\s)>]+)/g;
+const MARKDOWN_LINK = /(?<!!)\[[^\]]*\]\(\s*<?([^\s)>]+)/g;
+const REFERENCE_DEFINITION = /^\s{0,3}\[[^\]]+\]:\s*<?([^\s>]+)/gm;
+const AUTOLINK = /<([a-z][a-z0-9+.-]*:[^\s>]*)>/gi;
+const HTML_ANCHOR = /<\s*a\s[^>]*?\bhref\s*=\s*["']?\s*([^"'\s>]+)/gi;
+/** Attributes a renderer fetches on sight (an anchor's href is a citation and goes through HTML_ANCHOR instead). */
+const HTML_FETCH_ATTRIBUTE =
+  /\s(?:src|srcset|data|poster|action|background|formaction)\s*=\s*["']?\s*([^"'\s>]+)/gi;
+const CSS_FETCH = /(?:@import\s+|url\(\s*)["']?\s*([a-z][a-z0-9+.-]*:|\/\/)/i;
+const ACTIVE_TAG = /<\s*(script|iframe|object|embed|base|meta|link|frame|frameset|applet)\b/i;
+const SCHEME = /^([a-z][a-z0-9+.-]*):/i;
+const SAFE_LINK_SCHEMES = new Set(['http', 'https', 'mailto']);
+
+const isAbsoluteUrl = (target: string): boolean => SCHEME.test(target) || target.startsWith('//');
+
+/**
+ * Spec 18 (skill package → runtime): link validation on import. In markup files, anything that would be fetched when
+ * the text is rendered or opened (image embeds, HTML src/href attributes, CSS imports, script/iframe/meta tags) must
+ * stay inside the package; plain hyperlinks may cite http(s)/mailto only (no javascript:, file:, data:), and relative
+ * links must resolve to a file of the package without leaving it. The runtime never follows a link: the Release 1
+ * tool registry has no fetch tool.
+ */
+export function assertLinks(files: SkillFile[]): void {
+  const paths = new Set(files.map((f) => f.path));
+  const details: ErrorDetail[] = [];
+  const push = (path: string, issue: string) => {
+    if (!details.some((d) => d.path === path && d.issue === issue)) details.push({ path, issue });
+  };
+  const checkRelative = (file: string, target: string) => {
+    const bare = target.replace(/[#?].*$/, '');
+    if (bare === '') return; // same-document anchor
+    if (bare.startsWith('/')) return push(file, 'link_escapes_package');
+    const resolved: string[] = file.split('/').slice(0, -1);
+    for (const seg of decodeURIComponentSafe(bare).split('/')) {
+      if (seg === '' || seg === '.') continue;
+      if (seg === '..') {
+        if (resolved.length === 0) return push(file, 'link_escapes_package');
+        resolved.pop();
+      } else resolved.push(seg);
+    }
+    if (!paths.has(resolved.join('/'))) push(file, 'link_target_missing');
+  };
+  const checkLink = (file: string, target: string) => {
+    const scheme = SCHEME.exec(target)?.[1]?.toLowerCase();
+    if (scheme !== undefined) {
+      if (!SAFE_LINK_SCHEMES.has(scheme)) push(file, 'link_scheme_prohibited');
+    } else if (target.startsWith('//')) push(file, 'link_scheme_prohibited');
+    else checkRelative(file, target);
+  };
+  for (const f of files) {
+    if (f.path !== INSTRUCTIONS_PATH && !MARKUP_EXTENSIONS.has(extensionOf(f.path))) continue;
+    if (ACTIVE_TAG.test(f.content)) push(f.path, 'active_content_prohibited');
+    for (const [, target = ''] of f.content.matchAll(MARKDOWN_IMAGE)) {
+      if (isAbsoluteUrl(target)) push(f.path, 'remote_fetch_prohibited');
+      else checkRelative(f.path, target);
+    }
+    for (const [, target = ''] of f.content.matchAll(HTML_FETCH_ATTRIBUTE)) {
+      if (isAbsoluteUrl(target)) push(f.path, 'remote_fetch_prohibited');
+      else checkRelative(f.path, target);
+    }
+    if (CSS_FETCH.test(f.content)) push(f.path, 'remote_fetch_prohibited');
+    for (const re of [MARKDOWN_LINK, REFERENCE_DEFINITION, AUTOLINK, HTML_ANCHOR])
+      for (const [, target = ''] of f.content.matchAll(re)) checkLink(f.path, target);
+  }
+  if (details.length)
+    fail(details, 'Skill package links must stay inside the package; nothing may be fetched on render');
+}
+
+function decodeURIComponentSafe(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
 }
 
 /**
@@ -80,9 +198,11 @@ export function assertDeclarative(files: SkillFile[], rawManifest: Record<string
     details.push({ path: 'manifest.scripts', issue: 'executable_content_prohibited' });
   for (const f of files) {
     const segments = f.path.split('/');
-    const name = segments[segments.length - 1] ?? '';
-    const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
-    if (segments.includes('scripts') || EXECUTABLE_EXTENSIONS.has(ext) || f.content.startsWith('#!'))
+    if (
+      segments.includes('scripts') ||
+      EXECUTABLE_EXTENSIONS.has(extensionOf(f.path)) ||
+      f.content.startsWith('#!')
+    )
       details.push({ path: f.path, issue: 'executable_content_prohibited' });
   }
   if (details.length)
@@ -217,7 +337,9 @@ export function buildContent(
       reserved.map((r) => ({ path: r.path, issue: 'reserved_path' })),
       'SKILL.md and manifest.json are not reference files',
     );
+  assertTextWithinSize(files);
   assertDeclarative(files, rawManifest);
+  assertLinks(files);
   const manifest = SkillManifestV1.parse(rawManifest);
   assertAllowedTools(manifest);
   if (instructions.trim() === '')
@@ -232,6 +354,7 @@ export function buildContent(
 /** Import: an Agent Skills package (SKILL.md with front matter, or SKILL.md + manifest.json, plus references and assets). */
 export function parsePackage(files: SkillFile[]): SkillPackageContent {
   assertValidPaths(files);
+  assertTextWithinSize(files);
   const skillMd = files.find((f) => f.path === INSTRUCTIONS_PATH);
   if (!skillMd)
     return fail([{ path: INSTRUCTIONS_PATH, issue: 'missing' }], 'A skill package needs a SKILL.md');

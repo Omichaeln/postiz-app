@@ -4,3 +4,8 @@ export { createServer } from './server';
 export { configureRateLimiter } from './trpc';
 export { composeModules } from './composition';
 export { envelopeFor } from './trpc';
+export { allRestRoutes, REST_ROUTE_SPECS } from './rest/router';
+export { invokeRestRoute, restRequestFor, inputFor, clampPage, type RestRoute } from './rest/route';
+export { handleMcpRequest, listMcpTools, MCP_PROTOCOL_VERSIONS } from './mcp/server';
+export { MCP_TOOLS, createMcpRegistry, type McpToolExposure } from './mcp/tools';
+export { scopeForProcedure } from './scopes';

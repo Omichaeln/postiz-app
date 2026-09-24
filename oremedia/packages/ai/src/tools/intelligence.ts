@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ToolDefinition } from '../tool-registry';
-import { NOT_AVAILABLE_YET } from './not-available-yet';
+import { NOT_AVAILABLE_YET } from './services';
 import type { ToolContext } from '../tool-registry';
 
 /**

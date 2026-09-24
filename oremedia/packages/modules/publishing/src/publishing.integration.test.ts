@@ -9,11 +9,12 @@ import {
   ValidationFailedError,
   CapabilityUnsupportedError,
 } from '@oremedia/contracts/errors';
-import type { ResolvedActor } from '@oremedia/contracts/policy';
+import type { ResolvedActor, ResolvedActorServicePrincipal } from '@oremedia/contracts/policy';
 import type { ChannelVariantForPublishing } from '@oremedia/contracts/publishing';
 import type { ReleaseDecision } from '@oremedia/contracts/review';
+import type { AutonomyMode } from '@oremedia/contracts/tenancy';
 import { createTestDatabase, type TestDatabase } from '@oremedia/db/testing';
-import { runInTenant, withTransaction, type TenantContext, type Tx } from '@oremedia/db';
+import { requireTenant, runInTenant, withTransaction, type TenantContext, type Tx } from '@oremedia/db';
 import { tenants } from '@oremedia/db/schema/access';
 import { brands } from '@oremedia/db/schema/brand';
 import { auditEvents, outboxEvents } from '@oremedia/db/schema/operations';
@@ -36,17 +37,21 @@ import {
   registerProviderClients,
   registerPublishMediaSource,
   registerReleaseEvaluator,
+  registerRevisionVariantSource,
   registerVariantSource,
   registerWorkflowProbe,
   resetApprovalConsumer,
   resetReleaseEvaluator,
+  resetRevisionVariantSource,
   resetVariantSource,
   type ReleaseEvaluator,
+  type RevisionWithVariants,
 } from './hooks';
 import { LocalKms, WrapOnlyKms } from './kms';
 import { configurePublishingProviders } from './providers';
 import { publicationService } from './publications';
 import { createPublishingRuntime } from './runtime';
+import { publishingToolSource } from './tools';
 import { FIXTURE_PROVIDER_KEY, FixtureProviderAdapter, fixtureCapability } from './testing/fixture-provider';
 
 /**
@@ -77,6 +82,8 @@ const manager = (tenantId: string): ResolvedActor => ({
 const run = <T>(tenantId: string, fn: (tx: Tx) => Promise<T>) =>
   runInTenant(ctx(tenantId), () => withTransaction(fn));
 const inTenant = <T>(tenantId: string, fn: () => Promise<T>) => runInTenant(ctx(tenantId), fn);
+
+const requireTenantId = () => requireTenant().tenantId;
 
 const kms = new LocalKms('publishing-test-master-secret-0123456789');
 
@@ -448,6 +455,118 @@ describe('publishing module (spec 14) against MySQL 8', () => {
           ),
         ),
       ).rejects.toBeInstanceOf(ValidationFailedError);
+    });
+  });
+
+  describe('proposeSchedule (spec 12.4 publications.proposeSchedule): checks a slot, writes nothing', () => {
+    const revisionsById = new Map<string, RevisionWithVariants>();
+    const agent = (tenantId: string): ResolvedActorServicePrincipal => ({
+      kind: 'service_principal',
+      id: 'sp_publishing_tools',
+      tenantId,
+      status: 'active',
+      maxAutonomy: 'prepare_release',
+      grants: [{ action: 'publication.schedule', brandIds: 'all', channelConnectionIds: 'all' }],
+    });
+    const revision = (tenantId: string, brandId: string, state: string, channelIds: string[]) => {
+      const r: RevisionWithVariants = {
+        id: newId('contentRevision'),
+        brandId,
+        state,
+        variants: channelIds.map((c) => ({ id: newId('channelVariant'), channelConnectionId: c })),
+      };
+      revisionsById.set(`${tenantId}:${r.id}`, r);
+      return r;
+    };
+    const propose = (
+      contentRevisionId: string,
+      over: Partial<{ channelConnectionIds: string[]; proposedAt: string; autonomyMode: AutonomyMode }> = {},
+    ) =>
+      runInTenant({ ...ctx(tenantA), actor: { kind: 'service_principal', id: 'sp_publishing_tools' } }, () =>
+        withTransaction((tx) =>
+          publishingToolSource.proposeSchedule(
+            agent(tenantA),
+            {
+              brandId: brandA,
+              runId: 'run_publishing_tools',
+              autonomyMode: over.autonomyMode ?? 'prepare_release',
+              contentRevisionId,
+              channelConnectionIds: over.channelConnectionIds ?? [connA],
+              proposedAt: over.proposedAt ?? new Date(Date.now() + 86_400_000).toISOString(),
+            },
+            tx,
+          ),
+        ),
+      );
+    const writes = async () =>
+      JSON.stringify({
+        publications: await tdb.db.select().from(publications),
+        outbox: (await tdb.db.select().from(outboxEvents)).length,
+      });
+    beforeAll(() => {
+      registerRevisionVariantSource(async (id) => {
+        const r = revisionsById.get(`${requireTenantId()}:${id}`);
+        if (!r) throw new NotFoundError('ContentRevision', id);
+        return r;
+      });
+    });
+    afterAll(() => resetRevisionVariantSource());
+
+    it('returns one publications.schedule command per channel for an approved revision, and writes nothing', async () => {
+      const r = revision(tenantA, brandA, 'approved', [connA]);
+      const before = await writes();
+      const at = new Date(Date.now() + 86_400_000).toISOString();
+      const out = await propose(r.id, { proposedAt: at, channelConnectionIds: [connA, connA] });
+      expect(out).toEqual({
+        entries: [{ channelConnectionId: connA, channelVariantId: r.variants[0]!.id, scheduledFor: at }],
+      });
+      expect(await writes()).toBe(before);
+    });
+
+    it('refuses an unapproved revision, a past slot, a channel without a variant and a lower autonomy mode', async () => {
+      const draft = revision(tenantA, brandA, 'in_review', [connA]);
+      await expect(propose(draft.id)).rejects.toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [{ path: 'contentRevisionId', issue: 'revision is in_review, not approved' }],
+      });
+      const approved = revision(tenantA, brandA, 'approved', []);
+      await expect(
+        propose(approved.id, { proposedAt: new Date(Date.now() - 60_000).toISOString() }),
+      ).rejects.toMatchObject({
+        details: [
+          { path: 'proposedAt', issue: 'must be in the future' },
+          { path: 'channelConnectionIds.0', issue: 'no_channel_variant' },
+        ],
+      });
+      const ok = revision(tenantA, brandA, 'approved', [connA]);
+      await expect(propose(ok.id, { autonomyMode: 'create' })).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+        reason: 'autonomy_insufficient',
+      });
+    });
+
+    it("a foreign tenant's revision or channel, or another brand's revision, is NOT_FOUND with no writes", async () => {
+      const before = await writes();
+      const foreign = revision(tenantB, brandB, 'approved', [connB]);
+      await expect(propose(foreign.id)).rejects.toBeInstanceOf(NotFoundError);
+      const ok = revision(tenantA, brandA, 'approved', [connA]);
+      await expect(propose(ok.id, { channelConnectionIds: [connB] })).rejects.toBeInstanceOf(NotFoundError);
+      const otherBrand = revision(tenantA, newId('brand'), 'approved', [connA]);
+      await expect(propose(otherBrand.id)).rejects.toBeInstanceOf(NotFoundError);
+      expect(await writes()).toBe(before);
+    });
+
+    it('fails loudly when the revision variant source is not registered', async () => {
+      resetRevisionVariantSource();
+      try {
+        await expect(propose('cr_any')).rejects.toThrow(/revision variant source not registered/);
+      } finally {
+        registerRevisionVariantSource(async (id) => {
+          const r = revisionsById.get(`${requireTenantId()}:${id}`);
+          if (!r) throw new NotFoundError('ContentRevision', id);
+          return r;
+        });
+      }
     });
   });
 

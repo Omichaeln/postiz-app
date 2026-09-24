@@ -11,6 +11,7 @@ import {
   splitFrontMatter,
   toPackage,
 } from './package-format';
+import { loadMaliciousPackages } from './package-fixtures';
 
 const manifest = (over: Partial<SkillManifestV1> = {}): SkillManifestV1 => ({
   schemaVersion: 1,
@@ -175,5 +176,45 @@ describe('Agent Skills package format (spec 10.1)', () => {
     expect(() =>
       buildContent(manifest({ budgets: { ...manifest().budgets, maxSteps: 99 } }), '# x', []),
     ).toThrow();
+  });
+});
+
+describe('malicious package fixtures (spec 18: skill package → runtime)', () => {
+  const packages = loadMaliciousPackages(manifest());
+  const sorted = (d: ReadonlyArray<{ path?: string; issue: string }>) =>
+    [...d].sort((a, b) => `${a.path}|${a.issue}`.localeCompare(`${b.path}|${b.issue}`));
+
+  it('covers every attack class the threat model names', () => {
+    expect(new Set(packages.map((p) => p.attack))).toEqual(
+      new Set([
+        'path_traversal',
+        'absolute_path',
+        'symlink',
+        'executable',
+        'remote_fetch',
+        'link',
+        'duplicate',
+        'encoding',
+        'oversized',
+      ]),
+    );
+  });
+
+  it.each(packages.map((p) => [p.id, p] as const))('%s is refused with its typed reasons', (_id, pkg) => {
+    expect(sorted(details(() => parsePackage(pkg.files)))).toEqual(sorted(pkg.expected));
+  });
+
+  it('a benign package with citations and in-package links still parses', () => {
+    const content = parsePackage([
+      {
+        path: 'SKILL.md',
+        content:
+          '# Unit skill\n\nFollow [the checklist](references/checklist.md#steps), cite [the guide](https://example.com/guide) and ![the grid](assets/grid.svg). Contact <mailto:brand@example.com>.\n',
+      },
+      { path: 'manifest.json', content: manifestJson(manifest()) },
+      { path: 'references/checklist.md', content: '# Steps\n\nSee [back](../SKILL.md).\n' },
+      { path: 'assets/grid.svg', content: '<svg xmlns="http://www.w3.org/2000/svg"/>' },
+    ]);
+    expect(Object.keys(content.references)).toEqual(['references/checklist.md', 'assets/grid.svg']);
   });
 });

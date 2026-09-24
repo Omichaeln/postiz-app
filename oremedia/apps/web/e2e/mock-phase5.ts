@@ -24,6 +24,7 @@ import {
   ApprovalGet,
   ReviewDecisionSubmit,
   ReviewInboxList,
+  ReviewRequestCreate,
   ReviewRequestGet,
   type FrozenManifestV1,
   type InboxAttention,
@@ -258,9 +259,21 @@ export class Phase5Backend {
   failNextSchedule = false;
   /** Packages the calendar range reports (phase 6 registers its content packages here). */
   calendarPackages: (from: number, to: number) => unknown[] = () => [];
+  /** Tells phase 6 that a revision moved, so its content package follows (review requested, approved, …). */
+  packageStateChanged: (contentPackageId: string, state: 'draft' | 'in_review' | 'approved') => void =
+    () => {};
 
-  constructor() {
-    this.seed();
+  /**
+   * One company's brand: every row carries its tenant and brand, and a second company is a second instance with its
+   * own stores (mock-api.ts routes by the X-Oremedia-Tenant header), so nothing of one company is reachable from the
+   * other. `seed: false` starts empty (a second company seeds its own few rows).
+   */
+  constructor(
+    readonly tenantId = 'ten_e2e',
+    readonly brandId = P5.brandId,
+    seed = true,
+  ) {
+    if (seed) this.seed();
   }
 
   linkByToken(token: string): ReviewerLink | null {
@@ -275,6 +288,52 @@ export class Phase5Backend {
     return p;
   }
 
+  /**
+   * Test backdoor: the publish workflow reached the publication's time and ran the release check (spec 13.4). The
+   * approval binds the exact revision it was given on; when the package has moved past it (a post-approval edit) the
+   * binding no longer matches and the publication is held with `approval_matches`, otherwise it is claimed.
+   */
+  releaseDue(publicationId: string): Publication {
+    const p = this.publication(publicationId);
+    if (p.state !== 'scheduled') return p;
+    const approval = this.approvals.find((a) => a.id === p.approvalId);
+    const revision = this.revisions.get(p.contentRevisionId);
+    const matches =
+      p.authority !== 'approval' ||
+      (approval !== undefined &&
+        approval.contentRevisionId === p.contentRevisionId &&
+        revision?.state === 'approved');
+    return matches
+      ? this.transition(p.id, { state: 'dispatching', fencingToken: 1, claimedAt: now() })
+      : this.transition(p.id, {
+          state: 'held',
+          stateReason: 'release_policy',
+          holdReasons: ['approval_matches'],
+        });
+  }
+
+  /**
+   * Spec 13.2 eager invalidation (UX only; dispatch still recomputes the binding): a revision was superseded, so its
+   * valid approvals are invalidated and its open requests go stale with the reason.
+   */
+  revisionSuperseded(revisionId: string): void {
+    for (const a of this.approvals)
+      if (a.contentRevisionId === revisionId && a.state === 'valid')
+        Object.assign(a, {
+          state: 'invalidated',
+          invalidatedReason: 'content_revision_changed',
+          version: a.version + 1,
+        });
+    for (const r of this.requests.values())
+      if (r.contentRevisionId === revisionId && r.state === 'open')
+        Object.assign(r, {
+          state: 'stale',
+          staleReason: 'package_revised',
+          updatedAt: now(),
+          version: r.version + 1,
+        });
+  }
+
   publication(id: string): Publication {
     const p = this.publications.get(id);
     if (!p) throw new NotFoundError('Publication', id);
@@ -286,7 +345,7 @@ export class Phase5Backend {
     return r;
   }
 
-  private channel(
+  addChannel(
     id: string,
     providerKey: string,
     displayName: string,
@@ -295,7 +354,7 @@ export class Phase5Backend {
   ) {
     this.channels.set(id, {
       id,
-      brandId: P5.brandId,
+      brandId: this.brandId,
       providerKey,
       remoteAccountId: `acct_${providerKey}`,
       displayName,
@@ -314,8 +373,8 @@ export class Phase5Backend {
     const copy = { schemaVersion: 1 as const, master: { text, factRefs: [] } };
     this.revisions.set(id, {
       id,
-      tenantId: 'ten_e2e',
-      brandId: P5.brandId,
+      tenantId: this.tenantId,
+      brandId: this.brandId,
       contentPackageId: packageId,
       number: 1,
       brandVersionId: 'bv_e2e',
@@ -337,8 +396,8 @@ export class Phase5Backend {
     const r = this.revisions.get(revisionId) as Revision;
     this.variants.set(id, {
       id,
-      tenantId: 'ten_e2e',
-      brandId: P5.brandId,
+      tenantId: this.tenantId,
+      brandId: this.brandId,
       contentPackageId: r.contentPackageId,
       contentRevisionId: revisionId,
       channelConnectionId: channelId,
@@ -365,7 +424,7 @@ export class Phase5Backend {
     const r = this.revisions.get(revisionId) as Revision;
     this.publications.set(id, {
       id,
-      brandId: P5.brandId,
+      brandId: this.brandId,
       contentPackageId: r.contentPackageId,
       contentRevisionId: revisionId,
       channelVariantId: `cv_for_${id}`,
@@ -402,7 +461,7 @@ export class Phase5Backend {
     const frozenManifest = manifestFor(r, variants);
     this.requests.set(id, {
       id,
-      brandId: P5.brandId,
+      brandId: this.brandId,
       contentRevisionId: revisionId,
       frozenManifest,
       manifestHash: hash(frozenManifest),
@@ -421,7 +480,7 @@ export class Phase5Backend {
     const r = this.request(requestId);
     this.approvals.push({
       id: rid('apr'),
-      brandId: P5.brandId,
+      brandId: this.brandId,
       contentRevisionId: r.contentRevisionId,
       reviewRequestId: r.id,
       approverKind: 'user',
@@ -446,7 +505,7 @@ export class Phase5Backend {
     this.links.set(id, {
       id,
       reviewRequestId: requestId,
-      brandId: P5.brandId,
+      brandId: this.brandId,
       email,
       token,
       expiresAt,
@@ -457,9 +516,9 @@ export class Phase5Backend {
   }
 
   private seed() {
-    this.channel(P5.channels.ok, 'linkedin', 'Acme LinkedIn', 'active', daysFromNow(30));
-    this.channel(P5.channels.expired, 'instagram', 'Acme Instagram', 'reconnect_needed', daysFromNow(-1));
-    this.channel(P5.channels.two, 'x', 'Acme X', 'active', daysFromNow(30));
+    this.addChannel(P5.channels.ok, 'linkedin', 'Acme LinkedIn', 'active', daysFromNow(30));
+    this.addChannel(P5.channels.expired, 'instagram', 'Acme Instagram', 'reconnect_needed', daysFromNow(-1));
+    this.addChannel(P5.channels.two, 'x', 'Acme X', 'active', daysFromNow(30));
     this.revision(P5.revisions.one, 'pkg_1', 'in_review', 'Autumn offer: 20% off all lamps this week.');
     this.revision(P5.revisions.two, 'pkg_2', 'approved', 'Meet the team behind the workshop.');
     this.revision(P5.revisions.three, 'pkg_3', 'approved', 'New arrivals in the showroom.');
@@ -675,7 +734,7 @@ export function phase5Routers(
   extensions: Phase5Extensions = {},
 ) {
   const brandOf = (brandId: string) => {
-    if (brandId !== P5.brandId) throw new NotFoundError('Brand', brandId);
+    if (brandId !== b.brandId) throw new NotFoundError('Brand', brandId);
   };
   const content = router({
     calendar: router({
@@ -735,7 +794,7 @@ export function phase5Routers(
       ...extensions.channels,
     }),
     publications: router({
-      schedule: mutation.input(ScheduleCommand).mutation(({ input }) => {
+      schedule: mutation.input(ScheduleCommand).mutation(({ ctx, input }) => {
         if (b.failNextSchedule) {
           b.failNextSchedule = false;
           throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'simulated outage' });
@@ -769,7 +828,7 @@ export function phase5Routers(
           fencingToken: null,
           claimedAt: null,
           scheduledByKind: 'user',
-          scheduledById: 'usr_e2e',
+          scheduledById: ctx.member?.userId ?? 'usr_e2e',
           createdAt: now(),
           updatedAt: now(),
           version: 0,
@@ -870,6 +929,46 @@ export function phase5Routers(
 
   const review = router({
     requests: router({
+      /** Spec 13.3: freezes the manifest of the revision and its variants; draft | changes_requested → in_review. */
+      create: mutation.input(ReviewRequestCreate).mutation(({ ctx, input }) => {
+        const revision = b.revisions.get(input.contentRevisionId);
+        if (!revision) throw new NotFoundError('ContentRevision', input.contentRevisionId);
+        if (revision.state !== 'draft' && revision.state !== 'changes_requested')
+          throw new ValidationFailedError(
+            [{ path: 'contentRevisionId', issue: `revision is ${revision.state}` }],
+            'Only a draft revision can be sent for review',
+          );
+        if ([...b.requests.values()].some((r) => r.contentRevisionId === revision.id && r.state === 'open'))
+          throw new ValidationFailedError([{ path: 'contentRevisionId', issue: 'request_already_open' }]);
+        const variants = [...b.variants.values()].filter((v) => v.contentRevisionId === revision.id);
+        const frozenManifest = { ...manifestFor(revision, variants), timing: input.timing };
+        const id = rid('rr');
+        b.requests.set(id, {
+          id,
+          brandId: revision.brandId,
+          contentRevisionId: revision.id,
+          frozenManifest,
+          manifestHash: hash(frozenManifest),
+          assignees: input.assigneeUserIds,
+          dueAt: input.dueAt ?? null,
+          state: 'open',
+          staleReason: null,
+          requestedByKind: 'user',
+          requestedById: ctx.member?.userId ?? 'usr_e2e',
+          createdAt: now(),
+          updatedAt: now(),
+          version: 0,
+        });
+        Object.assign(revision, { state: 'in_review', updatedAt: now(), version: revision.version + 1 });
+        b.packageStateChanged(revision.contentPackageId, 'in_review');
+        return {
+          reviewRequestId: id,
+          manifestHash: hash(frozenManifest),
+          revisionState: 'in_review' as const,
+          state: 'open' as const,
+          version: 0,
+        };
+      }),
       get: query.input(ReviewRequestGet).query(({ ctx, input }) => {
         const r = b.request(input.reviewRequestId);
         if (ctx.reviewer) {
@@ -917,7 +1016,7 @@ export function phase5Routers(
           id: decisionId,
           reviewRequestId: r.id,
           deciderKind: ctx.reviewer ? 'external_reviewer' : 'user',
-          deciderId: ctx.reviewer ? ctx.reviewer.id : 'usr_e2e',
+          deciderId: ctx.reviewer ? ctx.reviewer.id : (ctx.member?.userId ?? 'usr_e2e'),
           decision: i.decision,
           comment: i.comment ?? null,
           manifestHash: r.manifestHash,
@@ -933,7 +1032,7 @@ export function phase5Routers(
             contentRevisionId: r.contentRevisionId,
             reviewRequestId: r.id,
             approverKind: ctx.reviewer ? 'external_reviewer' : 'user',
-            approverId: ctx.reviewer ? ctx.reviewer.id : 'usr_e2e',
+            approverId: ctx.reviewer ? ctx.reviewer.id : (ctx.member?.userId ?? 'usr_e2e'),
             bindingHash: hash(r.manifestHash),
             binding: { v: 1 },
             validUntil: i.validUntil ?? null,
@@ -943,7 +1042,11 @@ export function phase5Routers(
             version: 1,
           });
           revision.state = 'approved';
-        } else revision.state = 'changes_requested';
+          b.packageStateChanged(revision.contentPackageId, 'approved');
+        } else {
+          revision.state = 'changes_requested';
+          b.packageStateChanged(revision.contentPackageId, 'draft');
+        }
         r.state = 'decided';
         r.version += 1;
         return {

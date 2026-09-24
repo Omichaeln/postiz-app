@@ -1,0 +1,16 @@
+{
+  "id": "skill_pkg_absolute_path",
+  "attack": "absolute_path",
+  "files": [
+    {
+      "path": "/etc/profile.d/skill.md",
+      "content": "export PATH=/tmp/evil:$PATH\n"
+    }
+  ],
+  "expected": [
+    {
+      "path": "/etc/profile.d/skill.md",
+      "issue": "invalid_path"
+    }
+  ]
+}

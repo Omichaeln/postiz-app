@@ -21,6 +21,8 @@ import {
   applyProposalBatch,
   assertRoutingAllowed,
   CreativeProposalPayload,
+  PersonCompletedProposal,
+  RELEASE_1_TOOLS,
   entitlementAutonomy,
   modelConfigFromEnv,
   tenantPolicyFor,
@@ -276,16 +278,22 @@ export const agentsService = {
     async approveProposal(actor: ResolvedActor, input: z.infer<typeof RunApproveProposal>, tx: Tx) {
       const parsed = RunApproveProposal.parse(input);
       const run = await runsRepo.lock(parsed.runId, tx);
-      await policy.assert(actor, 'creative.edit', brandResource(run), {}, tx);
+      const proposal = await invocationsRepo.findProposal(run.id, parsed.stepId, tx);
+      if (!proposal) throw new NotFoundError('Proposal', parsed.stepId);
+      // The decider needs the permission of the tool that made the proposal (a proposed schedule needs
+      // publication.schedule, a creative batch creative.edit), never a fixed one.
+      const action = RELEASE_1_TOOLS.find((t) => t.name === proposal.toolName)?.action ?? 'creative.edit';
+      await policy.assert(actor, action, brandResource(run), {}, tx);
       if (actor.kind !== 'user') throw new PolicyDeniedError('agent_never', 'A person decides on proposals');
       if (run.state !== 'waiting_for_review')
         throw new ValidationFailedError([
           { path: 'runId', issue: `run is ${run.state}, not waiting_for_review` },
         ]);
-      const proposal = await invocationsRepo.findProposal(run.id, parsed.stepId, tx);
-      if (!proposal) throw new NotFoundError('Proposal', parsed.stepId);
       let appliedRevisionId: string | null = null;
       if (parsed.decision === 'modify') {
+        // A pending proposal a person completes through its own command (a proposed schedule) has no batch to modify.
+        if (PersonCompletedProposal.safeParse(proposal.proposalPayload).success)
+          throw new ValidationFailedError([{ path: 'decision', issue: 'modify_not_supported_for_proposal' }]);
         const proposed = CreativeProposalPayload.parse(proposal.proposalPayload);
         const batch = OperationBatch.extend({ documentId: z.string() }).parse({
           ...(parsed.batch as object),

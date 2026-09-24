@@ -3,7 +3,11 @@ import {
   MembershipRepository,
   ServicePrincipalRepository,
 } from '@oremedia/module-access';
-import { experimentsService, registerExperimentListener } from '@oremedia/module-experiments';
+import {
+  experimentsService,
+  registerExperimentListener,
+  registerRecommendationResolver,
+} from '@oremedia/module-experiments';
 import {
   intelligenceService,
   intelligenceToolSource,
@@ -19,7 +23,7 @@ import { registerOperationsOutboxRoutes, registerRetentionTenantSource } from '@
 import { registerDeletionHandlers, registerRetentionHandlers } from './deletion-handlers';
 import { assetService, registerAssetOutboxRoutes } from '@oremedia/module-assets';
 import { registerUsageCounters } from '@oremedia/module-billing';
-import { brandService } from '@oremedia/module-brand';
+import { brandService, registerEligibleTemplateSource } from '@oremedia/module-brand';
 import {
   creativeService,
   registerAssetAuthoriser,
@@ -35,11 +39,15 @@ import {
 import {
   createEvaluationRunnerFromEnv,
   createReleaseOneRegistry,
+  registerContentToolSource,
   registerIntelligenceToolSource,
+  registerPublishingToolSource,
+  registerReviewToolSource,
   registerSkillResolver,
 } from '@oremedia/ai';
 import {
   contentService,
+  contentToolSource,
   registerAttributeCapturer,
   registerCalendarSource,
   registerChannelResolver,
@@ -55,11 +63,18 @@ import {
   metricService,
   registerCommentSink,
 } from '@oremedia/module-measurement';
-import { registerReleaseCheckers, registerReviewOutboxRoutes, reviewService } from '@oremedia/module-review';
+import {
+  registerReleaseCheckers,
+  registerReviewOutboxRoutes,
+  reviewService,
+  reviewToolSource,
+} from '@oremedia/module-review';
 import {
   channelService,
   publicationService,
+  publishingToolSource,
   registerProviderClients,
+  registerRevisionVariantSource,
   providerClientsFromEnv,
   registerPublishingOutboxRoutes,
   registerPublishMediaSource,
@@ -160,6 +175,15 @@ export function composeModules(opts: { workflowProbe?: WorkflowProbe } = {}): vo
   // experiments module reports milestones for the learning record; ingested comments feed the voice library.
   registerIntelligenceOutboxRoutes();
   registerIntelligenceToolSource(intelligenceToolSource);
+  // Spec 12.4: content.createBrief / content.draftCopy, review.request and publications.proposeSchedule reach their
+  // modules through the same generic registry hooks; spec 8.3: the brand snapshot lists approved template versions.
+  registerContentToolSource(contentToolSource);
+  registerReviewToolSource(reviewToolSource);
+  registerPublishingToolSource(publishingToolSource);
+  registerRevisionVariantSource((contentRevisionId, tx) =>
+    contentService.revisions.withVariants(contentRevisionId, tx),
+  );
+  registerEligibleTemplateSource((brandId, tx) => creativeService.templates.eligibleVersionIds(brandId, tx));
   registerMetricsSource(async (actor, query, tx) => {
     const publications = await publicationService.calendarRange(
       query.brandId,
@@ -200,6 +224,9 @@ export function composeModules(opts: { workflowProbe?: WorkflowProbe } = {}): vo
   registerExperimentSource((brandId, tx) => experimentsService.listForBrand(brandId, tx));
   registerPublicationVolumeSource(
     async (brandId, from, to, tx) => (await publicationService.calendarRange(brandId, from, to, tx)).length,
+  );
+  registerRecommendationResolver((recommendationId, brandId, tx) =>
+    intelligenceService.recommendations.belongsToBrand(recommendationId, brandId, tx),
   );
   registerExperimentListener((milestone, tx) =>
     intelligenceService.learning.onExperimentMilestone(milestone, tx),

@@ -3,10 +3,11 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium, type Browser, type LaunchOptions } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type LaunchOptions } from 'playwright';
 import sharp from 'sharp';
 import type { FormatRenderer, RenderTargetInput, RenderTargetOutput } from '@oremedia/activities';
-import { NotFoundError } from '@oremedia/contracts/errors';
+import type { CreativePage, Element } from '@oremedia/contracts/creative';
+import { NotFoundError, ValidationFailedError } from '@oremedia/contracts/errors';
 import { runRenderChecks } from '@oremedia/editor/checks';
 import { formatFor } from '@oremedia/editor/formats';
 import { reflow } from '@oremedia/editor/reduce';
@@ -38,6 +39,10 @@ export interface ChromiumRenderer extends FormatRenderer {
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_EDGE_PX = 4096;
+/** Top-level elements per page (the CreativePage schema cap; the worker re-checks what it is handed). */
+export const MAX_RENDER_PAGE_ELEMENTS = 300;
+/** Every element including group children: groups nest, so the top-level cap alone does not bound a scene. */
+export const MAX_RENDER_TOTAL_ELEMENTS = 2000;
 const PAGE_HTML =
   '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#fff}</style></head><body></body></html>';
 
@@ -63,6 +68,60 @@ export function resolveRendererBundlePath(explicit?: string): string {
       'renderer bundle not found: run `pnpm --filter @oremedia/editor build:renderer` (or set OREMEDIA_RENDERER_BUNDLE)',
     );
   return found;
+}
+
+const countElements = (els: readonly Element[]): number =>
+  els.reduce((n, el) => n + 1 + (el.type === 'group' ? countElements(el.children) : 0), 0);
+
+/**
+ * Refuses, before any browser work, a page the worker must not attempt: a format larger than the render limit or a
+ * scene with more elements than the caps (spec 18: oversized input). Typed, so the job fails without retries.
+ */
+export function assertRenderable(
+  page: CreativePage,
+  format: { key: string; width: number; height: number },
+  maxEdgePx: number,
+): void {
+  if (format.width > maxEdgePx || format.height > maxEdgePx)
+    throw new ValidationFailedError(
+      [{ path: 'formatKey', issue: 'format_exceeds_render_limit' }],
+      `format ${format.key} (${format.width}×${format.height}) exceeds the ${maxEdgePx}px render limit`,
+    );
+  const total = countElements(page.elements);
+  if (page.elements.length > MAX_RENDER_PAGE_ELEMENTS || total > MAX_RENDER_TOTAL_ELEMENTS)
+    throw new ValidationFailedError(
+      [{ path: 'page.elements', issue: 'too_many_elements' }],
+      `page ${page.id} has ${page.elements.length} elements (${total} with group children); at most ${MAX_RENDER_PAGE_ELEMENTS} (${MAX_RENDER_TOTAL_ELEMENTS}) are rendered`,
+    );
+}
+
+/**
+ * The render sandbox (spec 18: render egress deny): a fresh context per render, emulated offline (which also stops
+ * WebSockets and beacons, which request routing does not see) and every routed request aborted.
+ */
+export async function openRenderContext(
+  b: Browser,
+  viewport: { width: number; height: number },
+  timeoutMs: number,
+): Promise<BrowserContext> {
+  const context = await b.newContext({
+    offline: true,
+    deviceScaleFactor: 1,
+    viewport,
+    locale: 'en-US',
+    timezoneId: 'UTC',
+    colorScheme: 'light',
+    reducedMotion: 'reduce',
+    javaScriptEnabled: true,
+  });
+  context.setDefaultTimeout(timeoutMs);
+  try {
+    await context.route('**/*', (route) => route.abort('blockedbyclient'));
+  } catch (err) {
+    await context.close();
+    throw err;
+  }
+  return context;
 }
 
 const dataUrl = (mime: string, bytes: Buffer) => `data:${mime};base64,${bytes.toString('base64')}`;
@@ -110,8 +169,7 @@ export function createChromiumRenderer(opts: ChromiumRendererOptions = {}): Chro
     async render(input: RenderTargetInput): Promise<RenderTargetOutput> {
       const format = formatFor(input.formatKey);
       if (!format) throw new NotFoundError('FormatDefinition', input.formatKey);
-      if (format.width > maxEdge || format.height > maxEdge)
-        throw new Error(`format ${format.key} exceeds the ${maxEdge}px render limit`);
+      assertRenderable(input.page, format, maxEdge);
       const page = input.reflow ? reflow(input.page, format.key, format.width, format.height) : input.page;
       const browserInput: RenderInput = {
         page,
@@ -122,20 +180,13 @@ export function createChromiumRenderer(opts: ChromiumRendererOptions = {}): Chro
       };
 
       const [b, code] = await Promise.all([launch(), loadBundle()]);
-      const context = await b.newContext({
-        offline: true,
-        deviceScaleFactor: 1,
-        viewport: { width: Math.min(format.width, 1600), height: Math.min(format.height, 1600) },
-        locale: 'en-US',
-        timezoneId: 'UTC',
-        colorScheme: 'light',
-        reducedMotion: 'reduce',
-        javaScriptEnabled: true,
-      });
-      context.setDefaultTimeout(timeoutMs);
+      const context = await openRenderContext(
+        b,
+        { width: Math.min(format.width, 1600), height: Math.min(format.height, 1600) },
+        timeoutMs,
+      );
       let timer: NodeJS.Timeout | undefined;
       try {
-        await context.route('**/*', (route) => route.abort('blockedbyclient'));
         const tab = await context.newPage();
         const pageErrors: string[] = [];
         tab.on('pageerror', (err) => pageErrors.push(err.message));

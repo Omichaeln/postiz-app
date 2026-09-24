@@ -178,6 +178,11 @@ export async function resolveTenantContext(
     case 'external_reviewer': {
       if (requestedTenantId && requestedTenantId !== principal.tenantId)
         throw new PolicyDeniedError('tenant_mismatch');
+      // Spec 18 (external reviewer link): revocation and expiry end every read, not only the policy-checked ones.
+      if (principal.revoked)
+        throw new PolicyDeniedError('reviewer_link_revoked', 'This review link was revoked');
+      if (principal.expired)
+        throw new PolicyDeniedError('reviewer_link_expired', 'This review link has expired');
       const actor: ResolvedActor = {
         kind: 'external_reviewer',
         id: principal.linkId,
@@ -201,6 +206,9 @@ export async function resolveTenantContext(
     case 'platform_operator': {
       if (requestedTenantId && requestedTenantId !== principal.tenantId)
         throw new PolicyDeniedError('tenant_mismatch', 'Support session is bound to one company');
+      // Spec 5.7 time box: an expired session reads nothing, including procedures that do not consult policy.
+      if (principal.expired)
+        throw new PolicyDeniedError('support_session_expired', 'The support session has expired');
       const actor: ResolvedActor = {
         kind: 'platform_operator',
         id: principal.operatorId,

@@ -6,7 +6,9 @@ export {
   registerExperimentListener,
   resetExperimentListeners,
   registerExperimentArmLinks,
+  registerRecommendationResolver,
   type ExperimentArmLinks,
+  type RecommendationResolver,
   type ExperimentListener,
   type ExperimentMilestone,
 } from './hooks';

@@ -93,6 +93,8 @@ export const ID_PREFIXES = {
   featureFlag: 'ff',
   element: 'el',
   externalRef: 'xref',
+  /** One MCP tools/call (spec 7.6): the dispatcher's run id for a surface call that has no durable agent run. */
+  mcpCall: 'mcp',
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;

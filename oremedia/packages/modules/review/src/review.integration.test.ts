@@ -13,7 +13,7 @@ import {
   RightsIneligibleError,
   ValidationFailedError,
 } from '@oremedia/contracts/errors';
-import type { ResolvedActor } from '@oremedia/contracts/policy';
+import type { ResolvedActor, ResolvedActorServicePrincipal } from '@oremedia/contracts/policy';
 import type { PublicationForRelease } from '@oremedia/contracts/publishing';
 import { createTestDatabase, type TestDatabase } from '@oremedia/db/testing';
 import { runInTenant, withTransaction, type TenantContext, type Tx } from '@oremedia/db';
@@ -26,7 +26,7 @@ import {
 } from '@oremedia/db/schema/access';
 import { entitlements } from '@oremedia/db/schema/billing';
 import { brands } from '@oremedia/db/schema/brand';
-import { channelVariants } from '@oremedia/db/schema/content';
+import { channelVariants, contentRevisions } from '@oremedia/db/schema/content';
 import { auditEvents, featureFlags, outboxEvents } from '@oremedia/db/schema/operations';
 import { releaseApprovals, reviewDecisions, reviewRequests } from '@oremedia/db/schema/review';
 import { bindingHash } from '@oremedia/domain/approval-binding';
@@ -54,6 +54,7 @@ import {
   type ReleaseCheckers,
 } from './evaluate-release';
 import { reviewService } from './service';
+import { reviewToolSource } from './tools';
 
 const brandDocument = (): BrandSystemDocumentV1 => ({
   ...emptyBrandSystemDocument(),
@@ -1087,8 +1088,9 @@ describe('review module (spec 13) against MySQL 8', () => {
       ).rejects.toMatchObject({ reason: 'resource_state' });
       // Team revocation takes effect on the next request: the same token is refused.
       await runA((tx) => reviewService.externalLinks.revoke(manager.actor, { linkId }, tx));
-      const again = await reviewerActor(token);
-      expect(again).toMatchObject({ revoked: true });
+      // The request path refuses the token at tenant resolution; the policy refuses a revoked actor on its own too.
+      await expect(reviewerActor(token)).rejects.toMatchObject({ reason: 'reviewer_link_revoked' });
+      const again = { ...external, revoked: true };
       await expect(
         asExternal(again, () => reviewService.requests.get(again, { reviewRequestId: requestId })),
       ).rejects.toMatchObject({
@@ -1110,8 +1112,8 @@ describe('review module (spec 13) against MySQL 8', () => {
         .update(externalReviewerLinks)
         .set({ revokedAt: null, expiresAt: new Date(Date.now() - 1000) })
         .where(eq(externalReviewerLinks.id, linkId));
-      const expired = await reviewerActor(token);
-      expect(expired.kind === 'external_reviewer' && expired.expired).toBe(true);
+      await expect(reviewerActor(token)).rejects.toMatchObject({ reason: 'reviewer_link_expired' });
+      const expired = { ...external, revoked: false, expired: true };
       await expect(
         asExternal(expired, () => reviewService.requests.get(expired, { reviewRequestId: requestId })),
       ).rejects.toMatchObject({
@@ -1292,6 +1294,119 @@ describe('review module (spec 13) against MySQL 8', () => {
       expect(await tdb.db.select().from(auditEvents).where(eq(auditEvents.tenantId, tenantB))).toEqual(
         before,
       );
+    });
+  });
+
+  describe('agent tool source (spec 12.4 review.request)', () => {
+    const agent: ResolvedActorServicePrincipal = {
+      kind: 'service_principal',
+      id: 'sp_review_tools',
+      tenantId: '',
+      status: 'active',
+      maxAutonomy: 'prepare_release',
+      grants: [
+        { action: 'brand.read', brandIds: 'all' },
+        { action: 'review.request', brandIds: 'all' },
+      ],
+    };
+    const runAsAgent = <T>(fn: (tx: Tx) => Promise<T>) =>
+      runInTenant(
+        { ...ctx(tenantA, 'sp_review_tools'), actor: { kind: 'service_principal', id: 'sp_review_tools' } },
+        () => withTransaction(fn),
+      );
+    const input = (contentRevisionId: string, over: Record<string, unknown> = {}) => ({
+      brandId: brandA,
+      runId: 'run_review_tools',
+      autonomyMode: 'prepare_release' as const,
+      contentRevisionId,
+      assigneeUserIds: [reviewer.id],
+      timing,
+      ...over,
+    });
+
+    it('opens a request as the agent under prepare_release; a lower mode or a foreign revision is refused', async () => {
+      const A = { ...agent, tenantId: tenantA };
+      const pkg = await runA((tx) =>
+        contentService.packages.create(
+          manager.actor,
+          {
+            brandId: brandA,
+            title: 'Agent review',
+            creativeDocumentIds: [],
+            copy: { schemaVersion: 1, master: { text: 'Agent drafted caption', factRefs: [] } },
+          },
+          tx,
+        ),
+      );
+      await runA((tx) =>
+        contentService.variants.generate(
+          manager.actor,
+          { contentRevisionId: pkg.contentRevisionId, channelConnectionIds: [channelA] },
+          tx,
+        ),
+      );
+      await expect(
+        runAsAgent((tx) =>
+          reviewToolSource.requestReview(A, input(pkg.contentRevisionId, { autonomyMode: 'create' }), tx),
+        ),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN', reason: 'autonomy_insufficient' });
+      const foreign = (
+        await tdb.db.select().from(contentRevisions).where(eq(contentRevisions.tenantId, tenantB))
+      )[0]!;
+      const beforeB = await tdb.db.select().from(reviewRequests).where(eq(reviewRequests.tenantId, tenantB));
+      await expect(
+        runAsAgent((tx) => reviewToolSource.requestReview(A, input(foreign.id), tx)),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      await expect(
+        runAsAgent((tx) =>
+          reviewToolSource.requestReview(A, input(pkg.contentRevisionId, { brandId: brandB }), tx),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      expect(await tdb.db.select().from(reviewRequests).where(eq(reviewRequests.tenantId, tenantB))).toEqual(
+        beforeB,
+      );
+      // an assignee must be an active member of this company: company B's manager (or an unknown id) is refused
+      for (const assignee of [managerB.id, 'usr_unknown'])
+        await expect(
+          runAsAgent((tx) =>
+            reviewToolSource.requestReview(
+              A,
+              input(pkg.contentRevisionId, { assigneeUserIds: [assignee] }),
+              tx,
+            ),
+          ),
+        ).rejects.toMatchObject({
+          code: 'VALIDATION_FAILED',
+          details: [{ path: 'assigneeUserIds.0', issue: 'assignee_not_found' }],
+        });
+      const opened = await runAsAgent((tx) =>
+        reviewToolSource.requestReview(A, input(pkg.contentRevisionId), tx),
+      );
+      expect(await requestRow(opened.reviewRequestId)).toMatchObject({
+        contentRevisionId: pkg.contentRevisionId,
+        state: 'open',
+        manifestHash: opened.manifestHash,
+        assignees: [reviewer.id],
+        requestedByKind: 'agent',
+        requestedById: 'sp_review_tools',
+      });
+      expect((await runA(() => contentService.revisions.read(pkg.contentRevisionId))).state).toBe(
+        'in_review',
+      );
+      // deciding stays with a person: the agent cannot approve its own request
+      await expect(
+        runAsAgent((tx) =>
+          reviewService.decisions.submit(
+            A,
+            {
+              reviewRequestId: opened.reviewRequestId,
+              decision: 'approve',
+              expectedManifestHash: opened.manifestHash,
+            },
+            tx,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(PolicyDeniedError);
     });
   });
 });

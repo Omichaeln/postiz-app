@@ -243,6 +243,15 @@ export class TemplateVersionRepository extends BrandScopedRepository<typeof temp
       .where(this.brandScope(brandId, eq(templateVersions.templateId, templateId)))
       .orderBy(desc(templateVersions.number));
   }
+  /** Spec 8.3: ids of the brand's approved template versions (the snapshot's eligible templates), sorted. */
+  async listApprovedIds(brandId: string, tx?: Tx): Promise<string[]> {
+    const rows = await this.conn(tx)
+      .select({ id: templateVersions.id })
+      .from(templateVersions)
+      .where(this.brandScope(brandId, eq(templateVersions.state, 'approved')))
+      .orderBy(templateVersions.id);
+    return rows.map((r) => r.id);
+  }
   /**
    * Template versions carry no `version` column: state moves by compare-and-set on the current state, which is
    * the transition the caller computed through the machine. Zero rows means someone moved it first → CONFLICT.

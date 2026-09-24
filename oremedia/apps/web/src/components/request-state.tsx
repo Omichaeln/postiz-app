@@ -46,6 +46,7 @@ export function RequestError({ error, onRetry, title, className }: RequestErrorP
       tone={TONE[ui.kind]}
       title={title ?? TITLE[ui.kind]}
       className={className}
+      data-error-code={ui.code}
       description={
         <>
           <span>

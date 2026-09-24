@@ -39,7 +39,7 @@ import {
   workflowIdOf,
   type PublicationRow,
 } from './common';
-import { approvals, assertBrandExists, review, variants } from './hooks';
+import { approvals, assertBrandExists, review, revisions, variants } from './hooks';
 import { registry } from './providers';
 import {
   ChannelConnectionRepository,
@@ -318,6 +318,67 @@ export const publicationService = {
       toState: 'scheduled',
     });
     return toPublicationDto(await publicationsRepo.getById(id, tx));
+  },
+
+  /**
+   * Spec 12.4 publications.proposeSchedule: checks a proposed slot without writing anything. The revision (through
+   * the content hook) and every channel connection must belong to the brand (a foreign or other-brand id is
+   * NOT_FOUND), the revision must be approved, the slot in the future, each channel must carry a variant of the
+   * revision and the actor must hold publication.schedule on it. Returns the publications.schedule commands a
+   * person completes with a valid approval; no publication row, outbox event or workflow comes from here.
+   */
+  async proposeSchedule(
+    actor: ResolvedActor,
+    input: {
+      brandId: string;
+      contentRevisionId: string;
+      channelConnectionIds: string[];
+      scheduledFor: string;
+    },
+    tx: Tx,
+    opts: ActorOptions = {},
+  ) {
+    const { tenantId } = requireTenant();
+    const revision = await revisions.withVariants(input.contentRevisionId, tx);
+    if (revision.brandId !== input.brandId)
+      throw new NotFoundError('ContentRevision', input.contentRevisionId);
+    const scheduledFor = new Date(input.scheduledFor);
+    const details = [];
+    if (revision.state !== 'approved')
+      details.push({ path: 'contentRevisionId', issue: `revision is ${revision.state}, not approved` });
+    if (Number.isNaN(scheduledFor.getTime()) || scheduledFor.getTime() <= Date.now())
+      details.push({ path: 'proposedAt', issue: 'must be in the future' });
+    const entries = [];
+    for (const [i, channelConnectionId] of [...new Set(input.channelConnectionIds)].entries()) {
+      const connection = await connectionsRepo.getById(channelConnectionId, tx); // foreign → NOT_FOUND
+      if (connection.brandId !== revision.brandId)
+        throw new NotFoundError('ChannelConnection', channelConnectionId); // never reveal another brand's channel
+      const variant = revision.variants.find((v) => v.channelConnectionId === connection.id);
+      if (!variant) {
+        details.push({ path: `channelConnectionIds.${i}`, issue: 'no_channel_variant' });
+        continue;
+      }
+      await policy.assert(
+        actor,
+        'publication.schedule',
+        {
+          type: 'channel_variant',
+          tenantId,
+          brandId: revision.brandId,
+          id: variant.id,
+          channelId: connection.id,
+        },
+        opts,
+        tx,
+      );
+      entries.push({
+        channelConnectionId: connection.id,
+        channelVariantId: variant.id,
+        scheduledFor: scheduledFor.toISOString(),
+      });
+    }
+    if (details.length) throw new ValidationFailedError(details, 'The proposed slot cannot be scheduled');
+    return { contentRevisionId: revision.id, entries };
   },
 
   /**

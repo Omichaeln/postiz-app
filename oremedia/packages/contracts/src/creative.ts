@@ -250,12 +250,39 @@ export type TemplateState = z.infer<typeof TemplateState>;
 export const TemplateVersionState = z.enum(['draft', 'approved', 'retired']);
 export type TemplateVersionState = z.infer<typeof TemplateVersionState>;
 
-/** A slot binds a key to an element of the template page; applyTemplate maps slot keys to existing element ids. */
+/**
+ * Spec 6.3 / 11.3 slot kinds with enforced semantics: a bound element must have the matching element type. Other
+ * kind strings (versions stored before slot semantics) are accepted and only checked for existence.
+ */
+export const TemplateSlotKind = z.enum(['text', 'image', 'logo', 'background']);
+export type TemplateSlotKind = z.infer<typeof TemplateSlotKind>;
+
+/**
+ * What a template consumer may put into a slot (spec 6.3 template_versions constraints): text length limits for text
+ * slots and, for any slot, the semantic roles a bound element may carry (e.g. an image slot for `product` imagery
+ * only). Every field is optional so versions stored before slot constraints keep parsing.
+ */
+export const TemplateSlotConstraints = z
+  .object({
+    minLength: z.number().int().min(0).max(5000).optional(),
+    maxLength: z.number().int().min(1).max(5000).optional(),
+    semanticRoles: z.array(SemanticRole).min(1).max(9).optional(),
+  })
+  .strict();
+export type TemplateSlotConstraints = z.infer<typeof TemplateSlotConstraints>;
+
+/**
+ * A slot binds a key to an element of the template page; applyTemplate maps slot keys to existing element ids and
+ * validates each bound element against the slot (kind, replaceable, constraints). `replaceable: false` marks a
+ * fixed element of the template that a consumer may not bind (it always comes from the template).
+ */
 export const TemplateSlot = z.object({
   key: z.string().min(1).max(80),
   elementId: Id,
   kind: z.string().min(1).max(40),
   required: z.boolean().default(false),
+  replaceable: z.boolean().default(true),
+  constraints: TemplateSlotConstraints.default({}),
 });
 export type TemplateSlot = z.infer<typeof TemplateSlot>;
 

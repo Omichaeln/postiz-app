@@ -1,0 +1,16 @@
+{
+  "id": "skill_pkg_drive_path",
+  "attack": "absolute_path",
+  "files": [
+    {
+      "path": "C:/Windows/System32/skill.md",
+      "content": "x\n"
+    }
+  ],
+  "expected": [
+    {
+      "path": "C:/Windows/System32/skill.md",
+      "issue": "invalid_path"
+    }
+  ]
+}

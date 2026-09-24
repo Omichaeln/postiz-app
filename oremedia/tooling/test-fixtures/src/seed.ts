@@ -214,6 +214,44 @@ async function seedTenant(db: Db, label: string): Promise<SeededTenant> {
   };
 }
 
+/**
+ * An extra service principal with its own API client key (spec 7.6 per-key scopes), for tests of the public REST
+ * API and the MCP server. The principal's grants decide what the policy engine allows; the scopes narrow the key.
+ */
+export async function seedApiClient(
+  db: Db,
+  tenant: Pick<SeededTenant, 'tenantId' | 'ownerUserId'>,
+  opts: {
+    grants: Array<{ action: string; brandIds: string[] | 'all' }>;
+    scopes: string[];
+    maxAutonomy?: 'assist' | 'create' | 'prepare_release' | 'managed_autopublish';
+    kind?: 'agent' | 'api_client' | 'mcp_client' | 'integration';
+  },
+): Promise<{ servicePrincipalId: string; apiClientId: string; key: string }> {
+  const servicePrincipalId = newId('servicePrincipal');
+  const apiClientId = newId('apiClient');
+  await db.insert(servicePrincipals).values({
+    id: servicePrincipalId,
+    tenantId: tenant.tenantId,
+    kind: opts.kind ?? 'mcp_client',
+    name: `client ${servicePrincipalId.slice(-6)}`,
+    grants: opts.grants as (typeof servicePrincipals.$inferInsert)['grants'],
+    maxAutonomy: opts.maxAutonomy ?? 'create',
+    status: 'active',
+    createdByUserId: tenant.ownerUserId,
+  });
+  const key = newOpaqueToken('ak');
+  await db.insert(apiClients).values({
+    id: apiClientId,
+    tenantId: tenant.tenantId,
+    servicePrincipalId,
+    keyHash: key.hash,
+    keyPrefix: key.prefixForLookup,
+    scopes: opts.scopes,
+  });
+  return { servicePrincipalId, apiClientId, key: key.token };
+}
+
 export async function seedTwoTenants(db: Db): Promise<{ tenantA: SeededTenant; tenantB: SeededTenant }> {
   composeModules();
   return { tenantA: await seedTenant(db, 'a'), tenantB: await seedTenant(db, 'b') };
@@ -233,8 +271,8 @@ export interface CallOptions {
 
 export const CSRF_TOKEN = 'csrf-test-token';
 
-/** The request context an HTTP request with these options would get (headers → context). */
-export async function contextFor(opts: CallOptions) {
+/** The headers an HTTP request with these options carries. */
+export function headersFor(opts: CallOptions): IncomingHttpHeaders {
   const headers: IncomingHttpHeaders = {
     'idempotency-key': opts.idempotencyKey ?? randomUUID(),
     'x-correlation-id': opts.correlationId ?? `test-${randomUUID()}`,
@@ -244,7 +282,12 @@ export async function contextFor(opts: CallOptions) {
     if (opts.cookieSession.csrf) headers['x-oremedia-csrf'] = opts.cookieSession.csrf;
   } else headers['authorization'] = `Bearer ${opts.bearer}`;
   if (opts.tenantId) headers['x-oremedia-tenant'] = opts.tenantId;
-  return createContext(headers);
+  return headers;
+}
+
+/** The request context an HTTP request with these options would get (headers → context). */
+export async function contextFor(opts: CallOptions) {
+  return createContext(headersFor(opts));
 }
 
 /** In-process caller with the same context builder as HTTP. */

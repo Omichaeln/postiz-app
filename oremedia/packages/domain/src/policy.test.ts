@@ -206,6 +206,31 @@ describe('authorize: ordered checks (spec 5.5)', () => {
         context: ctx({ autonomyMode: 'prepare_release' }),
       }).reason,
     ).toBe('autonomy_exceeds_principal');
+    // A direct API call carries its per-request ceiling; an explicit run mode still wins over it.
+    expect(
+      authorize({
+        actor: agent({ requestAutonomy: 'create' }),
+        action: 'creative.edit',
+        resource: { type: 'doc', tenantId: T, brandId: B },
+        context: ctx({}),
+      }).allowed,
+    ).toBe(true);
+    expect(
+      authorize({
+        actor: agent({ requestAutonomy: 'create' }),
+        action: 'creative.edit',
+        resource: { type: 'doc', tenantId: T, brandId: B },
+        context: ctx({ autonomyMode: 'assist' }),
+      }).reason,
+    ).toBe('autonomy_insufficient');
+    expect(
+      authorize({
+        actor: agent(),
+        action: 'creative.edit',
+        resource: { type: 'doc', tenantId: T, brandId: B },
+        context: ctx({}),
+      }).reason,
+    ).toBe('autonomy_insufficient');
     expect(
       authorize({
         actor: agent({ maxAutonomy: 'prepare_release' }),

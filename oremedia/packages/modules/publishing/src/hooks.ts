@@ -25,6 +25,33 @@ export const resetVariantSource = (): void => {
 };
 export const variants = { get: (variantId: string, tx?: Tx) => variantSource(variantId, tx) };
 
+/**
+ * Spec 12.4 publications.proposeSchedule: a content revision (tenant-scoped; a foreign id is NOT_FOUND) with its
+ * channel variants. The content module registers `contentService.revisions.withVariants`.
+ */
+export interface RevisionWithVariants {
+  id: string;
+  brandId: string;
+  state: string;
+  variants: Array<{ id: string; channelConnectionId: string }>;
+}
+export type RevisionVariantSource = (contentRevisionId: string, tx?: Tx) => Promise<RevisionWithVariants>;
+const unregisteredRevisionVariantSource: RevisionVariantSource = async () => {
+  throw new Error(
+    'revision variant source not registered (composition root must call registerRevisionVariantSource)',
+  );
+};
+let revisionVariantSource: RevisionVariantSource = unregisteredRevisionVariantSource;
+export const registerRevisionVariantSource = (fn: RevisionVariantSource): void => {
+  revisionVariantSource = fn;
+};
+export const resetRevisionVariantSource = (): void => {
+  revisionVariantSource = unregisteredRevisionVariantSource;
+};
+export const revisions = {
+  withVariants: (contentRevisionId: string, tx?: Tx) => revisionVariantSource(contentRevisionId, tx),
+};
+
 /** Spec 13.4 `review.evaluateRelease(pub, at)`: the review module registers `reviewService.evaluateRelease`. */
 export type ReleaseEvaluator = (pub: PublicationForRelease, at: Date, tx?: Tx) => Promise<ReleaseDecision>;
 const unregisteredReleaseEvaluator: ReleaseEvaluator = async () => {

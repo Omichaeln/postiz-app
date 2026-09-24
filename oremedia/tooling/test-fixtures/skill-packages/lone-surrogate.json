@@ -1,0 +1,16 @@
+{
+  "id": "skill_pkg_lone_surrogate",
+  "attack": "encoding",
+  "files": [
+    {
+      "path": "references/broken.md",
+      "content": "text \ud800 text\n"
+    }
+  ],
+  "expected": [
+    {
+      "path": "references/broken.md",
+      "issue": "not_utf8_text"
+    }
+  ]
+}

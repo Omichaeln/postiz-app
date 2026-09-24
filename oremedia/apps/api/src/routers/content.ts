@@ -12,6 +12,7 @@ import {
   ChannelVariantUpdate,
   ContentPackageCreate,
   ContentPackageGet,
+  ContentPackageList,
   ContentPackageRevise,
   ContentRevisionGet,
 } from '@oremedia/contracts/content';
@@ -70,6 +71,9 @@ export const contentRouter = router({
       .mutation(({ ctx, input }) =>
         idempotent(mutationCtx(ctx), (tx) => contentService.packages.revise(ctx.tenant.actor, input, tx)),
       ),
+    list: tenantQuery
+      .input(ContentPackageList)
+      .query(({ ctx, input }) => contentService.packages.list(ctx.tenant.actor, input)),
     get: tenantQuery
       .input(ContentPackageGet)
       .query(({ ctx, input }) => contentService.packages.get(ctx.tenant.actor, input)),

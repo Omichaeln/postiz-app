@@ -1,0 +1,33 @@
+{
+  "id": "skill_pkg_oversized",
+  "attack": "oversized",
+  "files": [
+    {
+      "path": "references/filler-0.md",
+      "repeat": {
+        "text": "lorem ipsum ",
+        "bytes": 400000
+      }
+    },
+    {
+      "path": "references/filler-1.md",
+      "repeat": {
+        "text": "lorem ipsum ",
+        "bytes": 400000
+      }
+    },
+    {
+      "path": "references/filler-2.md",
+      "repeat": {
+        "text": "lorem ipsum ",
+        "bytes": 400000
+      }
+    }
+  ],
+  "expected": [
+    {
+      "path": "*",
+      "issue": "package_too_large"
+    }
+  ]
+}

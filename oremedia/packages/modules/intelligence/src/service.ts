@@ -432,6 +432,12 @@ export const intelligenceService = {
       };
     },
 
+    /** Whether a recommendation exists in the current tenant for this brand (scoped read; foreign ids are false). */
+    async belongsToBrand(recommendationId: string, brandId: string, tx?: Tx): Promise<boolean> {
+      const r = await recommendationsRepo.findById(recommendationId, tx);
+      return r !== null && r.brandId === brandId;
+    },
+
     async get(actor: ResolvedActor, input: z.infer<typeof RecommendationGet>, tx?: Tx) {
       const parsed = RecommendationGet.parse(input);
       const r = await recommendationsRepo.getById(parsed.recommendationId, tx);

@@ -58,7 +58,7 @@ export function ManifestSummary({
   };
   return (
     <div className="flex flex-col gap-3 text-sm" data-testid="manifest">
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
         <dt className="text-muted-foreground">Content revision</dt>
         <dd>
           <code>{manifest.contentRevisionId}</code> (content hash{' '}
@@ -82,7 +82,9 @@ export function ManifestSummary({
         </dd>
         <dt className="text-muted-foreground">Manifest hash</dt>
         <dd>
-          <code data-testid="manifest-hash">{manifestHash}</code>
+          <code data-testid="manifest-hash" className="break-all">
+            {manifestHash}
+          </code>
         </dd>
       </dl>
       <ul className="flex flex-col gap-2" aria-label="Channel variants in this manifest">

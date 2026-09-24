@@ -95,7 +95,8 @@ export function CalendarGrid({ view, anchorKey, todayKey, selectedKey, onSelect,
                   view === 'month' ? 'min-h-14 sm:min-h-20' : 'min-h-20 sm:min-h-28',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   selected ? 'border-accent bg-secondary' : 'border-border hover:bg-muted',
-                  !day.inMonth && 'text-muted-foreground opacity-70',
+                  // Muted text alone keeps 4.5:1 in both themes; an extra opacity took it below (WCAG 1.4.3).
+                  !day.inMonth && 'text-muted-foreground',
                 )}
               >
                 <span className={cn('font-medium', isToday && 'underline underline-offset-2')}>

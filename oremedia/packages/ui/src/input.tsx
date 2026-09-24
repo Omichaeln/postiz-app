@@ -1,9 +1,14 @@
 import * as React from 'react';
 import { cn } from './cn';
 
+/**
+ * The ring keys on `:focus-within`, not `:focus-visible`: text controls match both on every focus anyway, but a
+ * date/time input has one more Tab stop (the picker button in its shadow tree) during which the input matches
+ * neither `:focus` nor `:focus-visible`, only `:focus-within`; without this that stop shows no indicator (WCAG 2.4.7).
+ */
 const controlClasses =
   'w-full rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ' +
+  'focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background ' +
   'disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-status-critical';
 
 export type InputProps = React.InputHTMLAttributes<HTMLInputElement>;

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { IncomingHttpHeaders } from 'node:http';
+import type { IncomingHttpHeaders, RequestListener } from 'node:http';
 import { initTRPC, TRPCError } from '@trpc/server';
 import { createHTTPHandler } from '@trpc/server/adapters/standalone';
 import superjson from 'superjson';
@@ -22,6 +22,7 @@ import {
   type Operation,
   type OperationBatch,
 } from '@oremedia/contracts/creative';
+import { RunGet, RunSteps } from '@oremedia/contracts/agents';
 import { AssetSearch, MediaSignedUrlRequest } from '@oremedia/contracts/assets';
 import { BrandVersionGet, BrandVersionList, FactList, ObjectiveList } from '@oremedia/contracts/brand';
 import {
@@ -34,6 +35,8 @@ import {
 } from '@oremedia/contracts/errors';
 import { applyBatch, changedElementIds, guardProtected, validateAgainstBrand } from '@oremedia/editor';
 import { fixtureDocument, fixtureSnapshot, ids } from '@oremedia/editor/fixtures';
+import { AuditQuery } from '@oremedia/contracts/operations';
+import { PageRequest } from '@oremedia/contracts/pagination';
 import type { MembershipRole } from '@oremedia/contracts/tenancy';
 import { Phase5Backend, phase5Routers, type ReviewerLink } from './mock-phase5';
 import { deniedError, Phase6Backend, phase6Routers } from './mock-phase6';
@@ -52,6 +55,80 @@ export const E2E = {
   companyName: 'E2E company',
   brandName: 'E2E brand',
 };
+
+/** A company as the mock serves it: one tenant with its brands; every row it holds carries these ids. */
+export interface CompanyIdentity {
+  tenantId: string;
+  brandId: string;
+  companyName: string;
+  brandName: string;
+}
+
+/** The second company of the two-company suite (journey.e2e.test.ts): its own tenant, brand and stores. */
+export const E2E_B: CompanyIdentity = {
+  tenantId: 'ten_e2e_b',
+  brandId: 'brd_e2e_b',
+  companyName: 'Beta company',
+  brandName: 'Beta brand',
+};
+
+/** A person's membership in one company (spec 5.1): role, and the brands granted (null = all brands). */
+export interface MockMembership {
+  role: MembershipRole;
+  brandIds: string[] | null;
+}
+/** A signed-in person other than the default E2E session: bearer token → user and memberships by tenant. */
+export interface MockSession {
+  userId: string;
+  memberships: Record<string, MockMembership>;
+}
+/** The resolved membership of the caller in the company a tenant-scoped procedure runs in. */
+export interface MockMember extends MockMembership {
+  userId: string;
+}
+
+interface BrandRow {
+  id: string;
+  name: string;
+  publishedVersionId: string | null;
+}
+
+/** Agent runs as agents.runs.get returns them (the steps are served by agents.runs.steps). */
+interface AgentRunRow {
+  id: string;
+  brandId: string;
+  state: 'planned' | 'running' | 'waiting_for_review' | 'completed' | 'failed' | 'cancelled';
+  taskKind: string;
+  autonomyMode: 'assist' | 'create' | 'prepare_release' | 'managed_autopublish';
+  servicePrincipalId: string;
+  initiatorKind: 'user' | 'system' | 'recommendation';
+  initiatorId: string;
+  brief: Record<string, unknown>;
+  contextSnapshotHash: string | null;
+  skillVersionIds: string[];
+  modelConfig: Record<string, string>;
+  budgetReservationId: string | null;
+  costMicros: number;
+  deadlineAt: string;
+  workflowId: string;
+  correlationId: string;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+  steps: Array<{
+    id: string;
+    index: number;
+    kind: 'plan' | 'model_call' | 'tool_call' | 'validation';
+    summary: string;
+    tokensIn: number;
+    tokensOut: number;
+    costMicros: number;
+    durationMs: number;
+    createdAt: string;
+    invocations: never[];
+  }>;
+}
 
 interface Rev {
   id: string;
@@ -115,12 +192,27 @@ const now = () => new Date().toISOString();
 const rid = (p: string) => `${p}_${randomUUID().replace(/-/g, '').slice(0, 26).toUpperCase()}`;
 
 export class MockBackend {
+  readonly tenantId: string;
+  readonly brandId: string;
+  readonly companyName: string;
+  readonly brandName: string;
   /** Phase 5: calendar, publications, channels, review requests and reviewer links (mock-phase5.ts). */
-  readonly phase5 = new Phase5Backend();
+  readonly phase5: Phase5Backend;
   /** Phase 6: intelligence, experiments, campaigns, briefs, packages and channel connections (mock-phase6.ts). */
-  readonly phase6 = new Phase6Backend(this.phase5);
+  readonly phase6: Phase6Backend;
+  /** The company's brands (brand.list / brand.get); the first is the brand every seeded row belongs to. */
+  readonly brands: BrandRow[];
+  /** Agent runs of this company (agents.runs.*, listed through operations.audit.query). */
+  readonly runs = new Map<string, AgentRunRow>();
   /** The signed-in person's role in the company (access.listCompanies); the server still decides every call. */
   role: MembershipRole = 'owner';
+  /**
+   * Other people who can sign in (bearer token → session), shared by every company of the group so one person can
+   * belong to several. The default `E2E.token` session stays the single-company owner the other suites use.
+   */
+  sessions = new Map<string, MockSession>();
+  /** The other companies served next to this one; requests are routed by their X-Oremedia-Tenant header. */
+  readonly companies: MockBackend[] = [];
   /** Procedure paths the policy engine refuses for this person (FORBIDDEN envelope), e.g. `publishing.channels.list`. */
   readonly denied = new Set<string>();
   /** Procedure paths whose next N calls fail with an INTERNAL envelope, to exercise error states and retries. */
@@ -135,6 +227,82 @@ export class MockBackend {
   failNextApply = false;
   failNextRender = false;
   readonly requests: Array<{ path: string; headers: IncomingHttpHeaders }> = [];
+
+  /** `seed: false` starts the company empty apart from its brand (a second company seeds its own few rows). */
+  constructor(company: CompanyIdentity = E2E, seed = true) {
+    this.tenantId = company.tenantId;
+    this.brandId = company.brandId;
+    this.companyName = company.companyName;
+    this.brandName = company.brandName;
+    this.phase5 = new Phase5Backend(company.tenantId, company.brandId, seed);
+    this.phase6 = new Phase6Backend(this.phase5, seed);
+    this.brands = [{ id: company.brandId, name: company.brandName, publishedVersionId: E2E.brandVersionId }];
+    if (seed) this.addRun('run_e2e_copy', 'copywriting', 'completed', 9_990);
+  }
+
+  /** Serves `other` next to this company for the same people (one sign-in, two tenants, spec 5.1). */
+  addCompany(other: MockBackend): void {
+    other.sessions = this.sessions;
+    this.companies.push(other);
+  }
+
+  /** A further brand in this company (a creator's grant can leave it out). */
+  addBrand(id: string, name: string): void {
+    this.brands.push({ id, name, publishedVersionId: E2E.brandVersionId });
+  }
+
+  /** A finished agent run of this company's brand, as the audit log and agents.runs.get report it. */
+  addRun(id: string, taskKind: string, state: AgentRunRow['state'], costMicros: number): AgentRunRow {
+    const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
+    const run: AgentRunRow = {
+      id,
+      brandId: this.brandId,
+      state,
+      taskKind,
+      autonomyMode: 'create',
+      servicePrincipalId: 'sp_e2e_agent',
+      initiatorKind: 'user',
+      initiatorId: 'usr_e2e',
+      brief: { goal: taskKind },
+      contextSnapshotHash: null,
+      skillVersionIds: [],
+      modelConfig: { provider: 'anthropic', model: 'model-e2e' },
+      budgetReservationId: null,
+      costMicros,
+      deadlineAt: at(-30),
+      workflowId: `run:${id}`,
+      correlationId: `corr_${id}`,
+      finishedAt: ['planned', 'running', 'waiting_for_review'].includes(state) ? null : at(1),
+      createdAt: at(10),
+      updatedAt: at(1),
+      version: 1,
+      steps: [
+        {
+          id: `st_${id}`,
+          index: 0,
+          kind: 'model_call',
+          summary: 'final (end_turn): done',
+          tokensIn: 900,
+          tokensOut: 200,
+          costMicros,
+          durationMs: 1_200,
+          createdAt: at(5),
+          invocations: [],
+        },
+      ],
+    };
+    this.runs.set(id, run);
+    return run;
+  }
+
+  /** The caller's membership in this company, or null when the bearer is not a member of it. */
+  memberFor(bearer: string | undefined): MockMember | null {
+    if (bearer === `Bearer ${E2E.token}`)
+      return this.tenantId === E2E.tenantId ? { userId: 'usr_e2e', role: this.role, brandIds: null } : null;
+    const session = bearer?.startsWith('Bearer ') ? this.sessions.get(bearer.slice(7)) : undefined;
+    const membership = session?.memberships[this.tenantId];
+    return session && membership ? { userId: session.userId, ...membership } : null;
+  }
 
   createDocument(title: string, snapshot = fixtureDocument()): Doc {
     const id = rid('doc');
@@ -152,7 +320,7 @@ export class MockBackend {
     );
     const doc: Doc = {
       id,
-      brandId: E2E.brandId,
+      brandId: this.brandId,
       contentPackageId: null,
       title,
       currentRevisionId: revision.id,
@@ -258,11 +426,31 @@ export class MockBackend {
   }
 }
 
+/**
+ * Company B of the two-company suite: its own tenant, brand and stores, seeded with a few rows of its own (a channel,
+ * a campaign, an agent run) and none of company A's, so any row of A that appears while B is selected is a leak.
+ */
+export function createSecondCompany(): MockBackend {
+  const b = new MockBackend(E2E_B, false);
+  b.phase5.addChannel(
+    'cc_beta_linkedin',
+    'linkedin',
+    'Beta LinkedIn',
+    'active',
+    new Date(Date.now() + 30 * 86_400_000).toISOString(),
+  );
+  b.phase6.addCampaign('cmp_beta_harvest', 'Beta harvest', -2, 20);
+  b.addRun('run_beta_layout', 'layout', 'completed', 4_200);
+  return b;
+}
+
 interface Ctx {
   headers: IncomingHttpHeaders;
   correlationId: string;
   /** Set when the bearer was an external reviewer link token (`rl_…`), spec 5.6. */
   reviewer?: ReviewerLink | null;
+  /** Set for a member session once the company is resolved (tenant-scoped procedures). */
+  member?: MockMember | null;
 }
 
 export const t = initTRPC.context<Ctx>().create({
@@ -316,15 +504,18 @@ const domainErrors = t.middleware(async ({ next }) => {
   }
 });
 /**
- * The shared middlewares as apps/api applies them: bearer authentication (the session token, or an `rl_…` reviewer
- * link token that resolves to a stored link), tenant scoping from the X-Oremedia-Tenant header (an external
- * reviewer is bound to its link's tenant and sends none), and Idempotency-Key replay on every mutation.
+ * The shared middlewares as apps/api applies them: bearer authentication (a session token, or an `rl_…` reviewer
+ * link token that resolves to a stored link), tenant scoping from the X-Oremedia-Tenant header against the caller's
+ * memberships (an external reviewer is bound to its link's tenant and sends none), the brand grant of a member
+ * restricted to some brands (any other brand id is NOT_FOUND, spec 5.4: never reveal it exists), and
+ * Idempotency-Key replay on every mutation.
  */
 export function createBuilders(backend: MockBackend) {
   const authed = t.middleware(({ ctx, next }) => {
     const bearer = first(ctx.headers['authorization']);
     let reviewer: ReviewerLink | null = null;
-    if (bearer !== `Bearer ${E2E.token}`) {
+    const session = bearer?.startsWith('Bearer ') && backend.sessions.has(bearer.slice(7));
+    if (bearer !== `Bearer ${E2E.token}` && !session) {
       reviewer = bearer?.startsWith('Bearer rl_') ? backend.phase5.linkByToken(bearer.slice(7)) : null;
       if (!reviewer) throw new TRPCError({ code: 'UNAUTHORIZED' });
     }
@@ -334,14 +525,19 @@ export function createBuilders(backend: MockBackend) {
     if (ctx.reviewer) return next();
     const tenant = first(ctx.headers['x-oremedia-tenant']);
     if (!tenant) throw new TRPCError({ code: 'FORBIDDEN', message: 'Select a company first' });
-    if (tenant !== E2E.tenantId)
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'You are not a member of this company' });
-    return next();
+    const member =
+      tenant === backend.tenantId ? backend.memberFor(first(ctx.headers['authorization'])) : null;
+    if (!member) throw new TRPCError({ code: 'FORBIDDEN', message: 'You are not a member of this company' });
+    return next({ ctx: { ...ctx, member } });
   });
-  const policy = t.middleware(async ({ path, next }) => {
+  const policy = t.middleware(async ({ ctx, path, getRawInput, next }) => {
     const delay = backend.delays.get(path);
     if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
     if (backend.denied.has(path)) throw deniedError(path);
+    const raw = (await getRawInput()) as { brandId?: unknown } | undefined;
+    const grants = ctx.member?.brandIds ?? null;
+    if (grants && typeof raw?.brandId === 'string' && !grants.includes(raw.brandId))
+      throw new NotFoundError('Brand', raw.brandId);
     const failures = backend.failNext.get(path) ?? 0;
     if (failures > 0) {
       if (failures === 1) backend.failNext.delete(path);
@@ -377,7 +573,7 @@ export function createMockRouter(backend: MockBackend) {
   const brandDoc = fixtureSnapshot().document;
   const brandVersion = {
     id: E2E.brandVersionId,
-    brandId: E2E.brandId,
+    brandId: backend.brandId,
     number: 1,
     state: 'published' as const,
     document: brandDoc,
@@ -406,37 +602,89 @@ export function createMockRouter(backend: MockBackend) {
     intelligence: p6.intelligence,
     experiments: p6.experiments,
     access: t.router({
-      listCompanies: authedOnly.query(() => [
-        {
-          tenantId: E2E.tenantId,
-          name: E2E.companyName,
-          slug: 'e2e',
-          role: backend.role,
-          allBrands: true,
-        },
-      ]),
+      listCompanies: authedOnly.query(({ ctx }) => {
+        const bearer = first(ctx.headers['authorization']);
+        // Every company of the group the caller belongs to, with the role and brand scope of that membership.
+        return [backend, ...backend.companies].flatMap((company) => {
+          const member = company.memberFor(bearer);
+          return member
+            ? [
+                {
+                  tenantId: company.tenantId,
+                  name: company.companyName,
+                  slug: company.tenantId.replace(/^ten_/, ''),
+                  role: member.role,
+                  allBrands: member.brandIds === null,
+                },
+              ]
+            : [];
+        });
+      }),
+    }),
+    agents: t.router({
+      runs: t.router({
+        get: query.input(RunGet).query(({ input }) => {
+          const run = backend.runs.get(input.runId);
+          if (!run) throw new NotFoundError('AgentRun', input.runId);
+          const { steps: _s, ...dto } = run;
+          return dto;
+        }),
+        steps: query.input(RunSteps).query(({ input }) => {
+          const run = backend.runs.get(input.runId);
+          if (!run) throw new NotFoundError('AgentRun', input.runId);
+          return { items: run.steps, nextCursor: null };
+        }),
+      }),
+    }),
+    operations: t.router({
+      audit: t.router({
+        /** The run history the agents screen reads: one `agent.run.request` event per run of this company. */
+        query: query.input(z.object({ query: AuditQuery, page: PageRequest })).query(({ input }) => ({
+          items: [...backend.runs.values()]
+            .filter(() => input.query.resourceType === undefined || input.query.resourceType === 'agent_run')
+            .map((r, i) => ({
+              id: `aud_${String(1000 - i).padStart(4, '0')}`,
+              tenantId: backend.tenantId,
+              actorKind: 'user',
+              actorId: r.initiatorId,
+              supportSessionId: null,
+              action: 'agent.run.request',
+              resourceType: 'agent_run',
+              resourceId: r.id,
+              decision: 'allowed' as const,
+              reason: null,
+              correlationId: r.correlationId,
+              metadata: { brandId: r.brandId, runId: r.id, toState: 'planned' },
+              createdAt: new Date(r.createdAt),
+            })),
+          nextCursor: null,
+        })),
+      }),
     }),
     brand: t.router({
-      list: query.query(() => [
-        {
-          id: E2E.brandId,
-          name: E2E.brandName,
-          timezone: 'UTC',
-          defaultLocale: 'en',
-          status: 'active' as const,
-          publishedVersionId: E2E.brandVersionId,
-          version: 1,
-        },
-      ]),
+      list: query.query(({ ctx }) =>
+        backend.brands
+          .filter((b) => !ctx.member?.brandIds || ctx.member.brandIds.includes(b.id))
+          .map((b) => ({
+            id: b.id,
+            name: b.name,
+            timezone: 'UTC',
+            defaultLocale: 'en',
+            status: 'active' as const,
+            publishedVersionId: b.publishedVersionId,
+            version: 1,
+          })),
+      ),
       get: query.input(z.object({ brandId: z.string() })).query(({ input }) => {
-        if (input.brandId !== E2E.brandId) throw new NotFoundError('Brand', input.brandId);
+        const b = backend.brands.find((x) => x.id === input.brandId);
+        if (!b) throw new NotFoundError('Brand', input.brandId);
         return {
-          id: E2E.brandId,
-          name: E2E.brandName,
+          id: b.id,
+          name: b.name,
           timezone: 'UTC',
           defaultLocale: 'en',
           status: 'active' as const,
-          publishedVersionId: E2E.brandVersionId,
+          publishedVersionId: b.publishedVersionId,
           activePolicyVersionId: null,
           version: 1,
         };
@@ -530,6 +778,12 @@ export function createMockRouter(backend: MockBackend) {
             findings: e.findings,
             changedElementIds: e.changedElementIds,
             blocking: e.blocking,
+            preview: {
+              kind: 'scene' as const,
+              rendererVersion: '1.0.0',
+              publishable: false as const,
+              pages: [],
+            },
           };
         }),
       }),
@@ -604,7 +858,7 @@ export function createMockRouter(backend: MockBackend) {
           items: [
             {
               id: 'tpl_e2e',
-              brandId: E2E.brandId,
+              brandId: backend.brandId,
               name: 'Promo template',
               currentVersionId: 'tv_e2e',
               state: 'active' as const,
@@ -617,7 +871,7 @@ export function createMockRouter(backend: MockBackend) {
         })),
         get: query.input(TemplateGet).query(() => ({
           id: 'tpl_e2e',
-          brandId: E2E.brandId,
+          brandId: backend.brandId,
           name: 'Promo template',
           currentVersionId: 'tv_e2e',
           state: 'active' as const,
@@ -645,8 +899,8 @@ export function createMockRouter(backend: MockBackend) {
 
 export type MockRouter = ReturnType<typeof createMockRouter>;
 
-/** A Node request handler mounted at /trpc by the static server. */
-export function createMockHandler(backend: MockBackend) {
+/** One company's handler: its router over its own stores, logging every request it serves. */
+function companyHandler(backend: MockBackend) {
   return createHTTPHandler({
     router: createMockRouter(backend),
     basePath: '/trpc/',
@@ -656,4 +910,18 @@ export function createMockHandler(backend: MockBackend) {
       return { headers: req.headers, correlationId: first(req.headers['x-correlation-id']) ?? randomUUID() };
     },
   });
+}
+
+/**
+ * A Node request handler mounted at /trpc by the static server. With several companies (`addCompany`) a request goes
+ * to the company its X-Oremedia-Tenant header names, so each tenant's reads and writes only ever reach its own
+ * stores; requests without a tenant (listCompanies, the review portal) and unknown tenants go to the first company,
+ * which answers them or refuses the tenant as apps/api does.
+ */
+export function createMockHandler(backend: MockBackend): RequestListener {
+  const handlers = new Map<string, RequestListener>(
+    [backend, ...backend.companies].map((company) => [company.tenantId, companyHandler(company)]),
+  );
+  const primary = handlers.get(backend.tenantId) as RequestListener;
+  return (req, res) => (handlers.get(first(req.headers['x-oremedia-tenant']) ?? '') ?? primary)(req, res);
 }

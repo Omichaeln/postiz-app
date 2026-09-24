@@ -4,6 +4,8 @@ import { logger, errorFields, count, record, METRIC } from '@oremedia/observabil
 import { NotFoundError, toErrorEnvelope } from '@oremedia/contracts/errors';
 import { appRouter } from './router';
 import { createContext } from './context';
+import { createMcpRouter } from './mcp/server';
+import { createRestRouter } from './rest/router';
 
 /**
  * Log fields for an unhandled (INTERNAL) error. Driver messages embed user data (ER_DUP_ENTRY quotes the
@@ -52,6 +54,7 @@ export function createServer(opts: ServerOptions = {}): Express {
         'content-type, authorization, idempotency-key, x-oremedia-tenant, x-oremedia-csrf, x-correlation-id',
       );
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Expose-Headers', 'x-correlation-id, retry-after');
       res.setHeader('Access-Control-Max-Age', '600');
     }
     if (req.method === 'OPTIONS') {
@@ -88,7 +91,19 @@ export function createServer(opts: ServerOptions = {}): Express {
     }),
   );
 
-  // Fallback for anything outside tRPC (public REST arrives in Phase 5): a consistent envelope.
+  // Spec 7.6 public REST (API client keys, per-key scopes) over the same procedures, and the MCP server.
+  app.use(
+    '/v1',
+    createRestRouter((route, cause) =>
+      log.error({ path: route.procedure, ...internalErrorFields(cause) }, 'unhandled error'),
+    ),
+  );
+  app.use(
+    '/mcp',
+    createMcpRouter((cause) => log.error({ path: 'mcp', ...internalErrorFields(cause) }, 'unhandled error')),
+  );
+
+  // Fallback for anything outside tRPC, REST and MCP: a consistent envelope.
   app.use((req, res) => {
     res
       .status(404)

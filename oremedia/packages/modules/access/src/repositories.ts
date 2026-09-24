@@ -331,3 +331,18 @@ export class ExternalReviewerLinkRepository extends TenantScopedRepository<typeo
       .where(this.scope(eq(externalReviewerLinks.reviewRequestId, reviewRequestId)));
   }
 }
+
+/** Spec 5.7: a tenant's support sessions, as the tenant (and an operator inside it) sees them. */
+export class SupportSessionRepository extends TenantScopedRepository<typeof supportSessions> {
+  constructor() {
+    super(supportSessions);
+  }
+  async update(
+    id: string,
+    expectedVersion: number,
+    values: Partial<typeof supportSessions.$inferInsert>,
+    tx?: Tx,
+  ) {
+    await this.updateScoped(id, expectedVersion, values, tx);
+  }
+}

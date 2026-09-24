@@ -39,9 +39,40 @@ export const ServicePrincipalRevoke = z.object({
   servicePrincipalId: z.string(),
   expectedVersion: z.number().int(),
 });
+/**
+ * Spec 7.6 per-key scopes for API client keys (public REST, MCP and bearer tRPC calls). A scope is
+ * `<area>:<read|write>`: `read` covers queries, `write` covers mutations of that area. Scopes narrow a key; they
+ * never widen the service principal's grants (the policy engine still decides every action). A key with an empty
+ * scope list (every key issued before scopes were enforced) keeps read access only: every `*:read`, no `*:write`.
+ */
+export const API_SCOPE_AREAS = [
+  'access',
+  'brands',
+  'assets',
+  'creative',
+  'content',
+  'review',
+  'channels',
+  'publications',
+  'agents',
+  'skills',
+  'insights',
+  'experiments',
+  'measurement',
+  'operations',
+] as const;
+export type ApiScopeArea = (typeof API_SCOPE_AREAS)[number];
+export const ApiScope = z.enum(
+  API_SCOPE_AREAS.flatMap((a) => [`${a}:read`, `${a}:write`]) as [
+    `${ApiScopeArea}:${'read' | 'write'}`,
+    ...Array<`${ApiScopeArea}:${'read' | 'write'}`>,
+  ],
+);
+export type ApiScope = z.infer<typeof ApiScope>;
+
 export const ApiClientCreate = z.object({
   servicePrincipalId: z.string(),
-  scopes: z.array(z.string()).max(50),
+  scopes: z.array(ApiScope).max(50),
   expiresAt: z.string().datetime().optional(),
 });
 export const ApiClientRotate = z.object({ apiClientId: z.string() });
@@ -57,4 +88,13 @@ export const SupportSessionOpen = z.object({
   ticketRef: z.string().min(1).max(80),
   consentRecorded: z.boolean(),
   durationMinutes: z.number().int().min(5).max(240).default(60),
+});
+/**
+ * Spec 5.7: a support session is read-only until a second operator escalates it. The escalation is time-boxed: the
+ * session's expiry becomes min(current expiry, now + durationMinutes).
+ */
+export const SupportSessionEscalate = z.object({
+  supportSessionId: z.string(),
+  reason: z.string().min(10).max(1000),
+  durationMinutes: z.number().int().min(5).max(60).default(30),
 });

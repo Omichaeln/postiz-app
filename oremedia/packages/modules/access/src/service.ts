@@ -9,12 +9,13 @@ import {
   MemberSetRole,
   ServicePrincipalCreate,
   ServicePrincipalRevoke,
+  SupportSessionEscalate,
   SupportSessionOpen,
   TenantCreate,
 } from '@oremedia/contracts/access';
 import { NotFoundError, PolicyDeniedError, ValidationFailedError } from '@oremedia/contracts/errors';
 import type { ResolvedActor } from '@oremedia/contracts/policy';
-import { requireTenant, runAsPlatform, withTransaction, type Tx } from '@oremedia/db';
+import { requireTenant, runAsPlatform, runInTenant, withTransaction, type Tx } from '@oremedia/db';
 import { newId } from '@oremedia/domain/ids';
 import { audit, outbox } from '@oremedia/module-operations';
 import {
@@ -23,6 +24,7 @@ import {
   ExternalReviewerLinkRepository,
   MembershipRepository,
   ServicePrincipalRepository,
+  SupportSessionRepository,
   UserDirectory,
 } from './repositories';
 import { newOpaqueToken } from './authenticator';
@@ -34,6 +36,7 @@ const grantsRepo = new BrandGrantRepository();
 const principalsRepo = new ServicePrincipalRepository();
 const apiClientsRepo = new ApiClientRepository();
 const linksRepo = new ExternalReviewerLinkRepository();
+const supportSessionsRepo = new SupportSessionRepository();
 
 const tenantResource = (actor: ResolvedActor) => ({
   type: 'tenant',
@@ -434,6 +437,71 @@ export const accessService = {
         expiresAt,
       });
     });
+    // The opening is the first entry of the tenant's own trail for this session (spec 5.7: every request audited).
+    await runInTenant(
+      {
+        tenantId: parsed.tenantId,
+        actor: { kind: 'platform_operator', id: operatorId },
+        brandIds: 'all',
+        correlationId,
+        supportSessionId: id,
+      },
+      () =>
+        audit.record(
+          { kind: 'platform_operator', id: operatorId },
+          'support.open',
+          { type: 'support_session', id },
+          'allowed',
+          undefined,
+          { ticketRef: parsed.ticketRef, toState: 'read_only' },
+        ),
+    );
     return { supportSessionId: id, expiresAt };
+  },
+
+  /**
+   * Spec 5.7: a support session is read-only unless escalated with a second operator. The caller is that second
+   * operator, inside their own live support session on the same tenant; the opener can never escalate their own
+   * session. The escalation is time-boxed (the session's expiry only ever moves earlier) and audited either way.
+   */
+  async escalateSupportSession(
+    actor: ResolvedActor,
+    input: z.infer<typeof SupportSessionEscalate>,
+    tx: Tx,
+  ): Promise<{ supportSessionId: string; mode: 'escalated'; expiresAt: Date }> {
+    const parsed = SupportSessionEscalate.parse(input);
+    const session = await supportSessionsRepo.getById(parsed.supportSessionId, tx); // NOT_FOUND for a foreign id
+    const resource = { type: 'support_session', id: session.id };
+    const refuse = async (reason: string, message: string): Promise<never> => {
+      await audit.record({ kind: actor.kind, id: actor.id }, 'support.escalate', resource, {
+        allowed: false,
+        reason,
+      });
+      throw new PolicyDeniedError(reason, message);
+    };
+    if (actor.kind !== 'platform_operator')
+      return refuse('support_operator_required', 'Only a platform operator can escalate a support session');
+    if (actor.expired) return refuse('support_session_expired', 'Your support session has expired');
+    if (actor.id === session.operatorId)
+      return refuse('second_operator_required', 'A second operator must escalate this support session');
+    const now = Date.now();
+    if (session.closedAt || session.expiresAt.getTime() <= now)
+      return refuse('support_session_expired', 'The support session is closed or expired');
+    if (session.mode === 'escalated')
+      throw new ValidationFailedError([{ path: 'supportSessionId', issue: 'already_escalated' }]);
+    const expiresAt = new Date(Math.min(session.expiresAt.getTime(), now + parsed.durationMinutes * 60_000));
+    await supportSessionsRepo.update(
+      session.id,
+      session.version,
+      { mode: 'escalated', escalatedByOperatorId: actor.id, expiresAt },
+      tx,
+    );
+    await audit.record({ kind: actor.kind, id: actor.id }, 'support.escalate', resource, 'allowed', tx, {
+      fromState: 'read_only',
+      toState: 'escalated',
+      ticketRef: session.ticketRef,
+      reason: parsed.reason.slice(0, 200),
+    });
+    return { supportSessionId: session.id, mode: 'escalated', expiresAt };
   },
 };

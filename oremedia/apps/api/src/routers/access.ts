@@ -7,6 +7,7 @@ import {
   MemberSetRole,
   ServicePrincipalCreate,
   ServicePrincipalRevoke,
+  SupportSessionEscalate,
 } from '@oremedia/contracts/access';
 import { PolicyDeniedError } from '@oremedia/contracts/errors';
 import { accessService } from '@oremedia/module-access';
@@ -95,6 +96,17 @@ export const accessRouter = router({
       .input(ApiClientRotate)
       .mutation(({ ctx, input }) =>
         idempotent(mutationCtx(ctx), (tx) => accessService.rotateApiClient(ctx.tenant.actor, input, tx)),
+      ),
+  }),
+
+  /** Spec 5.7: a second operator, inside their own support session on the tenant, escalates another's session. */
+  supportSessions: router({
+    escalate: tenantMutation
+      .input(SupportSessionEscalate)
+      .mutation(({ ctx, input }) =>
+        idempotent(mutationCtx(ctx), (tx) =>
+          accessService.escalateSupportSession(ctx.tenant.actor, input, tx),
+        ),
       ),
   }),
 });

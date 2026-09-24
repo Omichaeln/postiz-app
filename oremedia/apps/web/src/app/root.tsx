@@ -32,7 +32,7 @@ export function TopBar({ title, children }: { title: string; children?: React.Re
   const { theme, toggle } = useTheme();
   const signedInWithToken = Boolean(getBearerToken());
   return (
-    <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2">
+    <header className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2">
       <div className="flex items-center gap-3">
         <Link to="/portfolio" className="text-sm font-semibold">
           Oremedia

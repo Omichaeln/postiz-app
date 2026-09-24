@@ -17,3 +17,13 @@ Every runbook must be exercised once before pilot publication. Status is tracked
 | [Roll back a workflow version safely](rollback-workflow-version.md)                                | `packages/workflows/test/workflow-versions.test.ts` (7.13)                                          |
 | [Process a deletion request](process-deletion-request.md)                                          | `apps/worker-core/src/deletion.integration.test.ts` (7.16)                                          |
 | [Certify a channel](certify-a-channel.md)                                                          | No (needs each platform's app)                                                                      |
+
+## Platform on-call access (spec 5.7)
+
+Runbooks that say "platform on-call under a support session" (for example [kill switch](kill-switch.md)) mean:
+the operator opens a support session (`accessService.openSupportSession`: reason, ticket, consent flag, time box,
+read-only) and calls the API with the `sup_<sessionToken>.<supportSessionId>` bearer. Writes need a **second**
+operator, inside their own support session on the same tenant, to call `access.supportSessions.escalate` (the
+opener cannot escalate their own session; the escalation only shortens the expiry, default 30 minutes). Every
+request of the session, allowed or refused, is audited with its `supportSessionId` (`support.request`, plus
+`support.open` and `support.escalate`). Exercised by `apps/api/src/support-sessions.integration.test.ts`.

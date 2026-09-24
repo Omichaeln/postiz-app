@@ -2,6 +2,7 @@
 // outbox routes that start and signal agentRunWorkflowV1 on task queue `agents`.
 export { agentsService, configureAgentModel } from './service';
 export { createAgentRunRuntime, type AgentRuntimeOptions } from './runtime';
+export { dispatchSurfaceToolCall, surfaceAutonomyFor, type SurfaceToolCall } from './surface';
 export { AgentRunRepository, AgentStepRepository, ToolInvocationRepository } from './repositories';
 export {
   registerAgentOutboxRoutes,

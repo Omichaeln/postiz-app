@@ -24,8 +24,14 @@ import {
 import { auditEvents, outboxEvents } from '@oremedia/db/schema/operations';
 import { hashCanonical } from '@oremedia/domain/hash';
 import { newElementId, newId } from '@oremedia/domain/ids';
-import { brandService } from '@oremedia/module-brand';
 import {
+  brandService,
+  registerEligibleTemplateSource,
+  resetEligibleTemplateSource,
+} from '@oremedia/module-brand';
+import { RENDERER_VERSION } from '@oremedia/editor/renderer/version';
+import {
+  PREVIEW_MAX_EDGE_PX,
   creativeService,
   registerAssetAuthoriser,
   registerRevisionChangeHook,
@@ -620,6 +626,59 @@ describe('creative module (spec 11) against MySQL 8', () => {
       expect(accepted.revision.agentRunId).toBe('run_test');
     });
 
+    it('propose returns a synchronous low-resolution preview of the touched pages and writes no render job or export', async () => {
+      const got = await head();
+      const current = got.currentRevisionId!;
+      const headlineIndex = got.revision.snapshot.pages[0]!.elements.findIndex((e) => e.id === ids.headline);
+      const jobsBefore = await tdb.db.select().from(renderJobs).where(eq(renderJobs.tenantId, tenantA));
+      const exportsBefore = await tdb.db
+        .select()
+        .from(renderedExports)
+        .where(eq(renderedExports.tenantId, tenantA));
+      const proposal = await run(tenantA, (tx) =>
+        creativeService.operations.propose(
+          agentA,
+          batch(
+            docId,
+            current,
+            [{ op: 'setText', pageId: 'page_1', elementId: ids.headline, text: 'Preview offer' }],
+            'agent',
+          ),
+          tx,
+          AGENT_OPTS,
+        ),
+      );
+      const scale = PREVIEW_MAX_EDGE_PX / 1080;
+      expect(proposal.preview).toEqual({
+        kind: 'scene',
+        rendererVersion: RENDERER_VERSION,
+        publishable: false,
+        pages: [{ pageId: 'page_1', formatKey: 'square_1080', width: 320, height: 320, scale }],
+      });
+      expect(proposal.changedElementIds).toEqual([ids.headline]); // the element diff
+      // an identity batch touches no page content: nothing to preview
+      const identity = await run(tenantA, (tx) =>
+        creativeService.operations.propose(
+          agentA,
+          batch(
+            docId,
+            current,
+            [{ op: 'reorderElement', pageId: 'page_1', elementId: ids.headline, toIndex: headlineIndex }],
+            'agent',
+          ),
+          tx,
+          AGENT_OPTS,
+        ),
+      );
+      expect(identity.preview.pages).toEqual([]);
+      expect(await tdb.db.select().from(renderJobs).where(eq(renderJobs.tenantId, tenantA))).toEqual(
+        jobsBefore,
+      );
+      expect(
+        await tdb.db.select().from(renderedExports).where(eq(renderedExports.tenantId, tenantA)),
+      ).toEqual(exportsBefore);
+    });
+
     it('an agent-clean batch commits from an agent with the run id recorded', async () => {
       const current = (await head()).currentRevisionId!;
       const result = await run(tenantA, (tx) =>
@@ -1107,6 +1166,150 @@ describe('creative module (spec 11) against MySQL 8', () => {
       await expect(
         run(tenantA, () => creativeService.templates.get(A, { templateId: other.templateId })),
       ).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
+
+  describe('template slots (spec 6.3, 11.3) and eligible template versions (spec 8.3)', () => {
+    let templateId = '';
+    const slotHeadline = newElementId();
+    const slotBackground = newElementId();
+    const templateDoc = (): CreativeDocumentV1 => ({
+      ...studioDocument(brandVersionA, false),
+      pages: [
+        {
+          ...studioDocument(brandVersionA, false).pages[0]!,
+          elements: [
+            { ...studioDocument(brandVersionA, false).pages[0]!.elements[0]!, id: slotBackground },
+            text(slotHeadline, 'Short headline', 'display', 'Short', 80, 120, 64),
+          ],
+        },
+      ],
+    });
+    const snapshot = () => run(tenantA, () => brandService.resolveBrandSnapshot(A, { brandId: brandA }));
+    beforeAll(() => {
+      registerEligibleTemplateSource((brandId, tx) =>
+        creativeService.templates.eligibleVersionIds(brandId, tx),
+      );
+    });
+    afterAll(() => resetEligibleTemplateSource());
+
+    it('createVersion rejects a slot whose kind does not match its element and misplaced or unordered limits', async () => {
+      templateId = (
+        await run(tenantA, (tx) =>
+          creativeService.templates.create(A, { brandId: brandA, name: 'Short' }, tx),
+        )
+      ).templateId;
+      await expect(
+        run(tenantA, (tx) =>
+          creativeService.templates.createVersion(
+            A,
+            {
+              templateId,
+              document: templateDoc(),
+              slots: [
+                { key: 'headline', elementId: slotHeadline, kind: 'image' },
+                {
+                  key: 'background',
+                  elementId: slotBackground,
+                  kind: 'background',
+                  constraints: { maxLength: 10 },
+                },
+                {
+                  key: 'text',
+                  elementId: slotHeadline,
+                  kind: 'text',
+                  constraints: { minLength: 9, maxLength: 3 },
+                },
+              ],
+              formats: ['square_1080'],
+            },
+            tx,
+          ),
+        ),
+      ).rejects.toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [
+          { path: 'slots.0.kind', issue: 'slot_kind_mismatch: element is text' },
+          { path: 'slots.1.constraints', issue: 'length_limits_apply_to_text_slots' },
+          { path: 'slots.2.constraints.minLength', issue: 'must not exceed maxLength' },
+        ],
+      });
+    });
+
+    it('approving a template version adds it to the brand snapshot and changes the hash', async () => {
+      const before = await snapshot();
+      const version = await run(tenantA, (tx) =>
+        creativeService.templates.createVersion(
+          A,
+          {
+            templateId,
+            document: templateDoc(),
+            slots: [
+              {
+                key: 'headline',
+                elementId: slotHeadline,
+                kind: 'text',
+                required: true,
+                constraints: { maxLength: 8 },
+              },
+              { key: 'background', elementId: slotBackground, kind: 'background', replaceable: false },
+            ],
+            formats: ['square_1080'],
+          },
+          tx,
+        ),
+      );
+      expect((await snapshot()).hash).toBe(before.hash); // a draft version is not eligible
+      await run(tenantA, (tx) =>
+        creativeService.templates.approve(
+          A,
+          { templateId, templateVersionId: version.templateVersionId, expectedVersion: 0 },
+          tx,
+        ),
+      );
+      const after = await snapshot();
+      expect(after.eligibleTemplateVersionIds).toEqual(
+        [...before.eligibleTemplateVersionIds, version.templateVersionId].sort(),
+      );
+      expect(after.hash).not.toBe(before.hash);
+      // the tenant's other brand and the foreign tenant see none of it
+      expect(await run(tenantA, () => creativeService.templates.eligibleVersionIds(brandA2))).not.toContain(
+        version.templateVersionId,
+      );
+      expect(await run(tenantB, () => creativeService.templates.eligibleVersionIds(brandA))).toEqual([]);
+
+      // applyTemplate validates the bound elements against the slots: typed details, nothing written
+      const current = (await head()).currentRevisionId!;
+      const before2 = (await revisionsOf(docId)).length;
+      const bindings = (slotBindings: Record<string, string>) =>
+        batch(docId, current, [
+          {
+            op: 'applyTemplate',
+            pageId: 'page_1',
+            templateVersionId: version.templateVersionId,
+            slotBindings,
+          },
+        ]);
+      await expect(
+        run(tenantA, (tx) =>
+          creativeService.operations.apply(A, bindings({ headline: ids.headline, background: ids.bg }), tx),
+        ),
+      ).rejects.toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [
+          { path: 'operations.0.slotBindings.headline', issue: 'slot_text_too_long' },
+          { path: 'operations.0.slotBindings.background', issue: 'slot_not_replaceable' },
+        ],
+      });
+      await expect(
+        run(tenantA, (tx) =>
+          creativeService.operations.propose(agentA, { ...bindings({}), origin: 'agent' }, tx, AGENT_OPTS),
+        ),
+      ).rejects.toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [{ path: 'operations.0.slotBindings.headline', issue: 'slot_unbound' }],
+      });
+      expect((await revisionsOf(docId)).length).toBe(before2);
     });
   });
 

@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 import type { ToolEffect, ToolSchema } from '@oremedia/contracts/agents';
 import type { Action, PolicyResource, ResolvedActorServicePrincipal } from '@oremedia/contracts/policy';
 import type { UsageKind } from '@oremedia/contracts/billing';
@@ -26,6 +26,16 @@ export class ProposalRequest {
     readonly payload: Record<string, unknown>,
   ) {}
 }
+
+/**
+ * A proposal a person completes through another command instead of the runtime applying it on accept (spec 12.4
+ * publications.proposeSchedule: a person schedules it through publications.schedule with a valid approval). The
+ * runtime recognises it by `completion: 'person'` and records the decision without applying anything.
+ */
+export const PersonCompletedProposal = z
+  .object({ completion: z.literal('person'), command: z.string().min(1).max(80) })
+  .passthrough();
+export type PersonCompletedProposal = z.infer<typeof PersonCompletedProposal>;
 
 /** Spec 12.4 ToolDefinition, plus the JSON Schema the model is shown and the hooks the dispatcher needs. */
 export interface ToolDefinition<I, O> {

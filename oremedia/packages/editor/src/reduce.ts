@@ -2,8 +2,10 @@ import type {
   CreativeDocumentV1,
   CreativePage,
   Element,
+  Finding,
   Operation,
   OperationBatch,
+  TemplateSlotConstraints,
 } from '@oremedia/contracts/creative';
 import { CreativeDocumentV1 as DocumentSchema, ElementSchema } from '@oremedia/contracts/creative';
 import { formatFor } from './formats';
@@ -23,7 +25,122 @@ export class OperationError extends Error {
 export interface TemplateDocument {
   /** The template's page used as the source of elements; slot key → element id inside that page. */
   page: CreativePage;
-  slots: Array<{ key: string; elementId: string; kind: string; required: boolean }>;
+  slots: Array<{
+    key: string;
+    elementId: string;
+    kind: string;
+    required: boolean;
+    /** Absent means true: versions stored before slot semantics bind like before. */
+    replaceable?: boolean;
+    constraints?: TemplateSlotConstraints;
+  }>;
+}
+
+/** A blocking finding about one slot binding of an applyTemplate operation (spec 6.3 / 11.3 slot semantics). */
+export type SlotFinding = Finding & { slotKey: string };
+
+/**
+ * applyTemplate rejected because slot bindings break the template's slot rules. `code` keeps the stable
+ * `<finding code>:<slot key>` shape of the first violation (e.g. `slot_unbound:headline`); `findings` lists them all.
+ */
+export class SlotConstraintError extends OperationError {
+  readonly findings: SlotFinding[];
+  constructor(findings: SlotFinding[]) {
+    const first = findings[0];
+    super(first ? `${first.code}:${first.slotKey}` : 'slot_constraint', 'applyTemplate');
+    this.name = 'SlotConstraintError';
+    this.findings = findings;
+  }
+}
+
+/** Element type a bound element must have per enforced slot kind; other kinds (legacy versions) are not typed. */
+const SLOT_ELEMENT_TYPE: Readonly<Record<string, Element['type']>> = {
+  text: 'text',
+  image: 'image',
+  logo: 'logo',
+  background: 'background',
+};
+
+/**
+ * Spec 6.3 / 11.3: every binding names a slot of the template, is allowed to replace it, points at an element of
+ * the target page of the slot's kind and satisfies the slot's constraints (text length, semantic roles); every
+ * required slot is bound and no element fills two slots. Pure: the findings are returned, nothing is thrown.
+ */
+export function validateSlotBindings(
+  template: TemplateDocument,
+  page: CreativePage,
+  slotBindings: Readonly<Record<string, string>>,
+): SlotFinding[] {
+  const findings: SlotFinding[] = [];
+  const add = (slotKey: string, code: string, message: string, elementId?: string) =>
+    findings.push({
+      slotKey,
+      code,
+      severity: 'blocking',
+      message,
+      pageId: page.id,
+      ...(elementId ? { elementId } : {}),
+    });
+  const slots = new Map(template.slots.map((s) => [s.key, s]));
+  for (const key of Object.keys(slotBindings))
+    if (!slots.has(key)) add(key, 'slot_unknown', `The template has no slot "${key}"`);
+  const boundBy = new Map<string, string>();
+  for (const slot of template.slots) {
+    const boundId = slotBindings[slot.key];
+    if (!boundId) {
+      if (slot.required) add(slot.key, 'slot_unbound', `Slot "${slot.key}" is required`);
+      continue;
+    }
+    if (slot.replaceable === false) {
+      add(slot.key, 'slot_not_replaceable', `Slot "${slot.key}" is fixed by the template`, boundId);
+      continue;
+    }
+    const previous = boundBy.get(boundId);
+    if (previous !== undefined)
+      add(slot.key, 'slot_binding_duplicate', `The element already fills slot "${previous}"`, boundId);
+    boundBy.set(boundId, slot.key);
+    const element = locate(page.elements, boundId)?.element;
+    if (!element) {
+      add(slot.key, 'slot_binding_not_found', `The bound element is not on page ${page.id}`, boundId);
+      continue;
+    }
+    const expectedType = SLOT_ELEMENT_TYPE[slot.kind];
+    if (expectedType !== undefined && element.type !== expectedType) {
+      add(
+        slot.key,
+        'slot_kind_mismatch',
+        `Slot "${slot.key}" takes a ${expectedType} element, not ${element.type}`,
+        boundId,
+      );
+      continue;
+    }
+    const c = slot.constraints ?? {};
+    if (c.semanticRoles && !(element.semanticRole && c.semanticRoles.includes(element.semanticRole)))
+      add(
+        slot.key,
+        'slot_role_not_allowed',
+        `Slot "${slot.key}" takes ${c.semanticRoles.join(', ')} elements only`,
+        boundId,
+      );
+    if (element.type === 'text') {
+      const length = [...element.text].length;
+      if (c.maxLength !== undefined && length > c.maxLength)
+        add(
+          slot.key,
+          'slot_text_too_long',
+          `Slot "${slot.key}" takes at most ${c.maxLength} characters (${length} given)`,
+          boundId,
+        );
+      if (c.minLength !== undefined && length < c.minLength)
+        add(
+          slot.key,
+          'slot_text_too_short',
+          `Slot "${slot.key}" takes at least ${c.minLength} characters (${length} given)`,
+          boundId,
+        );
+    }
+  }
+  return findings;
 }
 
 export interface ReduceContext {
@@ -171,10 +288,8 @@ export function reduce(doc: CreativeDocumentV1, op: Operation, ctx: ReduceContex
       const page = pageOf(next, op.pageId, op.op);
       const template = ctx.templates?.[op.templateVersionId];
       if (!template) throw new OperationError('template_not_resolved', op.op);
-      for (const slot of template.slots) {
-        const bound = op.slotBindings[slot.key];
-        if (slot.required && !bound) throw new OperationError(`slot_unbound:${slot.key}`, op.op);
-      }
+      const slotFindings = validateSlotBindings(template, page, op.slotBindings);
+      if (slotFindings.length) throw new SlotConstraintError(slotFindings);
       // Template elements come in with their template ids; bound slots take the existing element's content.
       const incoming = structuredClone(template.page.elements);
       for (const slot of template.slots) {

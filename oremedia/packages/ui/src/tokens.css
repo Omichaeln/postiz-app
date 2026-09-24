@@ -18,7 +18,8 @@
   --ring: #0f6e63;
   --radius: 6px;
   --status-good: #1e7a4c;
-  --status-warning: #a56a00;
+  /* ≥ 4.5:1 on --background and --muted (WCAG 1.4.3); #a56a00 measured 4.19:1 and 3.96:1. */
+  --status-warning: #8f5c00;
   --status-critical: #b2271f;
   --status-info: #4b5a76;
 }

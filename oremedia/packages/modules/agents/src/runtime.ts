@@ -32,6 +32,7 @@ import {
   applyProposalBatch,
   assembleSystemPrompt,
   CreativeProposalPayload,
+  PersonCompletedProposal,
   assertRoutingAllowed,
   createReleaseOneRegistry,
   defaultContextResolverDeps,
@@ -488,7 +489,12 @@ export function createAgentRunRuntime(opts: AgentRuntimeOptions): AgentRunRuntim
       const principal = await principalFor(input, run);
       let note = `proposal ${input.decision.stepId} ${input.decision.decision}`;
       await withTransaction(async (tx) => {
-        if (input.decision.decision === 'accept') {
+        const completedByPerson = PersonCompletedProposal.safeParse(proposal.proposalPayload);
+        if (input.decision.decision === 'accept' && completedByPerson.success) {
+          // Spec 12.4: a pending proposal (e.g. a proposed schedule) is completed by a person through its command;
+          // accepting it applies nothing here.
+          note += `: a person completes it through ${completedByPerson.data.command}`;
+        } else if (input.decision.decision === 'accept') {
           try {
             // The verbatim payload (tool_invocations.proposal_payload), never the redacted input the history shows.
             const batch = CreativeProposalPayload.parse(proposal.proposalPayload);

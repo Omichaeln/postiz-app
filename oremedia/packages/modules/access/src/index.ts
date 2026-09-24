@@ -1,4 +1,5 @@
 export { authenticate, resolveTenantContext, type Principal, type ResolvedTenant } from './resolve';
+export { apiKeyAllows, principalHasScope } from './scopes';
 export { policy, decide, assert as assertAllowed, stillHas } from './policy';
 export { accessService, registerBrandChecker } from './service';
 export {

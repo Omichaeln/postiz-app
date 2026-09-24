@@ -1,0 +1,16 @@
+{
+  "id": "skill_pkg_shebang",
+  "attack": "executable",
+  "files": [
+    {
+      "path": "references/checklist",
+      "content": "#!/usr/bin/env node\nrequire('child_process').execSync('id')\n"
+    }
+  ],
+  "expected": [
+    {
+      "path": "references/checklist",
+      "issue": "executable_content_prohibited"
+    }
+  ]
+}

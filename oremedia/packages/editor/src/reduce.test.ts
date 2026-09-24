@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { hashCanonical } from '@oremedia/domain/hash';
 import { CreativeDocumentV1 } from '@oremedia/contracts/creative';
-import { applyBatch, changedElementIds, findElement, OperationError, reduce, reflow } from './reduce';
+import type { Element } from '@oremedia/contracts/creative';
+import {
+  applyBatch,
+  changedElementIds,
+  findElement,
+  OperationError,
+  reduce,
+  reflow,
+  SlotConstraintError,
+  validateSlotBindings,
+  type TemplateDocument,
+} from './reduce';
 import { guardLogoInsertion, guardProtected } from './guard';
 import { eid, fixtureDocument, ids } from './fixtures';
 import { PolicyDeniedError } from '@oremedia/contracts/errors';
@@ -169,5 +180,123 @@ describe('guards (spec 11.4: agents cannot touch protected elements)', () => {
         'user',
       ),
     ).not.toThrow();
+  });
+});
+
+describe('template slots (spec 6.3 / 11.3: kinds, replaceable, constraints)', () => {
+  const T_HEAD = eid('01HTHEAD');
+  const T_HERO = eid('01HTHERO');
+  const T_BG = eid('01HTBG');
+  const template = (slots: TemplateDocument['slots']): Record<string, TemplateDocument> => {
+    const page = structuredClone(fixtureDocument().pages[0]!);
+    page.elements = [
+      { ...(page.elements[0] as Element), id: T_BG },
+      { ...(page.elements[1] as Element), id: T_HERO, semanticRole: 'product' },
+      { ...(page.elements[2] as Element), id: T_HEAD, name: 'Template headline' },
+    ];
+    page.layoutConstraints = [];
+    return { tv_1: { page, slots } };
+  };
+  const apply = (slotBindings: Record<string, string>) =>
+    ({ op: 'applyTemplate', pageId: P, templateVersionId: 'tv_1', slotBindings }) as const;
+  const findingsOf = (fn: () => unknown) => {
+    try {
+      fn();
+    } catch (e) {
+      if (e instanceof SlotConstraintError) return e.findings.map((f) => [f.slotKey, f.code]);
+      throw e;
+    }
+    return [];
+  };
+
+  it('binds slots whose element kind and constraints match; bound text and images keep their content', () => {
+    const templates = template([
+      {
+        key: 'headline',
+        elementId: T_HEAD,
+        kind: 'text',
+        required: true,
+        constraints: { minLength: 3, maxLength: 40 },
+      },
+      { key: 'hero', elementId: T_HERO, kind: 'image', required: false },
+      { key: 'background', elementId: T_BG, kind: 'background', required: false, replaceable: false },
+    ]);
+    const next = reduce(fixtureDocument(), apply({ headline: ids.headline, hero: ids.image }), { templates });
+    const page = next.pages[0]!;
+    expect(page.elements.map((e) => e.id)).toEqual([T_BG, ids.image, ids.headline]);
+    expect(findElement(page, ids.headline)).toMatchObject({ type: 'text', text: 'October offer' });
+    expect(findElement(page, ids.image)).toMatchObject({ type: 'image', assetVersionId: 'av_photo' });
+    expect(next.templateVersionId).toBe('tv_1');
+  });
+
+  it('rejects with typed blocking findings: unknown, unbound, fixed, missing, wrong kind, duplicate, length and role', () => {
+    const templates = template([
+      { key: 'headline', elementId: T_HEAD, kind: 'text', required: true, constraints: { maxLength: 5 } },
+      {
+        key: 'hero',
+        elementId: T_HERO,
+        kind: 'image',
+        required: true,
+        constraints: { semanticRoles: ['product'] },
+      },
+      { key: 'background', elementId: T_BG, kind: 'background', required: false, replaceable: false },
+    ]);
+    const doc = fixtureDocument();
+    // too long, wrong role (the fixture image has no semantic role), a fixed slot, an unknown key
+    expect(
+      findingsOf(() =>
+        reduce(doc, apply({ headline: ids.headline, hero: ids.image, background: ids.bg, nope: ids.body }), {
+          templates,
+        }),
+      ),
+    ).toEqual([
+      ['nope', 'slot_unknown'],
+      ['headline', 'slot_text_too_long'],
+      ['hero', 'slot_role_not_allowed'],
+      ['background', 'slot_not_replaceable'],
+    ]);
+    // a required slot unbound keeps the stable code shape of the first violation
+    expect(() => reduce(doc, apply({}), { templates })).toThrowError(/slot_unbound:headline/);
+    expect(findingsOf(() => reduce(doc, apply({}), { templates }))).toEqual([
+      ['headline', 'slot_unbound'],
+      ['hero', 'slot_unbound'],
+    ]);
+    // a text element in an image slot; an element that is not on the page; one element in two slots
+    expect(
+      findingsOf(() => reduce(doc, apply({ headline: eid('01HGONE'), hero: ids.body }), { templates })),
+    ).toEqual([
+      ['headline', 'slot_binding_not_found'],
+      ['hero', 'slot_kind_mismatch'],
+    ]);
+    const twice = template([
+      { key: 'a', elementId: T_HEAD, kind: 'text', required: false },
+      { key: 'b', elementId: T_HERO, kind: 'legacy-kind', required: false },
+    ]);
+    expect(findingsOf(() => reduce(doc, apply({ a: ids.body, b: ids.body }), { templates: twice }))).toEqual([
+      ['b', 'slot_binding_duplicate'],
+    ]);
+  });
+
+  it('validateSlotBindings is pure and reports findings with page and element ids', () => {
+    const { tv_1 } = template([
+      { key: 'headline', elementId: T_HEAD, kind: 'text', required: true, constraints: { minLength: 50 } },
+    ]);
+    const doc = fixtureDocument();
+    const findings = validateSlotBindings(tv_1!, doc.pages[0]!, { headline: ids.headline });
+    expect(findings).toEqual([
+      {
+        slotKey: 'headline',
+        code: 'slot_text_too_short',
+        severity: 'blocking',
+        message: expect.stringContaining('at least 50'),
+        pageId: P,
+        elementId: ids.headline,
+      },
+    ]);
+    expect(doc).toEqual(fixtureDocument());
+    // legacy slots (no replaceable flag, unknown kind, no constraints) bind as before
+    const legacy = template([{ key: 'x', elementId: T_HEAD, kind: 'headline', required: true }]);
+    expect(validateSlotBindings(legacy['tv_1']!, doc.pages[0]!, { x: ids.headline })).toEqual([]);
+    expect(new SlotConstraintError(findings)).toBeInstanceOf(OperationError);
   });
 });

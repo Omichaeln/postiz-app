@@ -243,15 +243,15 @@
           "production",
           "3.3",
           "complete",
-          "eslint-plugin-boundaries policies in eslint.config.js (folder-level elements); a real violation (app → domain) was caught and fixed during Phase 1; lint green"
+          "eslint-plugin-boundaries policies in eslint.config.js (folder-level elements); a real violation (app → domain) was caught and fixed during Phase 1; lint green pnpm check:boundaries runs the configured boundaries/dependencies policy (it previously overrode a removed rule name and errored); a probe import from domain into db fails it."
         ],
         [
           "1.7",
           "CI: format, lint, typecheck, unit, integration (MySQL 8 service), cross-tenant, replay, dependency and container scans, OpenAPI diff, secrets scan, schema check",
           "production",
           "2.1.12, 22",
-          "complete",
-          ".github/workflows/oremedia-ci.yml green on GitHub for PR #2 at af011f5 (run 10): format, lint (custom rules), typecheck (turbo, 17 packages), unit, integration + cross-tenant on the MySQL 8 service, OpenAPI diff, workflow replay, pnpm audit (high), API image build from infra/railway/Dockerfile, Trivy HIGH/CRITICAL scan, Gitleaks on the PR range. Earlier failures (stale lockfile, api↔fixtures cycle, corepack signature, pnpm deploy catalog bug, shallow checkout, npm CVEs in the base image) were each fixed and re-verified on the runner."
+          "in_progress",
+          ".github/workflows/oremedia-ci.yml green on GitHub for PR #2 at af011f5 (run 10): format, lint (custom rules), typecheck (turbo, 17 packages), unit, integration + cross-tenant on the MySQL 8 service, OpenAPI diff, workflow replay, pnpm audit (high), API image build from infra/railway/Dockerfile, Trivy HIGH/CRITICAL scan, Gitleaks on the PR range. Earlier failures (stale lockfile, api↔fixtures cycle, corepack signature, pnpm deploy catalog bug, shallow checkout, npm CVEs in the base image) were each fixed and re-verified on the runner. Open: the workflow-replay job is green but runs zero tests (test:replay uses --passWithNoTests over packages/workflows/src/replay, which has no recorded histories yet; see 5.32 and T.4), so replay is wired but not yet exercised."
         ],
         [
           "1.8",
@@ -418,8 +418,8 @@
           "access: support sessions instead of impersonation",
           "critical",
           "5.7",
-          "in_progress",
-          "openSupportSession (reason, ticket, consent flag, time box, read-only) and audited use via supportSessionId; second-operator escalation and the audit-completeness test are pending"
+          "complete",
+          "openSupportSession (reason, ticket, consent, time box, read-only) writes support.open; accessService.escalateSupportSession needs a second platform operator in their own live session on the same tenant (not the opener), is time-boxed (min(current, now + 5–60 min)) and audits every refusal; tenantScoped writes a support.request audit row with the outcome for every request in a support session, including ones refused before tenant resolution; an expired session is refused at resolution (support_session_expired). apps/api/src/support-sessions.integration.test.ts (3 tests); runbooks README \"Platform on-call access\"."
         ],
         [
           "1.29",
@@ -622,8 +622,8 @@
           "resolveBrandSnapshot: immutable hashed bundle",
           "production",
           "8.3",
-          "in_progress",
-          "packages/domain/src/brand-snapshot.ts buildBrandSnapshot/verifyBrandSnapshot: sorted facts/objectives/template ids, hash = hashCanonical(bundle); brandService.resolveBrandSnapshot(actor, {brandId, versionId?}) (5 unit + integration determinism tests). Open: eligibleTemplateVersionIds is [] until the creative module (Phase 3) supplies template versions; policyVersionId nullable with defaultPolicyDocument() when none active (deviation recorded)."
+          "complete",
+          "packages/domain/src/brand-snapshot.ts buildBrandSnapshot/verifyBrandSnapshot: sorted facts/objectives/template ids, hash = hashCanonical(bundle); eligibleTemplateVersionIds now filled by a hook the creative module registers (approved template versions only), and approving a version changes the hash (brand + creative integration tests). Recorded deviation: policyVersionId is nullable and defaultPolicyDocument() applies when no policy version is active."
         ],
         [
           "2.9",
@@ -774,8 +774,8 @@
           "Templates and template versions (slots, constraints, formats)",
           "production",
           "6.3",
-          "in_progress",
-          "templates + template_versions: creativeService.templates.{create,createVersion,approve,list,get}; templateVersionMachine (draft → approved → retired) and templateMachine (draft → active → retired); documents pin specific versions; applyTemplate refuses unapproved versions and authorises the template page's assets (creative.integration.test.ts). Open: slot semantics beyond page replacement, and feeding eligibleTemplateVersionIds into the brand snapshot."
+          "complete",
+          "templates + template_versions with templateVersionMachine (draft → approved → retired) and templateMachine; documents pin versions; applyTemplate refuses unapproved versions. Slots now enforce element kind, replaceability, text length and semantic role, and a bad binding is rejected with typed SlotConstraintError findings (creative.integration.test.ts). Approved versions feed the brand snapshot (2.8)."
         ],
         [
           "2.28",
@@ -896,7 +896,7 @@
           "production",
           "11.4",
           "in_progress",
-          "operations.propose: same stale check, guards, reduce and validation with no writes; returns {baseRevisionId, snapshot, contentHash, findings, changedElementIds, blocking} for the overlay diff. Open: the preview render of a proposal (rendering is asynchronous through render jobs)."
+          "operations.propose: same stale check, guards, reduce and validation with no writes; returns the diff (changedElementIds, findings, blocking) plus a synchronous scene preview of the changed pages (rendererVersion, publishable:false) used by the studio overlay. Open: a worker-rendered raster preview needs a schema change (preview flag on render_jobs and storage for the proposed snapshot), which subagents may not make."
         ],
         [
           "3.11",
@@ -1066,8 +1066,8 @@
           "Release 1 tool registry (15 tools); no agent tool publishes",
           "critical",
           "12.4",
-          "in_progress",
-          "tools/*: all fifteen Release 1 tools registered with real Zod schemas, actions and effects (registry names == TOOL_NAMES_RELEASE_1; an external-effect tool cannot be registered); brand.getSnapshot, assets.searchEligible, facts.list, creative.proposeOperations (proposal_requires_user), creative.requestRender, review.runBrandReview and images.generate (costed; provider_not_configured without IMAGE_GEN_PROVIDER) implemented; the eight tools whose backing modules arrive in Phases 5–6 return denied(tool_not_available_yet). No tool publishes; publications.proposeSchedule is a pending proposal only."
+          "complete",
+          "All fifteen Release 1 tools are real (tools/*; not-available-yet.ts deleted): content.createBrief, content.draftCopy, review.request and publications.proposeSchedule reach their modules through registration hooks in both compositions. No tool publishes; proposeSchedule returns a proposal a person completes with publications.schedule, and deciding on a proposal asserts the proposing tool’s own action (publication.schedule for a schedule: a creator is refused, a publisher may accept). review.request accepts only active members of the same company as assignees. Agent-tool cross-tenant harness 16/16 strict (experiments.proposeDesign rejects a foreign recommendation id). agent-tools, agents and review integration tests pass."
         ],
         [
           "4.7",
@@ -2045,7 +2045,7 @@
           "production",
           "21.3",
           "in_progress",
-          "Keyboard paths, visible focus, labels and text+glyph status on every built screen (studio, calendar, review, agents e2e suites exercise keyboard paths and phone width); a full WCAG 2.2 AA audit with an automated checker has not been run."
+          "apps/web/e2e/a11y.ts: in-page audit of 12 WCAG 2.2 rules (names, labels, colour-only status, 1.4.3 contrast, headings, landmarks, tabindex, aria references, dialog labels, 2.5.8 target size, 1.4.10 reflow) plus keyboard-path (2.1.1, 2.4.7, 2.4.11) and dialog focus-trap checks; a non-vacuity test seeds one violation per rule. a11y.e2e.test.ts (87) runs every screen in both themes at several widths; fixes: --status-warning darkened to #8f5c00, calendar opacity, input focus-within, header wrap, review portal pre-paint theme. Open: axe-core is not a dependency, so this is a focused audit not a full one; toasts can obscure focus at phone width (2.4.11) and are not yet fixed."
         ],
         [
           "F.6",
@@ -2084,7 +2084,7 @@
           "critical",
           "19.1",
           "in_progress",
-          "tRPC contract covered (envelope, validation details, idempotency replay/reuse, tenant selection, rate limit, revoked key). REST and MCP surfaces arrive in Phase 5 and must share the same fixtures."
+          "One fixture set across surfaces: public REST /v1 (26 routes) calls the tRPC procedure with the same context, so envelope, tenant selection, rate limit, idempotency replay and audit are identical; read parity REST == tRPC per route; per-key scopes apply to tRPC, REST and MCP; a scoped, granted key writes through REST at its effective autonomy (201) and an assist-only key is refused (403) (apps/api integration 47/47). Open: MCP tool calls take no Idempotency-Key (no replay protection); OAuth 2.1 tokens (spec 7.6) are not implemented; MCP success paths for start run are tested only for refusals."
         ],
         [
           "T.4",
@@ -2123,8 +2123,8 @@
           "End-to-end (Playwright): two companies, roles, create → review → schedule, post-approval edit invalidates, partial failure, restore and reconcile",
           "critical",
           "19.1",
-          "open",
-          ""
+          "in_progress",
+          "apps/web/e2e/journey.e2e.test.ts (9 tests, built app in Chromium at phone width): two companies and roles, create → variants → request review → approve → schedule to two channels, partial failure with outcome_unknown reconciled in the UI, post-approval edit invalidates and the release is held (approval_matches), company B sees none of A, brand-restricted creator gets NOT_FOUND. Open: it runs against the in-process mock transport, not the deployed stack; restore is exercised at the service level (runbooks) but not in the browser journey."
         ],
         [
           "T.9",
@@ -2139,8 +2139,8 @@
           "Every critical-tier path in section 18 has at least one adversarial test",
           "critical",
           "19.2",
-          "open",
-          ""
+          "complete",
+          "docs/operations/adversarial-tests.md maps all 13 section-18 rows to test files and names; each named control was mutation-checked (test fails with the control removed). S.12 is not applicable and recorded as such."
         ]
       ]
     },
@@ -2155,7 +2155,7 @@
           "critical",
           "18",
           "in_progress",
-          "Repository-level and tRPC-level cross-tenant tests pass (21 procedures). REST, MCP, agent tools, workers and exports are added to the same harness as they land."
+          "pnpm test:cross-tenant 208/208 with fixture coverage enforced per surface: every tRPC procedure, every REST /v1 route, every MCP tool and every Release 1 agent tool (strict, no known gaps) is called as tenant A with tenant B ids and B is unchanged; exports and portfolio queries covered by export-disclosure.integration.test.ts (S.8). Open: worker activities are exercised per module (render inputs, publishing, secret scan) but are not enumerated by the harness the way procedures are."
         ],
         [
           "S.2",
@@ -2178,24 +2178,24 @@
           "Skill package → runtime: malicious package fixtures (path traversal, links)",
           "critical",
           "18",
-          "open",
-          ""
+          "complete",
+          "19 malicious skill-package fixtures (tooling/test-fixtures/skill-packages): traversal/absolute/drive/backslash paths, symlinks, scripts and executables, shebang, remote images, HTML script, CSS @import, javascript:/file: links, links leaving the package or missing, duplicates, non-UTF-8, lone surrogate, oversize. package-format.ts refuses each with a typed reason; skills.integration.test.ts proves import writes nothing. Mutation-checked."
         ],
         [
           "S.5",
           "Upload/render → host or network: malformed SVG/font/image, bombs, oversized input, SSRF",
           "critical",
           "18",
-          "open",
-          ""
+          "complete",
+          "Upload side: SVG/font/image attack fixtures rejected (gate 2.g3). Render side: an asset whose bytes change after pinning fails with RenderIntegrityError and no export (render-job.integration.test.ts); oversized formats and element counts are refused before Chromium launches, and a page script cannot reach the network by fetch, XHR, image, WebSocket, beacon, iframe or navigation (render-isolation.integration.test.ts, real Chromium). SSRF on ingest is not applicable: there is no URL import in Release 1."
         ],
         [
           "S.6",
           "Credential store → model/log/history: automated scan asserts secrets absent from prompts, events, logs, histories",
           "critical",
           "18",
-          "in_progress",
-          "Log allowlist test passes; envelope tests prove no plaintext credentials in ciphertext; prompt/event/workflow-history scans arrive with those components"
+          "complete",
+          "apps/worker-core/src/secret-scan.integration.test.ts (4 tests): fake secrets sealed through the real broker, used for a publication, rotated by a refresh whose error echoes the token, and targeted by an agent prompt asking for them; scan of model requests, outbox, audit, captured logs, workflow activity inputs and results, agent runs, steps, invocations, transcripts, publications, attempts, evidence and connection rows finds none. Mutation check: logging the refresh error message fails it."
         ],
         [
           "S.7",
@@ -2210,8 +2210,8 @@
           "Portfolio/export disclosure: mixed-client export and revoked-link tests",
           "critical",
           "18",
-          "open",
-          ""
+          "complete",
+          "apps/api/src/export-disclosure.integration.test.ts: an agency admin of both clients calls every query procedure (media signed URLs, publication evidence, metrics, review requests, renders included) with own and foreign ids under each selection and only ever sees the selected client; a revoked or expired reviewer link reads nothing (this found and fixed resolution accepting revoked/expired links)."
         ],
         [
           "S.9",
@@ -2219,7 +2219,7 @@
           "critical",
           "18",
           "in_progress",
-          "Parallel overspend test passes; provider timeout and retry-after-acceptance tests arrive with the provider layer"
+          "Parallel overspend (agents.integration.test.ts); provider timeout after acceptance polls the same job with one submission and a tool timeout never resubmits (packages/ai/src/provider-jobs.test.ts); timeout-after-send is never retried (io.test.ts, publication workflow tests). Open: an activity retry charges budgets.consume again (over-counts cost, never overspends), and two images.generate calls in one model step share one provider-job key."
         ],
         [
           "S.10",
@@ -2234,17 +2234,24 @@
           "Platform operator: audit completeness",
           "critical",
           "18",
-          "in_progress",
-          "Support sessions carry supportSessionId into every audit row; audit-completeness test pending"
+          "complete",
+          "Every request made in a support session writes a support.request audit row with its supportSessionId and outcome, including requests refused before a tenant resolves; escalation needs a second operator and is audited (support-sessions.integration.test.ts). See 1.28."
         ],
-        ["S.12", "Inbound webhooks: forged and replayed", "critical", "18", "open", ""],
+        [
+          "S.12",
+          "Inbound webhooks: forged and replayed",
+          "critical",
+          "18",
+          "not_applicable",
+          "Release 1 has no inbound webhook endpoint: apps/api serves /health, /trpc, /v1 and /mcp; the redirector serves /:code; ingestion is scheduled pulls (spec 4.4) and CRM webhooks are Release 2 (spec 15). Recorded in docs/operations/adversarial-tests.md."
+        ],
         [
           "S.13",
           "Outbound webhooks: private-range and DNS-rebinding tests",
           "critical",
           "18",
-          "in_progress",
-          "Private-range and metadata-host tests pass for literal addresses and hostnames; DNS-rebinding is prevented structurally by the pinned lookup (every resolved address checked and reused); a test with a rebinding resolver is pending"
+          "complete",
+          "packages/providers/src/ssrf.test.ts: the pinned dispatcher resolves once and connects to the checked address, never the rebound one (a control with an unpinned agent is rebound); a lookup answer containing any blocked address is refused whole; IPv6 in every notation, including IPv4-mapped hex forms, is judged by its embedded address (this found and fixed a metadata/loopback bypass via bracketed IPv6 literals). Tenant-configured outbound webhooks do not exist in Release 1; the covered path is the ProviderIO dispatcher, the only outbound HTTP path."
         ]
       ]
     }

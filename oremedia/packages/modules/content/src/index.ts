@@ -21,7 +21,9 @@ export {
   type AttributeCaptureInput,
   type ContentRevisionDto,
   type ChannelVariantDto,
+  type ContentActorOptions,
 } from './service';
+export { contentToolSource } from './tools';
 export {
   CampaignRepository,
   BriefRepository,

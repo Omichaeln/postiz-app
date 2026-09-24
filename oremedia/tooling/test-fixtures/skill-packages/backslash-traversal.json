@@ -1,0 +1,16 @@
+{
+  "id": "skill_pkg_backslash_traversal",
+  "attack": "path_traversal",
+  "files": [
+    {
+      "path": "references\\..\\..\\secrets.md",
+      "content": "x\n"
+    }
+  ],
+  "expected": [
+    {
+      "path": "references\\..\\..\\secrets.md",
+      "issue": "invalid_path"
+    }
+  ]
+}

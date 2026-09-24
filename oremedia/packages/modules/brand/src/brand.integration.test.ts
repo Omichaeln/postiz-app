@@ -26,7 +26,7 @@ import {
 import { auditEvents, outboxEvents } from '@oremedia/db/schema/operations';
 import { hashCanonical } from '@oremedia/domain/hash';
 import { newId } from '@oremedia/domain/ids';
-import { brandService } from './service';
+import { brandService, registerEligibleTemplateSource, resetEligibleTemplateSource } from './service';
 
 const USER = 'usr_brand_test';
 const ctx = (tenantId: string, brandIds: ReadonlySet<string> | 'all' = 'all'): TenantContext => ({
@@ -391,6 +391,24 @@ describe('brand module (spec 8) against MySQL 8', () => {
       expect(specific.brandVersionId).toBe(v1);
       expect(specific.hash).not.toBe(a.hash);
       baseHash = a.hash;
+    });
+
+    it('eligible template versions come from the registered source (sorted) and change the hash', async () => {
+      const asked: string[] = [];
+      registerEligibleTemplateSource(async (brandId, tx) => {
+        asked.push(brandId);
+        expect(tx).toBeUndefined(); // the resolver's caller passed no transaction; the source gets the same
+        return ['tv_02', 'tv_01'];
+      });
+      try {
+        const withTemplates = await resolve();
+        expect(asked).toEqual([brandA]);
+        expect(withTemplates.eligibleTemplateVersionIds).toEqual(['tv_01', 'tv_02']);
+        expect(withTemplates.hash).not.toBe(baseHash);
+      } finally {
+        resetEligibleTemplateSource();
+      }
+      expect((await resolve()).hash).toBe(baseHash);
     });
 
     it('a proposed fact is not in the snapshot; approving it changes the hash; approving twice is rejected', async () => {

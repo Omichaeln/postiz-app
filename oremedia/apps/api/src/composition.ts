@@ -3,9 +3,11 @@ import {
   experimentsService,
   registerExperimentArmLinks,
   registerExperimentListener,
+  registerRecommendationResolver,
 } from '@oremedia/module-experiments';
 import {
   intelligenceService,
+  intelligenceToolSource,
   registerExperimentDesigner,
   registerExperimentSource,
   registerMetricsSource,
@@ -13,7 +15,7 @@ import {
 } from '@oremedia/module-intelligence';
 import { assetService } from '@oremedia/module-assets';
 import { registerUsageCounters } from '@oremedia/module-billing';
-import { brandService } from '@oremedia/module-brand';
+import { brandService, registerEligibleTemplateSource } from '@oremedia/module-brand';
 import {
   creativeService,
   registerAssetAuthoriser,
@@ -26,6 +28,7 @@ import {
   registerLinkTracker,
   registerRevisionChangeListener,
   contentService,
+  contentToolSource,
 } from '@oremedia/module-content';
 import {
   attributeService,
@@ -41,9 +44,11 @@ import {
   configureCredentialBroker,
   createKmsFromEnv,
   publicationService,
+  publishingToolSource,
   registerProviderClients,
   providerClientsFromEnv,
   registerPublishMediaSource,
+  registerRevisionVariantSource,
   registerApprovalConsumer,
   registerReleaseEvaluator,
   registerVariantSource,
@@ -53,9 +58,16 @@ import {
   registerAssetAuthoriser as registerReleaseAssetAuthoriser,
   registerReleaseCheckers,
   reviewService,
+  reviewToolSource,
 } from '@oremedia/module-review';
 import { registerBrandChecker as registerSkillBrandChecker, skillsService } from '@oremedia/module-skills';
-import { registerSkillResolver } from '@oremedia/ai';
+import {
+  registerContentToolSource,
+  registerIntelligenceToolSource,
+  registerPublishingToolSource,
+  registerReviewToolSource,
+  registerSkillResolver,
+} from '@oremedia/ai';
 
 /** Wires cross-module hooks so modules never import each other's tables. Called by main and by tests. */
 export function composeModules(): void {
@@ -196,6 +208,9 @@ export function composeModules(): void {
   registerPublicationVolumeSource(
     async (brandId, from, to, tx) => (await publicationService.calendarRange(brandId, from, to, tx)).length,
   );
+  registerRecommendationResolver((recommendationId, brandId, tx) =>
+    intelligenceService.recommendations.belongsToBrand(recommendationId, brandId, tx),
+  );
   registerExperimentListener((milestone, tx) =>
     intelligenceService.learning.onExperimentMilestone(milestone, tx),
   );
@@ -213,6 +228,16 @@ export function composeModules(): void {
         tx,
       );
   });
+  // Spec 12.4: agent tools reach their modules through the generic registry hooks (as in worker-core, so the
+  // cross-tenant harness exercises the same sources); spec 8.3: the brand snapshot lists approved template versions.
+  registerIntelligenceToolSource(intelligenceToolSource);
+  registerContentToolSource(contentToolSource);
+  registerReviewToolSource(reviewToolSource);
+  registerPublishingToolSource(publishingToolSource);
+  registerRevisionVariantSource((contentRevisionId, tx) =>
+    contentService.revisions.withVariants(contentRevisionId, tx),
+  );
+  registerEligibleTemplateSource((brandId, tx) => creativeService.templates.eligibleVersionIds(brandId, tx));
   if (process.env['KMS_LOCAL_MASTER_SECRET'])
     configureCredentialBroker({ kms: createKmsFromEnv({ decrypt: false }) });
 }

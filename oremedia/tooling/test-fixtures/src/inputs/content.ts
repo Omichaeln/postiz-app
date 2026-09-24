@@ -34,6 +34,7 @@ export const CONTENT_INPUTS: Record<string, CrossTenantFixture> = {
       copy: seedCopy('changed'),
     }),
   },
+  'content.packages.list': { buildInput: (f) => ({ brandId: f['brandId'], page: { limit: 50 } }) },
   'content.packages.get': { buildInput: (f) => ({ contentPackageId: f['contentPackageId'] }) },
   'content.revisions.get': { buildInput: (f) => ({ revisionId: f['contentRevisionId'] }) },
   'content.variants.generate': {

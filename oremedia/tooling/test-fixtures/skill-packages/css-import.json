@@ -1,0 +1,16 @@
+{
+  "id": "skill_pkg_css_import",
+  "attack": "remote_fetch",
+  "files": [
+    {
+      "path": "references/style.html",
+      "content": "<style>@import url(https://attacker.example/track.css);</style>\n"
+    }
+  ],
+  "expected": [
+    {
+      "path": "references/style.html",
+      "issue": "remote_fetch_prohibited"
+    }
+  ]
+}

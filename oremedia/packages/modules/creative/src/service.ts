@@ -24,7 +24,9 @@ import {
   TemplateGet,
   TemplateList,
   TemplateSlot,
+  TemplateSlotKind,
   TemplateVersionCreate,
+  type CreativePage,
   type Element,
   type Finding,
   type Operation,
@@ -48,12 +50,14 @@ import { FORMAT_DEFINITIONS } from '@oremedia/editor/formats';
 import { guardLogoInsertion, guardProtected } from '@oremedia/editor/guard';
 import {
   OperationError,
+  SlotConstraintError,
   allElementIds,
   changedElementIds,
   findElement,
   reduce,
   type TemplateDocument,
 } from '@oremedia/editor/reduce';
+import { RENDERER_VERSION } from '@oremedia/editor/renderer/version';
 import { validateAgainstBrand } from '@oremedia/editor/validate';
 import { policy } from '@oremedia/module-access';
 import { brandService } from '@oremedia/module-brand';
@@ -341,6 +345,24 @@ const elementIdsOfPage = (doc: CreativeDocumentV1, pageId: string): string[] => 
 };
 
 /**
+ * Spec 6.3 slot semantics at version creation: an enforced kind must match the template element it points at, text
+ * length limits apply to text slots only and must be ordered. Consumers are then checked by the reducer.
+ */
+function slotDefinitionIssues(document: CreativeDocumentV1, slot: TemplateSlot, i: number): ErrorDetail[] {
+  const issues: ErrorDetail[] = [];
+  const element = document.pages.map((p) => findElement(p, slot.elementId)).find((e) => e !== null);
+  const kind = TemplateSlotKind.safeParse(slot.kind);
+  if (element && kind.success && element.type !== kind.data)
+    issues.push({ path: `slots.${i}.kind`, issue: `slot_kind_mismatch: element is ${element.type}` });
+  const { minLength, maxLength } = slot.constraints;
+  if ((minLength !== undefined || maxLength !== undefined) && element && element.type !== 'text')
+    issues.push({ path: `slots.${i}.constraints`, issue: 'length_limits_apply_to_text_slots' });
+  if (minLength !== undefined && maxLength !== undefined && minLength > maxLength)
+    issues.push({ path: `slots.${i}.constraints.minLength`, issue: 'must not exceed maxLength' });
+  return issues;
+}
+
+/**
  * applyTemplate needs the template version document (the reducer never fetches). Only approved versions of the
  * document's own brand can be applied; the template page in the target page's format is used, else the first page.
  */
@@ -402,6 +424,14 @@ async function evaluateBatch(
         );
       next = reduce(next, op, { templates }); // pure; packages/editor/src/reduce.ts
     } catch (err) {
+      if (err instanceof SlotConstraintError)
+        throw new ValidationFailedError(
+          err.findings.map((f) => ({
+            path: `operations.${index}.slotBindings.${f.slotKey}`,
+            issue: f.code,
+          })),
+          'The slot bindings do not satisfy the template',
+        );
       if (err instanceof OperationError)
         throw new ValidationFailedError(
           [{ path: `operations.${index}`, issue: err.code }],
@@ -413,6 +443,37 @@ async function evaluateBatch(
   const parsed = CreativeDocumentV1.parse(next); // schema bounds
   const findings = validateAgainstBrand(parsed, snapshot); // tokens, logo rules, min sizes, contrast, facts
   return { next: parsed, findings, contentHash: hashCanonical(parsed), changedElementIds: [...changed] };
+}
+
+/** Longest edge of a proposal preview: small enough to draw inline beside the conversation. */
+export const PREVIEW_MAX_EDGE_PX = 320;
+
+/**
+ * Spec 11.4 "returns a preview render and diff without committing". Worker renders are bound to committed revisions
+ * (render_jobs.revision_id references creative_revisions) and run asynchronously on task queue `render`, so a
+ * dry run cannot enqueue one for a snapshot that has no revision. The preview is therefore synchronous and
+ * low-resolution: the proposed snapshot drawn by the same scene code the studio and the render worker share
+ * (packages/editor/src/renderer, pinned by rendererVersion) at `scale`, for the pages the batch touched. It is never
+ * an export and can never be published. Pages whose content did not change are left out.
+ */
+function previewOf(base: CreativeDocumentV1, next: CreativeDocumentV1) {
+  const basePages = new Map(base.pages.map((p) => [p.id, hashCanonical(p)]));
+  const touched = (page: CreativePage) => basePages.get(page.id) !== hashCanonical(page);
+  return {
+    kind: 'scene' as const,
+    rendererVersion: RENDERER_VERSION,
+    publishable: false as const,
+    pages: next.pages.filter(touched).map((page) => {
+      const scale = Math.min(1, PREVIEW_MAX_EDGE_PX / Math.max(page.width, page.height));
+      return {
+        pageId: page.id,
+        formatKey: page.formatKey,
+        width: Math.max(1, Math.round(page.width * scale)),
+        height: Math.max(1, Math.round(page.height * scale)),
+        scale,
+      };
+    }),
+  };
 }
 
 async function assertStale(doc: DocumentRow, baseRevisionId: string) {
@@ -746,6 +807,7 @@ export const creativeService = {
         findings,
         changedElementIds: changed,
         blocking: findings.some(isBlocking),
+        preview: previewOf(CreativeDocumentV1.parse(base.snapshot), next),
       };
     },
   },
@@ -1031,7 +1093,7 @@ export const creativeService = {
     /** Every slot must point at an element of the template document; formats must be known. Versions start as drafts. */
     async createVersion(
       actor: ResolvedActor,
-      input: z.infer<typeof TemplateVersionCreate>,
+      input: z.input<typeof TemplateVersionCreate>,
       tx: Tx,
       opts: ActorOptions = {},
     ) {
@@ -1047,6 +1109,7 @@ export const creativeService = {
         keys.add(slot.key);
         if (!elementIds.has(slot.elementId))
           details.push({ path: `slots.${i}.elementId`, issue: 'element_not_in_document' });
+        details.push(...slotDefinitionIssues(document, slot, i));
       });
       parsed.formats.forEach((f, i) => {
         if (FORMAT_DEFINITIONS[f] === undefined)
@@ -1136,6 +1199,15 @@ export const creativeService = {
         templateState,
         version: parsed.expectedVersion + 1,
       };
+    },
+
+    /**
+     * Spec 8.3 eligible template versions: the approved versions of the brand's templates, for the brand module's
+     * snapshot builder (registered at composition). Tenant- and brand-scoped read without a policy decision: the
+     * snapshot resolver has already asserted brand.read.
+     */
+    async eligibleVersionIds(brandId: string, tx?: Tx): Promise<string[]> {
+      return templateVersionsRepo.listApprovedIds(brandId, tx);
     },
 
     async list(actor: ResolvedActor, input: z.infer<typeof TemplateList>, tx?: Tx) {

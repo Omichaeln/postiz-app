@@ -7,7 +7,7 @@ import { toUiError } from '../../lib/errors';
 import { mutationIntent, useIntentKey } from '../../lib/intent-key';
 import { useTRPC } from '../../lib/trpc';
 import { brandPath } from '../brand/brand-context';
-import { CHANNEL_CHIP } from '../publishing/publication-state';
+import { CHANNEL_CHIP, isoToLocalInput, localInputToIso } from '../publishing/publication-state';
 import type { ChannelDto } from '../publishing/use-publishing';
 import {
   packageChip,
@@ -181,6 +181,104 @@ function GenerateVariantsForm({
   );
 }
 
+/**
+ * Spec 13.3: sends the current draft revision for review. The request freezes the revision, its channel variants and
+ * the planned timing into a manifest; the revision moves to in review and the request opens in the review inbox.
+ */
+function RequestReview({ companyId, brandId, pkg }: { companyId: string; brandId: string; pkg: PackageDto }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const intent = useIntentKey();
+  const [at, setAt] = useState(() => isoToLocalInput(new Date(Date.now() + 24 * 3_600_000).toISOString()));
+  const [error, setError] = useState<string | null>(null);
+  const request = useMutation(
+    trpc.review.requests.create.mutationOptions({
+      ...mutationIntent(intent.key),
+      onSuccess: () => {
+        intent.renew();
+        setError(null);
+        void queryClient.invalidateQueries(trpc.content.pathFilter());
+        void queryClient.invalidateQueries(trpc.review.pathFilter());
+      },
+    }),
+  );
+  if (request.data)
+    return (
+      <StatusBanner
+        tone="good"
+        title="Review requested"
+        description={`Revision ${pkg.revision.number} and its channel variants are frozen for review (manifest ${request.data.manifestHash.slice(0, 12)}…).`}
+        actions={
+          <Button asChild size="sm">
+            <Link
+              to={brandPath(
+                companyId,
+                brandId,
+                `review?request=${encodeURIComponent(request.data.reviewRequestId)}`,
+              )}
+            >
+              Open in the review inbox
+            </Link>
+          </Button>
+        }
+        data-testid="review-requested"
+      />
+    );
+  if (pkg.revision.state !== 'draft') return null;
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const iso = localInputToIso(at);
+    if (!iso) {
+      setError('Enter the planned publish time.');
+      return;
+    }
+    setError(null);
+    request.mutate({ contentRevisionId: pkg.revision.id, timing: { kind: 'exact', at: iso } });
+  };
+  const ui = request.isError ? toUiError(request.error) : null;
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-2 border-t border-border pt-3" noValidate>
+      <Field
+        label="Planned publish time"
+        htmlFor={`review-at-${pkg.id}`}
+        hint="Frozen into the review manifest; publishing outside it is held."
+        error={error ?? undefined}
+      >
+        <Input
+          id={`review-at-${pkg.id}`}
+          type="datetime-local"
+          value={at}
+          onChange={(e) => setAt(e.target.value)}
+          required
+        />
+      </Field>
+      {ui && ui.kind === 'forbidden' && (
+        <StatusBanner
+          tone="critical"
+          title="Permission denied"
+          description={`${ui.message} Requesting a review needs review.request.`}
+        />
+      )}
+      {ui && ui.kind !== 'forbidden' && (
+        <RequestError error={request.error} title="The review was not requested" />
+      )}
+      <div>
+        <Button
+          type="submit"
+          size="sm"
+          variant="primary"
+          disabled={request.isPending}
+          disabledReason={
+            pkg.variants.length === 0 ? 'Generate at least one channel variant first' : undefined
+          }
+        >
+          {request.isPending ? 'Requesting…' : 'Request review'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 function ReviseForm({ pkg, onRevised }: { pkg: PackageDto; onRevised: (documentIds: string[]) => void }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -337,6 +435,18 @@ export function PackageDetail({ companyId, brandId, contentPackageId, channels }
               </ul>
             )}
             <GenerateVariantsForm key={p.revision.id} pkg={p} channels={channels} />
+          </section>
+          <section aria-labelledby={`review-${p.id}`} className="flex flex-col gap-1">
+            <h3 id={`review-${p.id}`} className="text-sm font-semibold">
+              Review
+            </h3>
+            {p.revision.state !== 'draft' && (
+              <p className="text-xs text-muted-foreground">
+                Revision {p.revision.number} is {current.label.toLowerCase()}; only a draft revision can be
+                sent for review.
+              </p>
+            )}
+            <RequestReview key={p.revision.id} companyId={companyId} brandId={brandId} pkg={p} />
           </section>
           <ReviseForm
             key={p.version}

@@ -12,12 +12,12 @@ import {
   PolicyDeniedError,
   ValidationFailedError,
 } from '@oremedia/contracts/errors';
-import type { ResolvedActor } from '@oremedia/contracts/policy';
+import type { ResolvedActor, ResolvedActorServicePrincipal } from '@oremedia/contracts/policy';
 import { createTestDatabase, type TestDatabase } from '@oremedia/db/testing';
 import { runInTenant, withTransaction, type TenantContext, type Tx } from '@oremedia/db';
 import { tenants } from '@oremedia/db/schema/access';
 import { brands } from '@oremedia/db/schema/brand';
-import { channelVariants, contentPackages, contentRevisions } from '@oremedia/db/schema/content';
+import { briefs, channelVariants, contentPackages, contentRevisions } from '@oremedia/db/schema/content';
 import { auditEvents, outboxEvents } from '@oremedia/db/schema/operations';
 import { hashCanonical, hashText } from '@oremedia/domain/hash';
 import { newElementId, newId } from '@oremedia/domain/ids';
@@ -32,6 +32,7 @@ import {
   resetChannelResolver,
   type RevisionChange,
 } from './service';
+import { contentToolSource } from './tools';
 
 const USER = 'usr_content_test';
 const ctx = (tenantId: string): TenantContext => ({
@@ -741,6 +742,31 @@ describe('content module (spec 6.3 content tables, 7.5 content router) against M
       const refs = await run(tenantA, () => contentService.revisions.listReferencingCreativeDocument(docId));
       expect(refs.map((r) => r.id)).toEqual([pkg.revision.id]);
     });
+
+    it('lists the packages of a brand newest first with cursor paging; a foreign brand is NOT_FOUND', async () => {
+      const first = await run(tenantA, () =>
+        contentService.packages.list(A, { brandId: brandA, page: { limit: 1 } }),
+      );
+      expect(first.items).toHaveLength(1);
+      expect(first.items[0]).toMatchObject({ brandId: brandA });
+      const all = await run(tenantA, () =>
+        contentService.packages.list(A, { brandId: brandA, page: { limit: 200 } }),
+      );
+      expect(all.items.map((p) => p.id)).toContain(packageId);
+      expect(all.items.map((p) => p.id)).toEqual([...all.items.map((p) => p.id)].sort().reverse());
+      if (first.nextCursor) {
+        const second = await run(tenantA, () =>
+          contentService.packages.list(A, {
+            brandId: brandA,
+            page: { limit: 1, cursor: first.nextCursor ?? undefined },
+          }),
+        );
+        expect(second.items[0]?.id).not.toBe(first.items[0]?.id);
+      }
+      await expect(
+        run(tenantA, () => contentService.packages.list(A, { brandId: brandB, page: { limit: 10 } })),
+      ).rejects.toBeInstanceOf(NotFoundError);
+    });
   });
 
   describe('calendar.range', () => {
@@ -849,6 +875,165 @@ describe('content module (spec 6.3 content tables, 7.5 content router) against M
           (a) => a.actorId !== USER || a.tenantId === tenantB,
         ),
       ).toBe(true);
+    });
+  });
+
+  describe('agent tool source (spec 12.4 content.createBrief / content.draftCopy)', () => {
+    const RUN = 'run_content_tools';
+    const agent = (tenantId: string): ResolvedActorServicePrincipal => ({
+      kind: 'service_principal',
+      id: 'sp_content_tools',
+      tenantId,
+      status: 'active',
+      maxAutonomy: 'create',
+      grants: [
+        { action: 'brand.read', brandIds: 'all' },
+        { action: 'content.plan', brandIds: 'all' },
+        { action: 'content.edit', brandIds: 'all' },
+      ],
+    });
+    const runAsAgent = <T>(fn: (tx: Tx) => Promise<T>) =>
+      runInTenant({ ...ctx(tenantA), actor: { kind: 'service_principal', id: 'sp_content_tools' } }, () =>
+        withTransaction(fn),
+      );
+    const briefInput = (over: Record<string, unknown> = {}) => ({
+      brandId: brandA,
+      runId: RUN,
+      autonomyMode: 'create' as const,
+      audience: 'Repeat buyers',
+      message: 'Autumn restock',
+      offerFactIds: [],
+      channelConnectionIds: [channelA],
+      constraints: ['no discounts'],
+      ...over,
+    });
+    let agentBriefId = '';
+
+    it('createBrief records the agent and its run; the run mode is enforced and channels must be the brand’s', async () => {
+      await expect(
+        runAsAgent((tx) =>
+          contentToolSource.createBrief(agent(tenantA), briefInput({ autonomyMode: 'assist' }), tx),
+        ),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN', reason: 'autonomy_insufficient' });
+      for (const channel of [channelOfBrandA2, 'cc_unknown', 'cc_b'])
+        await expect(
+          runAsAgent((tx) =>
+            contentToolSource.createBrief(
+              agent(tenantA),
+              briefInput({ channelConnectionIds: [channel] }),
+              tx,
+            ),
+          ),
+        ).rejects.toBeInstanceOf(NotFoundError);
+      await expect(
+        runAsAgent((tx) =>
+          contentToolSource.createBrief(agent(tenantA), briefInput({ brandId: brandB }), tx),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      const created = await runAsAgent((tx) =>
+        contentToolSource.createBrief(agent(tenantA), briefInput({ campaignId }), tx),
+      );
+      agentBriefId = created.briefId;
+      const row = (await tdb.db.select().from(briefs).where(eq(briefs.id, agentBriefId)))[0]!;
+      expect(row).toMatchObject({
+        tenantId: tenantA,
+        brandId: brandA,
+        campaignId,
+        state: 'draft',
+        createdByKind: 'agent',
+        createdById: 'sp_content_tools',
+        agentRunId: RUN,
+        channelConnectionIds: [channelA],
+        constraints: ['no discounts'],
+      });
+      expect(
+        (await auditOf(tenantA, 'content.brief.create')).some((a) => a.actorId === 'sp_content_tools'),
+      ).toBe(true);
+    });
+
+    it('draftCopy turns each variant into a draft package under the brief, authored by the agent run', async () => {
+      const drafted = await runAsAgent((tx) =>
+        contentToolSource.draftCopy(
+          agent(tenantA),
+          {
+            brandId: brandA,
+            runId: RUN,
+            autonomyMode: 'create',
+            briefId: agentBriefId,
+            variants: [
+              { text: 'Restocked for autumn\nCome see', factIds: [], rationale: 'plain' },
+              { text: 'Autumn is back in stock', factIds: [], rationale: 'short' },
+            ],
+          },
+          tx,
+        ),
+      );
+      expect(drafted.drafts).toHaveLength(2);
+      for (const [i, d] of drafted.drafts.entries()) {
+        const rev = await revisionRow(d.contentRevisionId);
+        expect(rev).toMatchObject({
+          packageId: d.contentPackageId,
+          number: 1,
+          state: 'draft',
+          authorKind: 'agent',
+          authorId: 'sp_content_tools',
+          agentRunId: RUN,
+          contentHash: d.contentHash,
+          policyVersionId: policyVersionA,
+        });
+        expect(rev.copy).toMatchObject({ master: { factRefs: [] }, rationale: i === 0 ? 'plain' : 'short' });
+        expect(await packageRow(d.contentPackageId)).toMatchObject({
+          briefId: agentBriefId,
+          state: 'draft',
+          title: `${i === 0 ? 'Restocked for autumn' : 'Autumn is back in stock'} (variant ${i + 1})`,
+        });
+      }
+      // a cited fact must be effective; another brand's brief is NOT_FOUND; nothing is written either way
+      const before = (
+        await tdb.db.select().from(contentPackages).where(eq(contentPackages.tenantId, tenantA))
+      ).length;
+      await expect(
+        runAsAgent((tx) =>
+          contentToolSource.draftCopy(
+            agent(tenantA),
+            {
+              brandId: brandA,
+              runId: RUN,
+              autonomyMode: 'create',
+              briefId: agentBriefId,
+              variants: [{ text: 'x', factIds: ['fct_not_effective'], rationale: 'r' }],
+            },
+            tx,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(ValidationFailedError);
+      await expect(
+        runAsAgent((tx) =>
+          contentToolSource.draftCopy(
+            agent(tenantA),
+            {
+              brandId: brandA2,
+              runId: RUN,
+              autonomyMode: 'create',
+              briefId: agentBriefId,
+              variants: [{ text: 'x', factIds: [], rationale: 'r' }],
+            },
+            tx,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      expect(
+        (await tdb.db.select().from(contentPackages).where(eq(contentPackages.tenantId, tenantA))).length,
+      ).toBe(before);
+    });
+
+    it('withVariants reads a revision with its variants for the publishing module; a foreign id is NOT_FOUND', async () => {
+      const read = await run(tenantA, (tx) => contentService.revisions.withVariants(revisionId, tx));
+      expect(read).toMatchObject({ id: revisionId, brandId: brandA });
+      expect(read.variants.map((v) => v.id)).toContain(variantId);
+      await expect(
+        run(tenantA, (tx) => contentService.revisions.withVariants(revisionB, tx)),
+      ).rejects.toBeInstanceOf(NotFoundError);
     });
   });
 });

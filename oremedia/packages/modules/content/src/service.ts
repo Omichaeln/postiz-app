@@ -13,6 +13,7 @@ import {
   ChannelVariantUpdate,
   ContentPackageCreate,
   ContentPackageGet,
+  ContentPackageList,
   ContentPackageRevise,
   ContentRevisionGet,
   CopyDocumentV1,
@@ -22,6 +23,7 @@ import {
 import { NotFoundError, ValidationFailedError, type ErrorDetail } from '@oremedia/contracts/errors';
 import type { ResolvedActor } from '@oremedia/contracts/policy';
 import type { ChannelVariantForPublishing } from '@oremedia/contracts/publishing';
+import type { AutonomyMode } from '@oremedia/contracts/tenancy';
 import { requireTenant, type Tx } from '@oremedia/db';
 import { hashCanonical, hashText } from '@oremedia/domain/hash';
 import { newId } from '@oremedia/domain/ids';
@@ -155,6 +157,16 @@ export const registerAttributeCapturer = (fn: AttributeCapturer): void => {
 };
 
 // ---- helpers ----
+
+/**
+ * Options an agent run passes through (spec 5.5 step 7 and 12.4): the run's autonomy mode for the policy decision
+ * and the run id the brief or revision records. The router passes nothing, so an agent calling the API is held to
+ * `assist` and denied.
+ */
+export interface ContentActorOptions {
+  autonomyMode?: AutonomyMode;
+  agentRunId?: string;
+}
 
 const actorRef = (actor: ResolvedActor) => ({ kind: actor.kind, id: actor.id });
 const brandResource = (brandId: string) => {
@@ -426,6 +438,7 @@ async function insertRevision(
     brandVersionId: string;
     policyVersionId: string;
     packageState: PackageRow['state'];
+    agentRunId?: string;
   },
   tx: Tx,
 ) {
@@ -453,7 +466,7 @@ async function insertRevision(
       state: 'draft',
       authorKind: authorKindOf(actor),
       authorId: actor.id,
-      agentRunId: null,
+      agentRunId: input.agentRunId ?? null,
     },
     tx,
   );
@@ -543,16 +556,35 @@ export const contentService = {
   },
 
   briefs: {
-    /** Spec 6.3 briefs: audience, message, offer facts (must exist on the brand), planned channels and constraints. */
-    async create(actor: ResolvedActor, input: z.infer<typeof BriefCreate>, tx: Tx) {
+    /**
+     * Spec 6.3 briefs: audience, message, offer facts (must exist on the brand), planned channels (connections of
+     * the brand; another brand's or tenant's is NOT_FOUND) and constraints. An agent run records its id.
+     */
+    async create(
+      actor: ResolvedActor,
+      input: z.input<typeof BriefCreate>,
+      tx: Tx,
+      opts: ContentActorOptions = {},
+    ) {
       const parsed = BriefCreate.parse(input);
       const brand = await brandService.get(actor, parsed.brandId, tx);
-      await policy.assert(actor, 'content.plan', brandResource(brand.id), {}, tx);
+      await policy.assert(
+        actor,
+        'content.plan',
+        brandResource(brand.id),
+        { autonomyMode: opts.autonomyMode },
+        tx,
+      );
       if (parsed.campaignId) await loadCampaign(brand.id, parsed.campaignId, tx);
       for (const [i, factId] of parsed.offerFactIds.entries()) {
         const fact = await factsRepo.getById(factId, tx);
         if (fact.brandId !== brand.id)
           throw new ValidationFailedError([{ path: `offerFactIds.${i}`, issue: 'fact_not_in_brand' }]);
+      }
+      for (const channelConnectionId of new Set(parsed.channelConnectionIds)) {
+        const channel = await channelResolver(channelConnectionId, tx);
+        if (!channel || channel.brandId !== brand.id)
+          throw new NotFoundError('ChannelConnection', channelConnectionId); // never reveal another brand's channel
       }
       const id = newId('brief');
       await briefsRepo.create(
@@ -568,7 +600,7 @@ export const contentService = {
           state: 'draft',
           createdByKind: authorKindOf(actor),
           createdById: actor.id,
-          agentRunId: null,
+          agentRunId: opts.agentRunId ?? null,
           recommendationId: parsed.recommendationId ?? null,
         },
         tx,
@@ -619,10 +651,21 @@ export const contentService = {
      * and the brand's published version and active policy version (spec 6.3 content_revisions). Every fact the
      * copy cites must be effective. An accepted brief moves to in_progress.
      */
-    async create(actor: ResolvedActor, input: z.infer<typeof ContentPackageCreate>, tx: Tx) {
+    async create(
+      actor: ResolvedActor,
+      input: z.input<typeof ContentPackageCreate>,
+      tx: Tx,
+      opts: ContentActorOptions = {},
+    ) {
       const parsed = ContentPackageCreate.parse(input);
       const brand = await brandService.get(actor, parsed.brandId, tx);
-      await policy.assert(actor, 'content.edit', brandResource(brand.id), {}, tx);
+      await policy.assert(
+        actor,
+        'content.edit',
+        brandResource(brand.id),
+        { autonomyMode: opts.autonomyMode },
+        tx,
+      );
       const brief = parsed.briefId ? await loadBrief(brand.id, parsed.briefId, tx) : null;
       const snapshot = await resolveSnapshot(actor, brand.id, tx);
       assertFactsEffective(parsed.copy, snapshot);
@@ -649,6 +692,7 @@ export const contentService = {
           brandVersionId: snapshot.brandVersionId,
           policyVersionId: snapshot.policyVersionId,
           packageState: 'draft',
+          agentRunId: opts.agentRunId,
         },
         tx,
       );
@@ -749,6 +793,14 @@ export const contentService = {
       };
     },
 
+    /** Packages of a brand, newest first (brand.read, same as get); the current revision is fetched by get. */
+    async list(actor: ResolvedActor, input: z.infer<typeof ContentPackageList>, tx?: Tx) {
+      const parsed = ContentPackageList.parse(input);
+      const brand = await brandService.get(actor, parsed.brandId, tx);
+      const page = await packagesRepo.list(brand.id, parsed.page, tx);
+      return { items: page.items.map(toPackageDto), nextCursor: page.nextCursor };
+    },
+
     /** The package, its current revision with variants, and its revision history (newest first, without copy). */
     async get(actor: ResolvedActor, input: z.infer<typeof ContentPackageGet>, tx?: Tx) {
       const parsed = ContentPackageGet.parse(input);
@@ -783,6 +835,22 @@ export const contentService = {
      */
     async read(revisionId: string, tx?: Tx) {
       return toRevisionDto(await revisionsRepo.getById(revisionId, tx));
+    },
+
+    /**
+     * Spec 12.4 publications.proposeSchedule (the publishing module's revision variant source): the revision's brand
+     * and state with its variants' ids and channels. Tenant-scoped (a foreign id is NOT_FOUND), no policy decision:
+     * the publishing module asserts publication.schedule per variant.
+     */
+    async withVariants(revisionId: string, tx?: Tx) {
+      const revision = await revisionsRepo.getById(revisionId, tx);
+      const variants = await variantsRepo.listForRevision(revision.brandId, revision.id, tx);
+      return {
+        id: revision.id,
+        brandId: revision.brandId,
+        state: revision.state,
+        variants: variants.map((v) => ({ id: v.id, channelConnectionId: v.channelConnectionId })),
+      };
     },
 
     /**

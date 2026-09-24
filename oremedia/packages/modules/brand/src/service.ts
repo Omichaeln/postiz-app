@@ -59,6 +59,22 @@ const policiesRepo = new PolicyVersionRepository();
 
 type BrandRow = Awaited<ReturnType<typeof brandsRepo.getById>>;
 
+// ---- cross-module hooks (spec 4.2: the brand module never imports another module's tables or services) ----
+
+/**
+ * Spec 8.3 eligible template versions: templates are creative rows, so the creative module registers the source
+ * (the composition root wires `creativeService.templates.eligibleVersionIds`). Until then a snapshot lists none.
+ */
+export type EligibleTemplateSource = (brandId: string, tx?: Tx) => Promise<string[]>;
+const noEligibleTemplates: EligibleTemplateSource = async () => [];
+let eligibleTemplateSource: EligibleTemplateSource = noEligibleTemplates;
+export const registerEligibleTemplateSource = (fn: EligibleTemplateSource): void => {
+  eligibleTemplateSource = fn;
+};
+export const resetEligibleTemplateSource = (): void => {
+  eligibleTemplateSource = noEligibleTemplates;
+};
+
 const actorRef = (actor: ResolvedActor) => ({ kind: actor.kind, id: actor.id });
 const brandResource = (b: BrandRow) => ({ type: 'brand', tenantId: b.tenantId, brandId: b.id, id: b.id });
 
@@ -663,7 +679,7 @@ export const brandService = {
   /**
    * Spec 8.3: the immutable, hashed bundle every agent run and every revision records. Defaults to the published
    * version; `versionId` resolves a specific version (e.g. a draft for preview). Facts and objectives are those
-   * effective now, so approving, revoking or expiring a fact changes the hash.
+   * effective now, so approving, revoking or expiring a fact changes the hash; approving a template version does too.
    */
   async resolveBrandSnapshot(
     actor: ResolvedActor,
@@ -701,8 +717,8 @@ export const brandService = {
       })),
       policyVersionId: active?.id ?? null,
       policy: active ? PolicyDocumentV1.parse(active.document) : defaultPolicyDocument(),
-      // Eligible template versions are supplied by the creative module (templates, Phase 3); none exist yet.
-      eligibleTemplateVersionIds: [],
+      // Approved template versions of the brand, supplied by the creative module through the registered source.
+      eligibleTemplateVersionIds: await eligibleTemplateSource(brand.id, tx),
       timezone: brand.timezone,
       defaultLocale: brand.defaultLocale,
     });

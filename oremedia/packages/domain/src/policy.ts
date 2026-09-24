@@ -194,7 +194,8 @@ export function authorize(input: PolicyInput): Decision {
   // 7. service-principal grant ∩ autonomy mode
   const obligations: Obligation[] = [];
   if (actor.kind === 'service_principal') {
-    const mode = context.autonomyMode ?? 'assist';
+    // An explicit mode (an agent run's) wins; a direct API call carries its per-request ceiling; otherwise the lowest.
+    const mode = context.autonomyMode ?? actor.requestAutonomy ?? 'assist';
     if (!autonomyAtLeast(actor.maxAutonomy, mode)) return deny('autonomy_exceeds_principal');
     const required = AUTONOMY_FOR_ACTION[action];
     if (required === undefined) return deny('agent_never');

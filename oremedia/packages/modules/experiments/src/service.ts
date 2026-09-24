@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import { PolicyDeniedError, ValidationFailedError } from '@oremedia/contracts/errors';
+import { NotFoundError, PolicyDeniedError, ValidationFailedError } from '@oremedia/contracts/errors';
 import {
   ExperimentAssign,
   ExperimentCreate,
@@ -26,7 +26,7 @@ import { brandService } from '@oremedia/module-brand';
 import { contentService } from '@oremedia/module-content';
 import { audit, featureFlag, outbox } from '@oremedia/module-operations';
 import { analyseExperiment } from './analysis';
-import { experimentArmLinks, notifyExperiment } from './hooks';
+import { experimentArmLinks, notifyExperiment, recommendationBelongsToBrand } from './hooks';
 import {
   ExperimentAssignmentRepository,
   ExperimentRepository,
@@ -201,6 +201,12 @@ export const experimentsService = {
     const labels = new Set(d.variants.map((v) => v.label));
     if (labels.size !== d.variants.length)
       throw new ValidationFailedError([{ path: 'design.variants', issue: 'variant labels must be unique' }]);
+    // A foreign or other-brand recommendation is NOT_FOUND (spec 5.3), never kept as a dangling reference.
+    if (
+      parsed.recommendationId &&
+      !(await recommendationBelongsToBrand(parsed.recommendationId, brand.id, tx))
+    )
+      throw new NotFoundError('Recommendation', parsed.recommendationId);
     const id = newId('experiment');
     await experimentsRepo.create(
       {

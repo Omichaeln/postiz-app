@@ -1,0 +1,32 @@
+{
+  "id": "skill_pkg_symlink_entry",
+  "attack": "symlink",
+  "files": [
+    {
+      "path": "references/credentials",
+      "content": "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    },
+    {
+      "path": "references/parent",
+      "content": "../../../.env"
+    },
+    {
+      "path": "references/home.url",
+      "content": "[InternetShortcut]\nURL=file:///etc/passwd\n"
+    }
+  ],
+  "expected": [
+    {
+      "path": "references/credentials",
+      "issue": "symlink_prohibited"
+    },
+    {
+      "path": "references/parent",
+      "issue": "symlink_prohibited"
+    },
+    {
+      "path": "references/home.url",
+      "issue": "symlink_prohibited"
+    }
+  ]
+}

@@ -109,6 +109,21 @@ export class ContentPackageRepository extends BrandScopedRepository<typeof conte
   ) {
     await this.updateScoped(id, expectedVersion, values, tx);
   }
+  /** Newest first on the (tenant_id, brand_id, id) unique index (spec 7.4). */
+  async list(
+    brandId: string,
+    page: PageRequest,
+    tx?: Tx,
+  ): Promise<Page<typeof contentPackages.$inferSelect>> {
+    const cursor = page.cursor ? decodeCursor(page.cursor) : null;
+    const rows = await this.conn(tx)
+      .select()
+      .from(contentPackages)
+      .where(this.brandScope(brandId, cursor ? lte(contentPackages.id, cursor.id) : undefined))
+      .orderBy(desc(contentPackages.id))
+      .limit(page.limit + 1);
+    return pageOf(rows, page);
+  }
   /** Packages touched in [from, to] (calendar.range fallback when no publishing source is registered). */
   async listUpdatedBetween(brandId: string, from: Date, to: Date, tx?: Tx) {
     return this.conn(tx)

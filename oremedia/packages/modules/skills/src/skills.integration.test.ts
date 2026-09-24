@@ -28,6 +28,7 @@ import {
 import { hashCanonical } from '@oremedia/domain/hash';
 import { newId } from '@oremedia/domain/ids';
 import { BUILTIN_SKILL_KEYS, loadBuiltinSkills, seedBuiltinSkills } from './builtin';
+import { loadMaliciousPackages } from './package-fixtures';
 import { manifestJson, toPackage } from './package-format';
 import {
   registerBrandChecker,
@@ -1107,6 +1108,31 @@ describe('skills module (spec 10) against MySQL 8', () => {
         details: [{ path: 'scripts/setup.sh', issue: 'executable_content_prohibited' }],
       });
       expect(await tenantRows(tenantA)).toBe(before);
+    });
+
+    it('every malicious package fixture is refused at import with its typed reasons, and nothing is written (spec 18)', async () => {
+      const packages = loadMaliciousPackages(manifest('malicious-skill'));
+      expect(packages.length).toBeGreaterThanOrEqual(15);
+      const sideEffects = async () =>
+        JSON.stringify({
+          rows: await tenantRows(tenantA),
+          audit: await tdb.db.select().from(auditEvents).where(eq(auditEvents.tenantId, tenantA)),
+          outbox: await tdb.db.select().from(outboxEvents).where(eq(outboxEvents.tenantId, tenantA)),
+        });
+      const before = await sideEffects();
+      const sorted = (d: ReadonlyArray<{ path?: string; issue: string }>) =>
+        [...d].sort((a, b) => `${a.path}|${a.issue}`.localeCompare(`${b.path}|${b.issue}`));
+      for (const pkg of packages) {
+        const err = await run(tenantA, (tx) =>
+          skillsService.import(A, importInput({ files: pkg.files }), tx),
+        ).then(
+          () => new Error(`${pkg.id} was imported`),
+          (e: unknown) => e,
+        );
+        expect(err, pkg.id).toBeInstanceOf(ValidationFailedError);
+        expect(sorted((err as ValidationFailedError).details ?? []), pkg.id).toEqual(sorted(pkg.expected));
+      }
+      expect(await sideEffects()).toBe(before);
     });
 
     it('allowedTools outside the registry, empty instructions, key mismatches and invalid manifests are refused', async () => {

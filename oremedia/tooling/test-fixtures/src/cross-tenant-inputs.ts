@@ -1,6 +1,7 @@
 import type { Db } from '@oremedia/db';
 import type { SeededTenant } from './seed';
 import { ACCESS_INPUTS } from './inputs/access';
+import { ACCESS_SEED } from './inputs/access-seed';
 import { BRAND_INPUTS } from './inputs/brand';
 import { BRAND_SEED } from './inputs/brand-seed';
 import { OPERATIONS_INPUTS } from './inputs/operations';
@@ -24,6 +25,7 @@ import { EXPERIMENTS_INPUTS } from './inputs/experiments';
 import { EXPERIMENTS_SEED } from './inputs/experiments-seed';
 import { MEASUREMENT_INPUTS } from './inputs/measurement';
 import { MEASUREMENT_SEED } from './inputs/measurement-seed';
+export { MCP_CROSS_TENANT_INPUTS, type McpCrossTenantFixture } from './inputs/mcp';
 
 /**
  * Spec 19.3: every procedure needs a fixture that points every ID field at the *foreign* tenant. A procedure
@@ -62,6 +64,7 @@ export const CROSS_TENANT_INPUTS: Record<string, CrossTenantFixture> = {
   ...EXPERIMENTS_INPUTS,
 };
 export const SEED_EXTENSIONS: SeedExtension[] = [
+  ACCESS_SEED,
   ASSETS_SEED,
   BRAND_SEED,
   CREATIVE_SEED,

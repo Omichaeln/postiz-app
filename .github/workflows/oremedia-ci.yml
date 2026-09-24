@@ -101,7 +101,7 @@ jobs:
       - run: pnpm check:openapi
       # Studio end-to-end smoke (spec 21): the built app in Chromium against an in-process tRPC mock.
       - run: pnpm --filter @oremedia/web build
-      - run: pnpm exec vitest run --project unit apps/web/e2e/studio.e2e.test.ts apps/web/e2e/phase5.e2e.test.ts apps/web/e2e/agents.e2e.test.ts apps/web/e2e/phase6.e2e.test.ts
+      - run: pnpm exec vitest run --project unit apps/web/e2e/studio.e2e.test.ts apps/web/e2e/phase5.e2e.test.ts apps/web/e2e/agents.e2e.test.ts apps/web/e2e/phase6.e2e.test.ts apps/web/e2e/a11y.e2e.test.ts apps/web/e2e/journey.e2e.test.ts
         env:
           OREMEDIA_E2E: '1'
 

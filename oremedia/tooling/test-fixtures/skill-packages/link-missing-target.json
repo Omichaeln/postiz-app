@@ -1,0 +1,16 @@
+{
+  "id": "skill_pkg_link_missing_target",
+  "attack": "link",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "content": "# Fixture skill\n\nFollow [the checklist](references/not-in-package.md).\n"
+    }
+  ],
+  "expected": [
+    {
+      "path": "SKILL.md",
+      "issue": "link_target_missing"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import { ApprovalBindingV1 } from '@oremedia/contracts/approval';
 import { ExternalLinkCreate, ExternalLinkRevoke } from '@oremedia/contracts/access';
 import { ConflictError, PolicyDeniedError, ValidationFailedError } from '@oremedia/contracts/errors';
 import type { ResolvedActor } from '@oremedia/contracts/policy';
+import type { AutonomyMode } from '@oremedia/contracts/tenancy';
 import { MandateCreate } from '@oremedia/contracts/publishing';
 import {
   ApprovalGet,
@@ -27,6 +28,7 @@ import { mandateMachine } from '@oremedia/domain/state-machines/mandate';
 import { reviewRequestMachine } from '@oremedia/domain/state-machines/review-request';
 import {
   ExternalReviewerLinkRepository,
+  MembershipRepository,
   ServicePrincipalRepository,
   accessService,
   policy,
@@ -57,12 +59,21 @@ const approvalsRepo = new ReleaseApprovalRepository();
 const mandatesRepo = new PublishingMandateRepository();
 // Reviewer links are access rows (spec 6.3); read through the access module's public index.
 const linksRepo = new ExternalReviewerLinkRepository();
+const membershipsRepo = new MembershipRepository();
 const principalsRepo = new ServicePrincipalRepository();
 
 type RequestRow = Awaited<ReturnType<typeof requestsRepo.getById>>;
 type DecisionRow = Awaited<ReturnType<typeof decisionsRepo.getById>>;
 
 /** Hashed request origin the API context carries for decisions (spec 5.6: IP and user-agent hash, never raw). */
+/**
+ * Policy options the caller may pass through (spec 5.5 step 7): the agent runtime supplies the run's autonomy mode;
+ * the router passes nothing, so an agent requesting review through the API is held to `assist` and denied.
+ */
+export interface ActorOptions {
+  autonomyMode?: AutonomyMode;
+}
+
 export interface DecisionMeta {
   ipHash?: string | null;
   userAgentHash?: string | null;
@@ -307,7 +318,12 @@ export const reviewService = {
      * its hash, moves the revision draft | changes_requested → in_review, and tells the world. One open request
      * per revision. The revision must be written against the brand's current published version.
      */
-    async create(actor: ResolvedActor, input: z.infer<typeof ReviewRequestCreate>, tx: Tx) {
+    async create(
+      actor: ResolvedActor,
+      input: z.input<typeof ReviewRequestCreate>,
+      tx: Tx,
+      opts: ActorOptions = {},
+    ) {
       const parsed = ReviewRequestCreate.parse(input);
       const revision = await contentService.revisions.get(
         actor,
@@ -324,9 +340,15 @@ export const reviewService = {
           id: revision.id,
           state: revision.state,
         },
-        {},
+        opts,
         tx,
       );
+      // Assignees are active members of this company; a foreign or unknown user id reads the same (no enumeration).
+      for (const [i, userId] of parsed.assigneeUserIds.entries()) {
+        const membership = await membershipsRepo.findByUser(userId, tx);
+        if (membership?.status !== 'active')
+          throw new ValidationFailedError([{ path: `assigneeUserIds.${i}`, issue: 'assignee_not_found' }]);
+      }
       if ((await requestsRepo.listOpenForRevision(revision.brandId, revision.id, tx)).length)
         throw new ValidationFailedError([{ path: 'contentRevisionId', issue: 'request_already_open' }]);
       const brand = await brandService.get(actor, revision.brandId, tx);

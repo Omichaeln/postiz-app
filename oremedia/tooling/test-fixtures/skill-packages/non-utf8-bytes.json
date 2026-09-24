@@ -1,0 +1,16 @@
+{
+  "id": "skill_pkg_non_utf8_bytes",
+  "attack": "encoding",
+  "files": [
+    {
+      "path": "references/latin1.md",
+      "contentBase64": "Q2Fm6SBjcuhtZSD//gBiaW5hcnk="
+    }
+  ],
+  "expected": [
+    {
+      "path": "references/latin1.md",
+      "issue": "not_utf8_text"
+    }
+  ]
+}

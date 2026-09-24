@@ -52,3 +52,20 @@ export const registerExperimentArmLinks = (links: ExperimentArmLinks | null): vo
   armLinks = links;
 };
 export const experimentArmLinks = (): ExperimentArmLinks | null => armLinks;
+
+/**
+ * Spec 5.3 / 16.4: a recommendation an experiment is designed from must belong to the same tenant and brand. The
+ * intelligence module owns recommendations, so the composition root registers the lookup; unregistered, an
+ * experiment that names a recommendation is refused (never stored as a dangling reference).
+ */
+export type RecommendationResolver = (recommendationId: string, brandId: string, tx: Tx) => Promise<boolean>;
+let recommendationResolver: RecommendationResolver | null = null;
+export const registerRecommendationResolver = (fn: RecommendationResolver | null): void => {
+  recommendationResolver = fn;
+};
+export const recommendationBelongsToBrand = async (
+  recommendationId: string,
+  brandId: string,
+  tx: Tx,
+): Promise<boolean> =>
+  recommendationResolver ? recommendationResolver(recommendationId, brandId, tx) : false;

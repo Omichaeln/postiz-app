@@ -8,7 +8,10 @@ export {
   allElementIds,
   findElement,
   OperationError,
+  SlotConstraintError,
+  validateSlotBindings,
   type ReduceContext,
+  type SlotFinding,
   type TemplateDocument,
 } from './reduce';
 export { guardProtected, guardLogoInsertion } from './guard';

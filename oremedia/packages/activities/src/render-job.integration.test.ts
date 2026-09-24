@@ -640,6 +640,57 @@ describe('render job activities (MockActivityEnvironment against MySQL)', () => 
     expect(mem.keys().length).toBe(before);
   });
 
+  it('an asset version whose bytes were replaced after pinning fails the render with RenderIntegrityError and writes no export (spec 18)', async () => {
+    const swapped = await seedAsset({
+      key: 'swapped',
+      tenantId: tenantA,
+      brandId: brandA,
+      kind: 'photo',
+      rights: true,
+      bytes: tinyPng(8, 8, 4),
+    });
+    const doc = studioDocument(brandVersionA, { ...refs(), photo: swapped });
+    const { renderJobId } = seedRevision(tenantA, brandA, doc, ['square_1080']);
+    const input = inputFor(ownerA, tenantA, renderJobId);
+    const begun = await run(acts.beginRender, input);
+    const resolved = (await run(acts.resolveRenderInputs, { ...input, ...begun })) as RenderResolveSuccess;
+    const pinned = resolved.assets.find((a) => a.assetVersionId === swapped)!;
+    expect(pinned.contentHash).toBe(seeded['swapped']!.contentHash);
+    // Between pinning and drawing, the object behind the pinned version is overwritten (a compromised store or a
+    // bucket write outside the upload path): same key, same size class, different bytes.
+    const { runInTenant } = await import('@oremedia/db');
+    await runInTenant(
+      { tenantId: tenantA, actor: { kind: 'user', id: ownerA }, brandIds: 'all', correlationId: 'swap' },
+      () => mem.putObject(pinned.storageKey, tinyPng(8, 8, 99), { contentType: 'image/png' }),
+    );
+    const keysBefore = mem.keys().length;
+    const callsBefore = renderer.calls.length;
+    const err = await run(acts.renderFormat, {
+      ...input,
+      ...begun,
+      brandVersionId: resolved.brandVersionId,
+      target: resolved.targets[0]!,
+      fonts: resolved.fonts,
+      assets: resolved.assets,
+      rendererVersion: resolved.rendererVersion,
+    }).then(
+      () => new Error('rendered with replaced bytes'),
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(RenderIntegrityError);
+    expect((err as RenderIntegrityError).details?.[0]?.path).toBe(pinned.storageKey);
+    // The renderer never saw the replaced bytes and nothing was stored under the exports prefix.
+    expect(renderer.calls.length).toBe(callsBefore);
+    expect(mem.keys().length).toBe(keysBefore);
+    expect(mem.keys().some((k) => k.includes(`/exports/${begun.revisionId}/${renderJobId}/`))).toBe(false);
+    // renderJobWorkflowV1 maps the non-retryable RenderIntegrityError to export_integrity and fails the job.
+    await run(acts.failRender, { ...input, reason: 'export_integrity', detail: (err as Error).message });
+    const job = store.jobs.get(renderJobId)!;
+    expect(job.state).toBe('failed');
+    expect(job.error).toMatch(/^export_integrity: /);
+    expect(job.exports).toEqual([]);
+  });
+
   it('a format no page carries fails with format_not_in_document only when nothing can be reflowed', async () => {
     const doc = studioDocument(brandVersionA, refs());
     expect(resolveTargets(doc, ['x_1600x900'])).toEqual({

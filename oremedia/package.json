@@ -19,7 +19,7 @@
     "test:cross-tenant": "vitest run --project cross-tenant",
     "test:all": "vitest run",
     "check:schema": "tsx tooling/scripts/check-schema-tenancy.ts",
-    "check:boundaries": "eslint . --max-warnings=0 --rule '{\"boundaries/element-types\": \"error\"}'",
+    "check:boundaries": "eslint . --max-warnings=0",
     "check:secrets": "tsx tooling/scripts/check-secrets.ts",
     "check:openapi": "tsx tooling/scripts/check-openapi-diff.ts",
     "db:generate": "pnpm --filter @oremedia/db db:generate",
