@@ -484,6 +484,11 @@ const toExportDto = (e: ExportRow) => ({
   createdAt: e.createdAt.toISOString(),
 });
 const exportIdsOf = (j: RenderJobRow) => StringList.parse(j.exportIds ?? []);
+/** Exports in the order the worker recorded them (render_jobs.export_ids): ids minted in the same millisecond do not sort by time. */
+const orderedExports = (exportIds: readonly string[], exports: ExportRow[]) => {
+  const byId = new Map(exports.map((e) => [e.id, e]));
+  return exportIds.map((id) => byId.get(id)).filter((e): e is ExportRow => e !== undefined);
+};
 const toRenderJobDto = (j: RenderJobRow, exports: ExportRow[]) => ({
   id: j.id,
   brandId: j.brandId,
@@ -495,7 +500,7 @@ const toRenderJobDto = (j: RenderJobRow, exports: ExportRow[]) => ({
   requestedByKind: j.requestedByKind,
   requestedById: j.requestedById,
   exportIds: exportIdsOf(j),
-  exports: exports.map(toExportDto),
+  exports: orderedExports(exportIdsOf(j), exports).map(toExportDto),
   createdAt: j.createdAt.toISOString(),
   updatedAt: j.updatedAt.toISOString(),
   version: j.version,
