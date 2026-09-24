@@ -46,6 +46,9 @@ export function startTelemetry(opts: TelemetryOptions): Logger {
           delete event.request.cookies;
           delete event.request.data;
           delete event.request.headers;
+          // Query strings can carry tokens (reviewer links, API keys); keep the path only.
+          delete event.request.query_string;
+          if (event.request.url) event.request.url = event.request.url.split('?')[0];
         }
         return event;
       },
