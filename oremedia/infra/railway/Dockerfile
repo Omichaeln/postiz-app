@@ -27,7 +27,10 @@ RUN rm -rf node_modules apps/*/node_modules packages/*/node_modules packages/mod
 FROM base AS runtime
 ARG OREMEDIA_APP=api
 ENV NODE_ENV=production OREMEDIA_SERVICE=oremedia-${OREMEDIA_APP}
-RUN groupadd -r oremedia && useradd -r -g oremedia -d /app oremedia
+RUN groupadd -r oremedia && useradd -r -g oremedia -d /app oremedia \
+  # The runtime never installs packages: npm and corepack are removed (least privilege; their bundled
+  # dependencies are what the container scan otherwise flags).
+  && rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 WORKDIR /app
 COPY --from=build --chown=oremedia:oremedia /src/node_modules ./node_modules
 COPY --from=build --chown=oremedia:oremedia /src/apps/${OREMEDIA_APP}/dist ./dist

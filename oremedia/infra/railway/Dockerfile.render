@@ -21,6 +21,9 @@ RUN rm -rf node_modules apps/*/node_modules packages/*/node_modules packages/mod
 
 FROM base AS runtime
 ENV NODE_ENV=production OREMEDIA_SERVICE=oremedia-worker-render
+# The runtime never installs packages: npm and corepack are removed (least privilege; their bundled dependencies
+# are what the container scan otherwise flags).
+RUN rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 WORKDIR /app
 COPY --from=build --chown=pwuser:pwuser /src/node_modules ./node_modules
 COPY --from=build --chown=pwuser:pwuser /src/apps/worker-render/dist ./dist
