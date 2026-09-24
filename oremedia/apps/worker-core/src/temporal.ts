@@ -10,6 +10,8 @@ export interface TemporalConfig {
   /** mTLS: paths of the PEM files the platform mounts from the secret references (Appendix A). */
   tlsCertPath?: string;
   tlsKeyPath?: string;
+  /** Server-side TLS without client certificates (TEMPORAL_TLS=1). */
+  tls?: boolean;
 }
 
 /** Appendix A names only; values come from the secret manager. Missing address is a startup error, never a default. */
@@ -20,6 +22,7 @@ export function temporalConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Tem
   if (env['TEMPORAL_API_KEY']) cfg.apiKey = env['TEMPORAL_API_KEY'];
   if (env['TEMPORAL_TLS_CERT_REF']) cfg.tlsCertPath = env['TEMPORAL_TLS_CERT_REF'];
   if (env['TEMPORAL_TLS_KEY_REF']) cfg.tlsKeyPath = env['TEMPORAL_TLS_KEY_REF'];
+  if (env['TEMPORAL_TLS'] === '1') cfg.tls = true;
   return cfg;
 }
 
@@ -32,6 +35,8 @@ export async function connectTemporal(cfg: TemporalConfig): Promise<Client> {
     options.tls = {
       clientCertPair: { crt: await readFile(cfg.tlsCertPath), key: await readFile(cfg.tlsKeyPath) },
     };
+  } else if (cfg.tls) {
+    options.tls = true;
   }
   const connection = await Connection.connect(options);
   return new Client({ connection, namespace: cfg.namespace });

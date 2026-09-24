@@ -486,6 +486,7 @@ const toExportDto = (e: ExportRow) => ({
 const exportIdsOf = (j: RenderJobRow) => StringList.parse(j.exportIds ?? []);
 const toRenderJobDto = (j: RenderJobRow, exports: ExportRow[]) => ({
   id: j.id,
+  brandId: j.brandId,
   revisionId: j.revisionId,
   formatKeys: StringList.parse(j.formatKeys),
   state: j.state,

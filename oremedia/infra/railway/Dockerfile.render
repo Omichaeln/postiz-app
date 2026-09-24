@@ -15,7 +15,9 @@ COPY apps ./apps
 COPY packages ./packages
 COPY tooling ./tooling
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
-RUN pnpm --filter @oremedia/worker-render build
+# The render-only bundle of the shared Konva scene (spec 11.5) is built first; the worker build copies it beside
+# the workflow bundles and fails loudly if it is missing.
+RUN pnpm --filter @oremedia/editor build:renderer && pnpm --filter @oremedia/worker-render build
 RUN rm -rf node_modules apps/*/node_modules packages/*/node_modules packages/modules/*/node_modules tooling/*/node_modules \
   && pnpm install --prod --frozen-lockfile --filter "@oremedia/worker-render..." --config.node-linker=hoisted
 

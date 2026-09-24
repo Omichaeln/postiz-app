@@ -751,7 +751,7 @@
           "critical",
           "9.2",
           "in_progress",
-          "assetService.authoriseUse re-runs evaluateEligibility (version_not_current, state_not_approved, rights_expired, rights_unknown, kind_incompatible, channel/territory/brand_not_permitted → RightsIneligibleError) — verified. Open: the render (Phase 3) and dispatch (Phase 5) callers, and the expiring-rights review flag."
+          "authoriseUse re-runs evaluateEligibility at apply (creative module, by purpose) and at render (activities/render-job.ts pins every font and asset version through authoriseUse; an ineligible asset fails the job with rights_ineligible and writes no export). Open: the dispatch caller (Phase 5) and the expiring-rights review flag."
         ],
         [
           "2.25",
@@ -813,8 +813,8 @@
         [
           "3.g4",
           "The export file approved in review is byte-identical (same hash) to the file handed to the provider",
-          "open",
-          ""
+          "in_progress",
+          "Export hash = sha256 of the stored bytes, re-verified on read; the same revision renders byte-identically (golden and e2e tests). The remaining half — the approved export being the exact file handed to the provider — is the Phase 5 release path (approval binding + dispatch)."
         ]
       ],
       "items": [
@@ -912,32 +912,32 @@
           "Render worker: headless Chromium, render-only bundle of the same renderer, pinned fonts, manifest, PNG/JPEG/PDF",
           "production",
           "11.5",
-          "open",
-          ""
+          "complete",
+          "packages/editor/src/renderer (scene.ts is the one Konva scene builder for studio and worker; entry.ts exposes window.__oremediaRender; version.ts pins RENDERER_VERSION) bundled by tsup to renderer.iife.js (454 KB). apps/worker-render/src/chromium-renderer.ts loads it in headless Chromium with fonts and assets injected as data URLs from the object store; resolveRenderInputs builds the manifest (renderer version, every font and asset version with its sha256) and renderFormat re-hashes every input against it (RenderIntegrityError on mismatch). Integration: worker e2e 4/4, activities 7/7."
         ],
         [
           "3.14",
           "Deterministic render checks: overflow, missing font/asset, logo distortion > 0.5 %, clear space, min size, contrast AA, safe areas, size/dimension limits",
           "production",
           "11.5",
-          "open",
-          ""
+          "complete",
+          "packages/editor/src/checks.ts runRenderChecks: text overflow (measured), missing font/asset/colour, logo distortion > 0.5 %, logo clear space and minimum size (reused from validateAgainstBrand), contrast against the computed background (WCAG AA; contrast_unverified over images), safe area from measured rotated boxes, format mismatch, dimension and file-size limits (optional provider limits). checks.test.ts (9). Provider limits are wired at dispatch (Phase 5)."
         ],
         [
           "3.15",
           "Render isolation: no credentials, egress only to object store, per-job limits, fresh browser context",
           "critical",
           "11.5",
-          "open",
-          ""
+          "complete",
+          "Fresh offline browser context per render with every route aborted (no egress; inputs are data URLs), no credentials in the worker, RENDER_CONCURRENCY / MEDIA_CONCURRENCY, hard per-job timeout (RENDER_TIMEOUT_MS) and maxEdgePx; worker-render hosts the render and media queues only. Network isolation at the platform layer is documented in infra/railway/README.md and the runbook."
         ],
         [
           "3.16",
           "Golden renders: two fixture brands with different scripts/fonts; ≤ 0.1 % pixel difference",
           "production",
           "19.5",
-          "open",
-          ""
+          "complete",
+          "Two fixture brands with different scripts and pinned OFL fonts (Karla Latin; Noto Naskh Arabic RTL) covering wrapping, justify, RTL, transparency, rotation, crop and masks, a 4000×3000 image with focal point; committed goldens in tooling/test-fixtures/golden. golden.integration.test.ts: worker vs golden 0.0000 % differing pixels for both, web path (bundle on a visible stage, Playwright screenshot) vs worker export 0.0000 %, byte-identical PNGs in two fresh contexts (hash stability). Per-channel tolerance 2 implemented faithfully. CJK fixture deferred (Noto Sans SC exceeds the fixture size budget)."
         ],
         [
           "3.17",
@@ -1794,7 +1794,7 @@
           "production",
           "17.1",
           "complete",
-          "infra/railway/Dockerfile (parameterised OREMEDIA_APP; Node 22.22.2; OS updates; tsup bundle with workspace packages inlined and third-party external; flat production install; migrations shipped beside the bundle; npm/corepack removed from the runtime), Dockerfile.render (Playwright 1.63 image, same layout), Dockerfile.web (Vite build served by Caddy). API image built and scanned clean in CI run 10; locally the bundle boots, serves /health and applies all migrations on MySQL 8."
+          "infra/railway/Dockerfile (parameterised OREMEDIA_APP; Node 22.22.2; OS updates; tsup bundle with workspace packages inlined and third-party external; flat production install; migrations shipped beside the bundle; npm/corepack removed from the runtime), Dockerfile.render (Playwright 1.63 image; builds the renderer bundle then the worker with pre-bundled render/media workflow code; same runtime layout), Dockerfile.web (Vite build served by Caddy). API image built and scanned clean in CI; the API bundle boots and migrates locally; the render worker bundle starts its config gate before loading dependencies."
         ],
         [
           "R.2",
